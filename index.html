@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的杂货店库存</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f2ee; --surface: #ffffff; --surface2: #f0ede8; --border: #e2ddd7;
+    --text: #1a1814; --text2: #6b6560; --text3: #9e9890;
+    --green: #2d6a4f; --green-bg: #d8f3dc;
+    --blue: #1a5276; --blue-bg: #d6eaf8;
+    --amber: #7d4e00; --amber-bg: #fef3cd;
+    --red: #922b21; --red-bg: #fadbd8;
+    --radius: 12px; --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 50; }
+  .topbar-title { font-size: 16px; font-weight: 600; flex: 1; }
+  .sync-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #4caf50; transition: background 0.3s; }
+  .sync-dot.busy { background: #ff9800; animation: blink 0.7s infinite; }
+  .sync-dot.err { background: #f44336; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; }
+  .tab { padding: 14px 18px; font-size: 14px; font-weight: 500; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
+  .tab.active { color: var(--text); border-bottom-color: var(--text); }
+
+  .page { display: none; padding: 16px; max-width: 600px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+  .card-title { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
+
+  .metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 12px; }
+  .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
+  .metric-val { font-size: 22px; font-weight: 600; color: var(--text); font-family: 'DM Mono', monospace; }
+  .metric-lbl { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  .form-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .form-row:last-child { margin-bottom: 0; }
+  .form-row label { font-size: 13px; color: var(--text2); min-width: 72px; }
+  input[type=text], input[type=number], select {
+    flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 14px; font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text);
+    outline: none; transition: border-color 0.2s;
+  }
+  input:focus, select:focus { border-color: var(--text); }
+
+  .btn { padding: 9px 16px; font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; background: var(--surface); color: var(--text); transition: all 0.15s; white-space: nowrap; }
+  .btn:hover { background: var(--surface2); }
+  .btn:active { transform: scale(0.97); }
+  .btn-block { width: 100%; margin-top: 8px; background: var(--text); color: #fff; border-color: var(--text); }
+  .btn-block:hover { opacity: 0.85; background: var(--text); }
+  .btn-danger { color: var(--red); border-color: #f1aaa5; }
+  .btn-success { color: var(--green); border-color: #a3d9b1; }
+  .btn-scan { background: var(--blue-bg); color: var(--blue); border-color: #a9cce3; padding: 9px 14px; flex-shrink: 0; }
+  .btn-scan:hover { background: #c2d9ea; }
+
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+  .badge-home { background: var(--green-bg); color: var(--green); }
+  .badge-shop { background: var(--blue-bg); color: var(--blue); }
+  .badge-warn { background: var(--amber-bg); color: var(--amber); }
+  .badge-done { background: var(--green-bg); color: var(--green); }
+  .badge-cancel { background: var(--red-bg); color: var(--red); }
+  .badge-barcode { background: var(--surface2); color: var(--text3); font-family: 'DM Mono', monospace; font-size: 10px; }
+
+  .item-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .item-row:last-child { border-bottom: none; }
+  .item-info { flex: 1; min-width: 0; }
+  .item-name { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .stock-row { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
+  .stock-chip { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  .stock-num { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: var(--text); }
+  .stock-sep { color: var(--text3); font-size: 12px; }
+  .item-actions { display: flex; flex-direction: column; gap: 4px; }
+
+  .order-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .order-row:last-child { border-bottom: none; }
+  .order-info { flex: 1; min-width: 0; }
+  .order-name { font-size: 14px; font-weight: 500; }
+  .order-detail { font-size: 12px; color: var(--text2); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .order-actions { display: flex; gap: 5px; flex-shrink: 0; flex-direction: column; }
+  .order-items-list { margin-top: 5px; }
+  .order-items-list li { list-style: none; font-size: 12px; color: var(--text2); padding: 1px 0; }
+
+  .ov-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .ov-item:last-child { border-bottom: none; }
+  .ov-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .ov-name { font-size: 13px; font-weight: 500; }
+  .ov-nums { font-size: 12px; color: var(--text2); font-family: 'DM Mono', monospace; }
+  .progress { background: var(--surface2); border-radius: 4px; height: 5px; overflow: hidden; }
+  .progress-bar { height: 100%; border-radius: 4px; transition: width 0.4s; }
+
+  .empty { text-align: center; color: var(--text3); font-size: 13px; padding: 2rem 0; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius); padding: 20px; width: 100%; max-width: 360px; }
+  .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+  .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+  /* SCAN MODAL */
+  .scan-subtitle { font-size: 13px; color: var(--text2); margin-bottom: 14px; }
+  #scanner-container { width: 100%; border-radius: var(--radius-sm); overflow: hidden; background: #000; position: relative; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+  #scanner-container video { width: 100%; display: block; }
+  #scanner-container canvas { display: none; }
+  .scan-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .scan-frame { width: 70%; height: 50%; border: 2px solid rgba(255,255,255,0.7); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.35); position: relative; }
+  .scan-line { position: absolute; left: 0; right: 0; height: 2px; background: rgba(59,130,246,0.8); top: 50%; animation: scanline 1.8s ease-in-out infinite; }
+  @keyframes scanline { 0%,100%{ top:10%; opacity:1; } 50%{ top:90%; opacity:0.7; } }
+  .scan-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--text2); min-height: 20px; }
+  .scan-status.found { color: var(--green); font-weight: 600; }
+  .scan-status.error { color: var(--red); }
+  .manual-barcode-row { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+  .manual-barcode-row input { flex: 1; }
+
+  /* CART */
+  .divider { height: 1px; background: var(--border); margin: 14px 0; }
+  .cart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .cart-label { font-size: 13px; font-weight: 600; color: var(--text2); }
+  .cart-count { font-size: 12px; color: var(--text3); }
+  .cart-empty { font-size: 13px; color: var(--text3); text-align: center; padding: 14px; border: 1px dashed var(--border); border-radius: var(--radius-sm); }
+  .cart-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 6px; }
+  .cart-item-name { flex: 1; font-size: 13px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cart-qty-wrap { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .cart-qty-wrap label { font-size: 12px; color: var(--text2); }
+  .cart-qty-wrap input { width: 54px; flex: none; text-align: center; padding: 5px 6px; font-size: 13px; }
+  .cart-remove { background: none; border: none; color: var(--text3); font-size: 16px; cursor: pointer; padding: 2px 5px; line-height: 1; flex-shrink: 0; }
+  .cart-remove:hover { color: var(--red); }
+
+  .barcode-input-wrap { flex: 1; display: flex; gap: 6px; }
+  .barcode-input-wrap input { flex: 1; }
+
+  #loading { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 999; }
+  #loading p { font-size: 14px; color: var(--text2); }
+  .spinner { width: 28px; height: 28px; border: 2px solid var(--border); border-top-color: var(--text); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>连接中...</p>
+</div>
+
+<div id="app" style="display:none">
+  <div class="topbar">
+    <div class="topbar-title">🛒 杂货店库存</div>
+    <div class="sync-indicator">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-msg">已连接</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('stock',this)">库存</div>
+    <div class="tab" onclick="switchTab('orders',this)">订单</div>
+    <div class="tab" onclick="switchTab('overview',this)">总览</div>
+  </div>
+
+  <!-- STOCK PAGE -->
+  <div id="page-stock" class="page active">
+    <div class="metrics">
+      <div class="metric"><div class="metric-val" id="m-total">0</div><div class="metric-lbl">商品种类</div></div>
+      <div class="metric"><div class="metric-val" id="m-home">0</div><div class="metric-lbl">家里</div></div>
+      <div class="metric"><div class="metric-val" id="m-shop">0</div><div class="metric-lbl">店里</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">添加商品</div>
+      <div class="form-row"><label>商品名</label><input type="text" id="new-name" placeholder="例：糖果 Mamee"></div>
+      <div class="form-row">
+        <label>Barcode</label>
+        <div class="barcode-input-wrap">
+          <input type="text" id="new-barcode" placeholder="扫描或手动输入">
+          <button class="btn btn-scan" onclick="openScanModal('add')">📷 扫</button>
+        </div>
+      </div>
+      <div class="form-row"><label>家里数量</label><input type="number" id="new-home" min="0" value="0"></div>
+      <div class="form-row"><label>店里数量</label><input type="number" id="new-shop" min="0" value="0"></div>
+      <div class="form-row"><label>低库存警告</label><input type="number" id="new-threshold" min="0" value="10"></div>
+      <button class="btn btn-block" onclick="addItem()">+ 添加商品</button>
+    </div>
+    <div class="card">
+      <div class="card-title">库存列表</div>
+      <div id="item-list"><div class="empty">还没有商品，先添加吧</div></div>
+    </div>
+  </div>
+
+  <!-- ORDERS PAGE -->
+  <div id="page-orders" class="page">
+    <div class="card">
+      <div class="card-title">新增订单</div>
+
+      <div class="form-row"><label>顾客名/电话</label><input type="text" id="o-customer" placeholder="顾客名字或电话"></div>
+      <div class="form-row"><label>取货地点</label><input type="text" id="o-location" placeholder="例：店里、家里、XX路"></div>
+      <div class="form-row">
+        <label>扣库存从</label>
+        <select id="o-deduct">
+          <option value="home">家里库存</option>
+          <option value="shop">店里库存</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Scan -->
+      <div class="form-row">
+        <label>扫描商品</label>
+        <div class="barcode-input-wrap">
+          <input type="text" id="o-barcode-input" placeholder="扫描 barcode 加入购物车" oninput="onBarcodeTyped(this.value)">
+          <button class="btn btn-scan" onclick="openScanModal('order')">📷 扫</button>
+        </div>
+      </div>
+
+      <!-- CART -->
+      <div class="cart-header">
+        <span class="cart-label">🛒 购物车</span>
+        <span class="cart-count" id="cart-count">共 0 项</span>
+      </div>
+      <div id="cart-list"><div class="cart-empty">还没有商品，请扫描 barcode 添加</div></div>
+
+      <button class="btn btn-block" onclick="addOrder()">+ 下单（自动扣库存）</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">待取货付款</div>
+      <div id="pending-list"><div class="empty">暂无待取货</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">历史记录</div>
+      <div id="done-list"><div class="empty">暂无历史记录</div></div>
+    </div>
+  </div>
+
+  <!-- OVERVIEW PAGE -->
+  <div id="page-overview" class="page">
+    <div class="card">
+      <div class="card-title">⚠ 低库存提醒</div>
+      <div id="warn-list"><div class="empty">所有库存充足 ✓</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">库存总览</div>
+      <div id="ov-list"><div class="empty">还没有商品</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADJUST MODAL -->
+<div class="modal-overlay" id="adj-modal">
+  <div class="modal">
+    <h3 id="adj-title">调整库存</h3>
+    <div class="form-row"><label>家里</label><input type="number" id="adj-home" min="0"></div>
+    <div class="form-row"><label>店里</label><input type="number" id="adj-shop" min="0"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAdj()">取消</button>
+      <button class="btn btn-block" style="width:auto;margin:0" onclick="saveAdj()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCAN MODAL -->
+<div class="modal-overlay" id="scan-modal">
+  <div class="modal" style="max-width:420px">
+    <h3>📷 扫描 Barcode</h3>
+    <p class="scan-subtitle">将商品条形码对准摄像头，自动识别</p>
+    <div id="scanner-container">
+      <div class="scan-overlay">
+        <div class="scan-frame"><div class="scan-line"></div></div>
+      </div>
+    </div>
+    <div class="scan-status" id="scan-status">正在启动摄像头...</div>
+    <div class="manual-barcode-row">
+      <input type="text" id="manual-barcode" placeholder="或手动输入 barcode">
+      <button class="btn" onclick="confirmManualBarcode()">确认</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" onclick="closeScanModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://zyeyhyfdjtgmoocdjgcg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5ZXloeWZkanRnbW9vY2RqZ2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3NTAxMjIsImV4cCI6MjA5MDMyNjEyMn0.9W1f4KWxj82J8cgD1oPEmMfpqcFe11an9v9-ybjV-Sw';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let items = [], orders = [], adjId = null;
+let scanTarget = null, scannerRunning = false;
+// cart: [{ item: {...}, qty: number }]
+let cart = [];
+
+function setSync(state, msg) {
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot' + (state==='busy'?' busy':state==='err'?' err':'');
+  document.getElementById('sync-msg').textContent = msg;
+}
+
+async function init() {
+  try {
+    await loadItems(); await loadOrders();
+    subscribeRealtime();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    setSync('ok','已同步');
+  } catch(e) {
+    document.getElementById('loading').querySelector('p').textContent = '连接失败，请刷新页面';
+  }
+}
+
+async function loadItems() {
+  const { data, error } = await sb.from('items').select('*').order('created_at');
+  if(error) throw error;
+  items = data || []; renderItems();
+}
+
+async function loadOrders() {
+  const { data, error } = await sb.from('orders').select('*').order('created_at', {ascending:false});
+  if(error) throw error;
+  orders = data || []; renderOrders();
+}
+
+function subscribeRealtime() {
+  sb.channel('db-changes')
+    .on('postgres_changes', {event:'*', schema:'public', table:'items'}, async()=>{ await loadItems(); setSync('ok','已同步 · '+timeNow()); })
+    .on('postgres_changes', {event:'*', schema:'public', table:'orders'}, async()=>{ await loadOrders(); setSync('ok','已同步 · '+timeNow()); })
+    .subscribe((status)=>{
+      if(status==='SUBSCRIBED') setSync('ok','实时同步已开启');
+      else if(status==='CLOSED') setSync('err','连接断开，请刷新');
+    });
+}
+
+function timeNow() { return new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
+
+function switchTab(t, el) {
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('page-'+t).classList.add('active');
+  if(t==='orders') loadOrders();
+  if(t==='overview') renderOverview();
+}
+
+// ── STOCK ──────────────────────────────────────────────────────────
+async function addItem() {
+  const name = document.getElementById('new-name').value.trim();
+  if(!name) { alert('请输入商品名'); return; }
+  const barcode = document.getElementById('new-barcode').value.trim();
+  if(barcode) {
+    const dup = items.find(i => i.barcode && i.barcode === barcode);
+    if(dup) { alert('这个 barcode 已被 "' + dup.name + '" 使用，请检查！'); return; }
+  }
+  setSync('busy','保存中...');
+  const { error } = await sb.from('items').insert({
+    name, barcode: barcode||null,
+    home_qty: +document.getElementById('new-home').value||0,
+    shop_qty: +document.getElementById('new-shop').value||0,
+    threshold: +document.getElementById('new-threshold').value||10
+  });
+  if(error) { alert('添加失败：'+error.message); setSync('err','保存失败'); return; }
+  document.getElementById('new-name').value='';
+  document.getElementById('new-barcode').value='';
+  document.getElementById('new-home').value=0;
+  document.getElementById('new-shop').value=0;
+}
+
+function renderItems() {
+  updateMetrics();
+  const el = document.getElementById('item-list');
+  if(!items.length) { el.innerHTML='<div class="empty">还没有商品，先添加吧</div>'; return; }
+  el.innerHTML = items.map(it => {
+    const total = it.home_qty + it.shop_qty;
+    const warn = total <= it.threshold ? '<span class="badge badge-warn">低库存</span>' : '';
+    const bc = it.barcode ? `<span class="badge badge-barcode">🔖 ${it.barcode}</span>` : '';
+    return `<div class="item-row">
+      <div class="item-info">
+        <div class="item-name">${it.name} ${warn}</div>
+        <div class="stock-row">
+          <div class="stock-chip"><span class="badge badge-home">家里</span><span class="stock-num">${it.home_qty}</span></div>
+          <span class="stock-sep">+</span>
+          <div class="stock-chip"><span class="badge badge-shop">店里</span><span class="stock-num">${it.shop_qty}</span></div>
+          <span class="stock-sep">=</span>
+          <span class="stock-num">${total}</span>
+          ${bc}
+        </div>
+      </div>
+      <div class="item-actions">
+        <button class="btn" style="font-size:12px;padding:5px 10px" onclick="openAdj('${it.id}')">调整</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:5px 10px" onclick="delItem('${it.id}')">删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateMetrics() {
+  document.getElementById('m-total').textContent = items.length;
+  document.getElementById('m-home').textContent = items.reduce((s,i)=>s+i.home_qty,0);
+  document.getElementById('m-shop').textContent = items.reduce((s,i)=>s+i.shop_qty,0);
+}
+
+async function delItem(id) {
+  const it = items.find(i=>i.id===id);
+  if(!confirm('删除 '+it.name+'？')) return;
+  setSync('busy','删除中...');
+  await sb.from('items').delete().eq('id',id);
+}
+
+function openAdj(id) {
+  const it = items.find(i=>i.id===id);
+  adjId = id;
+  document.getElementById('adj-title').textContent = '调整库存：'+it.name;
+  document.getElementById('adj-home').value = it.home_qty;
+  document.getElementById('adj-shop').value = it.shop_qty;
+  document.getElementById('adj-modal').classList.add('open');
+}
+function closeAdj() { document.getElementById('adj-modal').classList.remove('open'); }
+async function saveAdj() {
+  setSync('busy','保存中...');
+  await sb.from('items').update({
+    home_qty: +document.getElementById('adj-home').value||0,
+    shop_qty: +document.getElementById('adj-shop').value||0
+  }).eq('id', adjId);
+  closeAdj();
+}
+
+// ── CART ───────────────────────────────────────────────────────────
+function addToCart(item) {
+  const existing = cart.find(c => c.item.id === item.id);
+  if(existing) { existing.qty += 1; }
+  else { cart.push({ item, qty: 1 }); }
+  renderCart();
+}
+
+function removeFromCart(itemId) {
+  cart = cart.filter(c => c.item.id !== itemId);
+  renderCart();
+}
+
+function updateCartQty(itemId, val) {
+  const entry = cart.find(c => c.item.id === itemId);
+  if(entry) entry.qty = Math.max(1, parseInt(val)||1);
+  document.getElementById('cart-count').textContent = '共 ' + cart.length + ' 项';
+}
+
+function renderCart() {
+  const el = document.getElementById('cart-list');
+  document.getElementById('cart-count').textContent = '共 ' + cart.length + ' 项';
+  if(!cart.length) {
+    el.innerHTML = '<div class="cart-empty">还没有商品，请扫描 barcode 添加</div>';
+    return;
+  }
+  el.innerHTML = cart.map(c => `
+    <div class="cart-item">
+      <div class="cart-item-name">${c.item.name}</div>
+      <div class="cart-qty-wrap">
+        <label>数量</label>
+        <input type="number" min="1" value="${c.qty}"
+          oninput="updateCartQty('${c.item.id}', this.value)"
+          onchange="updateCartQty('${c.item.id}', this.value)">
+      </div>
+      <button class="cart-remove" onclick="removeFromCart('${c.item.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+function clearCart() {
+  cart = [];
+  renderCart();
+  document.getElementById('o-barcode-input').value = '';
+}
+
+function onBarcodeTyped(val) {
+  val = val.trim();
+  if(!val) return;
+  const found = items.find(i => i.barcode && i.barcode === val);
+  if(found) {
+    addToCart(found);
+    setTimeout(() => { document.getElementById('o-barcode-input').value = ''; }, 100);
+  }
+}
+
+// ── ORDER ──────────────────────────────────────────────────────────
+async function addOrder() {
+  const customer = document.getElementById('o-customer').value.trim();
+  if(!customer) { alert('请输入顾客名或电话'); return; }
+  if(!cart.length) { alert('购物车是空的，请先扫描商品'); return; }
+  const loc = document.getElementById('o-location').value.trim();
+  if(!loc) { alert('请输入取货地点'); return; }
+  const deduct = document.getElementById('o-deduct').value;
+
+  // Validate stock for all items
+  for(const c of cart) {
+    const item = items.find(i => i.id === c.item.id);
+    if(!item) { alert('商品 "' + c.item.name + '" 找不到，请刷新'); return; }
+    const avail = deduct==='home' ? item.home_qty : item.shop_qty;
+    if(avail < c.qty) {
+      alert((deduct==='home'?'家里':'店里') + ' 库存不足！\n"' + item.name + '" 只剩 ' + avail + ' 个，你下了 ' + c.qty + ' 个');
+      return;
+    }
+  }
+
+  setSync('busy','下单中...');
+
+  for(const c of cart) {
+    const item = items.find(i => i.id === c.item.id);
+    const updateQty = deduct==='home' ? {home_qty: item.home_qty - c.qty} : {shop_qty: item.shop_qty - c.qty};
+    const { error: e1 } = await sb.from('items').update(updateQty).eq('id', item.id);
+    if(e1) { alert('下单失败：' + item.name); setSync('err','失败'); return; }
+    // Update local copy to avoid double-deduct
+    if(deduct==='home') item.home_qty -= c.qty; else item.shop_qty -= c.qty;
+    await sb.from('orders').insert({
+      customer, item_id: item.id, item_name: item.name,
+      qty: c.qty, location: loc, deduct_from: deduct, status: 'pending'
+    });
+  }
+
+  document.getElementById('o-customer').value='';
+  document.getElementById('o-location').value='';
+  clearCart();
+  setSync('ok','下单成功 · '+timeNow());
+}
+
+function renderOrders() {
+  const pending = orders.filter(o=>o.status==='pending');
+  const done = orders.filter(o=>o.status!=='pending');
+  const pEl = document.getElementById('pending-list');
+  const dEl = document.getElementById('done-list');
+  if(!pEl) return;
+
+  // Group pending orders by customer + location + date (same order)
+  const grouped = {};
+  pending.forEach(o => {
+    const dt = new Date(o.created_at).toLocaleDateString('zh-CN');
+    // Group by customer + location + date (rounded to minute for same batch)
+    const minute = new Date(o.created_at).toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const key = o.customer + '||' + o.location + '||' + minute;
+    if(!grouped[key]) grouped[key] = { customer: o.customer, location: o.location, deduct_from: o.deduct_from, dt, orders: [] };
+    grouped[key].orders.push(o);
+  });
+
+  pEl.innerHTML = Object.values(grouped).length ? Object.values(grouped).map(g => {
+    const lb = `<span class="badge badge-shop">${g.location}</span>`;
+    const db = g.orders[0].deduct_from==='home' ? '<span class="badge badge-home">扣家里</span>' : '<span class="badge badge-shop">扣店里</span>';
+    const itemLines = g.orders.map(o => `<li>• ${o.item_name} × ${o.qty}</li>`).join('');
+    const ids = g.orders.map(o=>o.id).join(',');
+    return `<div class="order-row">
+      <div class="order-info">
+        <div class="order-name">${g.customer}</div>
+        <div class="order-detail">${lb} ${db} <span>${g.dt}</span></div>
+        <ul class="order-items-list">${itemLines}</ul>
+      </div>
+      <div class="order-actions">
+        <button class="btn btn-success" style="font-size:12px;padding:5px 8px" onclick="collectGroup('${ids}')">已取货付款</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:5px 8px" onclick="cancelGroup('${ids}')">取消</button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty">暂无待取货</div>';
+
+  dEl.innerHTML = done.length ? done.slice(0,30).map(o => {
+    const b = o.status==='collected' ? '<span class="badge badge-done">已取货</span>' : '<span class="badge badge-cancel">已取消</span>';
+    const dt = new Date(o.created_at).toLocaleDateString('zh-CN');
+    return `<div class="order-row">
+      <div class="order-info">
+        <div class="order-name">${o.customer} ${b}</div>
+        <div class="order-detail">${o.item_name} × ${o.qty} <span>${dt}</span></div>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty">暂无历史记录</div>';
+}
+
+async function collectGroup(idsStr) {
+  const ids = idsStr.split(',');
+  setSync('busy','更新中...');
+  for(const id of ids) await sb.from('orders').update({status:'collected'}).eq('id',id);
+}
+
+async function cancelGroup(idsStr) {
+  const ids = idsStr.split(',');
+  if(!confirm('取消这笔订单并归还所有库存？')) return;
+  setSync('busy','取消中...');
+  for(const id of ids) {
+    const o = orders.find(x=>x.id===id);
+    if(!o) continue;
+    const item = items.find(i=>i.id===o.item_id);
+    if(item) {
+      const restore = o.deduct_from==='shop' ? {shop_qty: item.shop_qty+o.qty} : {home_qty: item.home_qty+o.qty};
+      await sb.from('items').update(restore).eq('id', item.id);
+      if(o.deduct_from==='shop') item.shop_qty+=o.qty; else item.home_qty+=o.qty;
+    }
+    await sb.from('orders').update({status:'cancelled'}).eq('id',id);
+  }
+}
+
+function renderOverview() {
+  const low = items.filter(i=>(i.home_qty+i.shop_qty)<=i.threshold);
+  document.getElementById('warn-list').innerHTML = low.length ? low.map(it =>
+    `<div class="ov-item">
+      <div class="ov-header"><span class="ov-name">${it.name}</span><span style="font-size:12px;color:var(--amber)">剩余 ${it.home_qty+it.shop_qty} 个（警告线 ${it.threshold}）</span></div>
+    </div>`
+  ).join('') : '<div class="empty">所有库存充足 ✓</div>';
+
+  document.getElementById('ov-list').innerHTML = items.length ? items.map(it => {
+    const total = it.home_qty + it.shop_qty;
+    const pct = it.threshold > 0 ? Math.min(100, Math.round(total / it.threshold * 50)) : 100;
+    const bc = total <= it.threshold ? '#e67e22' : total <= it.threshold*2 ? '#27ae60' : '#2980b9';
+    return `<div class="ov-item">
+      <div class="ov-header">
+        <span class="ov-name">${it.name}</span>
+        <span class="ov-nums">家:${it.home_qty} 店:${it.shop_qty} 共${total}</span>
+      </div>
+      <div class="progress"><div class="progress-bar" style="width:${pct}%;background:${bc}"></div></div>
+    </div>`;
+  }).join('') : '<div class="empty">还没有商品</div>';
+}
+
+// ── SCANNER ────────────────────────────────────────────────────────
+function openScanModal(target) {
+  scanTarget = target;
+  document.getElementById('scan-modal').classList.add('open');
+  document.getElementById('scan-status').textContent = '正在启动摄像头...';
+  document.getElementById('scan-status').className = 'scan-status';
+  document.getElementById('manual-barcode').value = '';
+  startScanner();
+}
+
+function closeScanModal() {
+  document.getElementById('scan-modal').classList.remove('open');
+  stopScanner();
+}
+
+function startScanner() {
+  if(scannerRunning) stopScanner();
+  const container = document.getElementById('scanner-container');
+  const oldVid = container.querySelector('video');
+  if(oldVid) oldVid.remove();
+
+  Quagga.init({
+    inputStream: {
+      name: 'Live', type: 'LiveStream', target: container,
+      constraints: { facingMode: 'environment', width: {ideal:640}, height: {ideal:320} }
+    },
+    locator: { patchSize: 'medium', halfSample: true },
+    numOfWorkers: 2, frequency: 10,
+    decoder: { readers: ['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader','upc_e_reader'] },
+    locate: true
+  }, function(err) {
+    if(err) {
+      document.getElementById('scan-status').textContent = '摄像头启动失败，请手动输入';
+      document.getElementById('scan-status').className = 'scan-status error';
+      return;
+    }
+    Quagga.start();
+    scannerRunning = true;
+    document.getElementById('scan-status').textContent = '📡 正在扫描，请将条形码对准框内...';
+  });
+
+  Quagga.onDetected(function(result) {
+    const code = result.codeResult.code;
+    if(code) onBarcodeDetected(code);
+  });
+}
+
+function stopScanner() {
+  if(scannerRunning) { Quagga.stop(); scannerRunning = false; }
+}
+
+function onBarcodeDetected(code) {
+  stopScanner();
+  const statusEl = document.getElementById('scan-status');
+
+  if(scanTarget === 'add') {
+    document.getElementById('new-barcode').value = code;
+    statusEl.textContent = '✅ 已扫描：' + code;
+    statusEl.className = 'scan-status found';
+    setTimeout(() => closeScanModal(), 800);
+
+  } else if(scanTarget === 'order') {
+    const found = items.find(i => i.barcode && i.barcode === code);
+    if(found) {
+      statusEl.textContent = '✅ 已加入：' + found.name + ' （可继续扫下一个）';
+      statusEl.className = 'scan-status found';
+      addToCart(found);
+      // Restart to allow scanning more items
+      setTimeout(() => {
+        if(document.getElementById('scan-modal').classList.contains('open')) {
+          statusEl.textContent = '📡 继续扫描下一个...';
+          statusEl.className = 'scan-status';
+          startScanner();
+        }
+      }, 1200);
+    } else {
+      statusEl.textContent = '❌ 未找到商品（' + code + '）';
+      statusEl.className = 'scan-status error';
+      setTimeout(() => {
+        if(document.getElementById('scan-modal').classList.contains('open')) {
+          statusEl.textContent = '📡 重新扫描...';
+          statusEl.className = 'scan-status';
+          startScanner();
+        }
+      }, 2000);
+    }
+  }
+}
+
+function confirmManualBarcode() {
+  const code = document.getElementById('manual-barcode').value.trim();
+  if(code) onBarcodeDetected(code);
+}
+
+document.getElementById('scan-modal').addEventListener('click', function(e) {
+  if(e.target === this) closeScanModal();
+});
+
+init();
+</script>
+</body>
+</html>
