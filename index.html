@@ -185,6 +185,24 @@
   #loading p { font-size: 14px; color: var(--text2); }
   .spinner { width: 28px; height: 28px; border: 2px solid var(--border); border-top-color: var(--text); border-radius: 50%; animation: spin 0.7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* BUNDLE STYLES */
+  .badge-bundle { background: #ede9fe; color: #5b21b6; }
+  .bundle-section { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .bundle-toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bundle-toggle-row label { font-size: 13px; color: var(--text2); flex: 1; }
+  .toggle-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 11px; cursor: pointer; transition: background 0.2s; }
+  .toggle-slider:before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
+  .toggle-switch input:checked + .toggle-slider { background: #5b21b6; }
+  .toggle-switch input:checked + .toggle-slider:before { transform: translateX(16px); }
+  .bundle-fields { display: none; }
+  .bundle-fields.visible { display: block; }
+  .bundle-component-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; color: var(--text2); }
+  .bundle-component-row label { min-width: 80px; }
+  .bundle-component-row select { flex: 1; }
+  .can-make-badge { font-size: 11px; padding: 2px 7px; border-radius: 20px; background: #ede9fe; color: #5b21b6; font-weight: 600; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -427,6 +445,27 @@
       <div class="barcode-input-wrap">
         <input type="text" id="adj-barcode" placeholder="扫描或手动输入">
         <button class="btn btn-scan" onclick="openScanModal('adj')">📷 扫</button>
+      </div>
+    </div>
+    <!-- BUNDLE SECTION -->
+    <div class="bundle-section">
+      <div class="bundle-toggle-row">
+        <label>🎁 这是套装商品</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="adj-is-bundle" onchange="toggleBundleFields(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="bundle-fields" id="bundle-fields">
+        <div class="bundle-component-row">
+          <label>Battery 零件</label>
+          <select id="adj-bundle-battery"><option value="">-- 选择 --</option></select>
+        </div>
+        <div class="bundle-component-row">
+          <label>Cartridge 零件</label>
+          <select id="adj-bundle-cartridge"><option value="">-- 选择 --</option></select>
+        </div>
+        <p style="font-size:11px;color:var(--text3);margin-top:6px">结账时会自动扣以上两个商品的库存各 1 个</p>
       </div>
     </div>
     <div class="modal-footer">
@@ -722,13 +761,21 @@ function renderItems() {
     const bc = it.barcode ? `<div style="margin-top:5px"><span class="badge badge-barcode">🔖 ${it.barcode}</span></div>` : '';
     const price = it.price ? `<span style="font-size:13px;font-weight:600;color:var(--green);font-family:'DM Mono',monospace">RM ${(+it.price).toFixed(2)}</span>` : '';
     const cat = it.category ? `<span class="badge" style="background:var(--surface2);color:var(--text2);font-size:11px">${it.category}</span>` : '';
+    // bundle badge + can-make
+    let bundleBadge = '';
+    if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
+      const _bat = items.find(i=>i.id===it.bundle_components.battery_id);
+      const _car = items.find(i=>i.id===it.bundle_components.cartridge_id);
+      const canMake = (_bat && _car) ? Math.min(_bat.home_qty+_bat.shop_qty, _car.home_qty+_car.shop_qty) : 0;
+      bundleBadge = `<span class="badge badge-bundle">🎁 套装</span><span class="can-make-badge">可组 ${canMake} 套</span>`;
+    }
     const checked = selectedIds.has(it.id) ? 'checked' : '';
     const rowClass = selectedIds.has(it.id) ? 'item-row selected' : 'item-row';
     return `<div class="${rowClass}" id="row-${it.id}">
       <input type="checkbox" class="item-checkbox" ${checked} onchange="toggleSelect(${it.id}, this.checked)">
       <div class="item-info">
         <div class="item-name">${it.name} ${warn}</div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">${cat} ${price}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">${cat} ${price} ${bundleBadge}</div>
         <div class="stock-row">
           <div class="stock-chip"><span class="badge badge-home">家里</span><span class="stock-num">${it.home_qty}</span></div>
           <span class="stock-sep">+</span>
@@ -856,9 +903,27 @@ function openAdj(id) {
   if(it.category && !cats.includes(it.category)) {
     adjCat.innerHTML += `<option value="${it.category}" selected>${it.category}</option>`;
   }
+  // populate bundle fields
+  const nonBundleItems = items.filter(i => !i.bundle_components);
+  const itemOpts = '<option value="">-- 选择零件 --</option>' + nonBundleItems.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+  document.getElementById('adj-bundle-battery').innerHTML = itemOpts;
+  document.getElementById('adj-bundle-cartridge').innerHTML = itemOpts;
+  const bc = it.bundle_components;
+  const isBundle = bc && (bc.battery_id || bc.cartridge_id);
+  document.getElementById('adj-is-bundle').checked = !!isBundle;
+  toggleBundleFields(!!isBundle);
+  if(isBundle) {
+    if(bc.battery_id) document.getElementById('adj-bundle-battery').value = bc.battery_id;
+    if(bc.cartridge_id) document.getElementById('adj-bundle-cartridge').value = bc.cartridge_id;
+  }
   document.getElementById('adj-modal').classList.add('open');
 }
 function closeAdj() { document.getElementById('adj-modal').classList.remove('open'); }
+function toggleBundleFields(on) {
+  const fields = document.getElementById('bundle-fields');
+  if(on) fields.classList.add('visible');
+  else fields.classList.remove('visible');
+}
 async function saveAdj() {
   const adjName = document.getElementById('adj-name').value.trim();
   if(!adjName) { alert('商品名不能为空'); return; }
@@ -869,13 +934,23 @@ async function saveAdj() {
     const dup = items.find(i => i.barcode && i.barcode === adjBarcode && i.id != adjId);
     if(dup) { alert('这个 barcode 已被 "' + dup.name + '" 使用！'); setSync('ok',''); return; }
   }
+  // bundle
+  const isBundle = document.getElementById('adj-is-bundle').checked;
+  let bundle_components = null;
+  if(isBundle) {
+    const batteryId = document.getElementById('adj-bundle-battery').value;
+    const cartridgeId = document.getElementById('adj-bundle-cartridge').value;
+    if(!batteryId || !cartridgeId) { alert('请选择 Battery 和 Cartridge 零件！'); setSync('ok',''); return; }
+    bundle_components = { battery_id: parseInt(batteryId), cartridge_id: parseInt(cartridgeId) };
+  }
   await sb.from('items').update({
     name: adjName,
     home_qty: +document.getElementById('adj-home').value||0,
     shop_qty: +document.getElementById('adj-shop').value||0,
     price: +document.getElementById('adj-price').value||0,
     category: adjCat||null,
-    barcode: adjBarcode||null
+    barcode: adjBarcode||null,
+    bundle_components
   }).eq('id', adjId);
   closeAdj();
   await loadItems();
@@ -954,14 +1029,29 @@ async function addOrder() {
   if(!loc) { alert('请输入取货地点'); return; }
   const deduct = document.getElementById('o-deduct').value;
 
-  // Validate stock for all items
+  // Validate stock for all items (including bundle components)
   for(const c of cart) {
     const item = items.find(i => i.id === c.item.id);
     if(!item) { alert('商品 "' + c.item.name + '" 找不到，请刷新'); return; }
-    const avail = deduct==='home' ? item.home_qty : item.shop_qty;
-    if(avail < c.qty) {
-      alert((deduct==='home'?'家里':'店里') + ' 库存不足！\n"' + item.name + '" 只剩 ' + avail + ' 个，你下了 ' + c.qty + ' 个');
-      return;
+    if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
+      const bat = items.find(i => i.id === item.bundle_components.battery_id);
+      const car = items.find(i => i.id === item.bundle_components.cartridge_id);
+      const batAvail = bat ? (deduct==='home' ? bat.home_qty : bat.shop_qty) : 0;
+      const carAvail = car ? (deduct==='home' ? car.home_qty : car.shop_qty) : 0;
+      if(!bat || batAvail < c.qty) {
+        alert((deduct==='home'?'家里':'店里') + ' 库存不足！\n套装零件 "' + (bat?bat.name:'Battery') + '" 只剩 ' + batAvail + ' 个，套装需要 ' + c.qty + ' 个');
+        return;
+      }
+      if(!car || carAvail < c.qty) {
+        alert((deduct==='home'?'家里':'店里') + ' 库存不足！\n套装零件 "' + (car?car.name:'Cartridge') + '" 只剩 ' + carAvail + ' 个，套装需要 ' + c.qty + ' 个');
+        return;
+      }
+    } else {
+      const avail = deduct==='home' ? item.home_qty : item.shop_qty;
+      if(avail < c.qty) {
+        alert((deduct==='home'?'家里':'店里') + ' 库存不足！\n"' + item.name + '" 只剩 ' + avail + ' 个，你下了 ' + c.qty + ' 个');
+        return;
+      }
     }
   }
 
@@ -969,11 +1059,22 @@ async function addOrder() {
 
   for(const c of cart) {
     const item = items.find(i => i.id === c.item.id);
-    const updateQty = deduct==='home' ? {home_qty: item.home_qty - c.qty} : {shop_qty: item.shop_qty - c.qty};
-    const { error: e1 } = await sb.from('items').update(updateQty).eq('id', item.id);
-    if(e1) { alert('下单失败：' + item.name); setSync('err','失败'); return; }
-    // Update local copy to avoid double-deduct
-    if(deduct==='home') item.home_qty -= c.qty; else item.shop_qty -= c.qty;
+    if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
+      // Bundle: deduct components
+      const bat = items.find(i => i.id === item.bundle_components.battery_id);
+      const car = items.find(i => i.id === item.bundle_components.cartridge_id);
+      const batUpdate = deduct==='home' ? {home_qty: bat.home_qty - c.qty} : {shop_qty: bat.shop_qty - c.qty};
+      const carUpdate = deduct==='home' ? {home_qty: car.home_qty - c.qty} : {shop_qty: car.shop_qty - c.qty};
+      await sb.from('items').update(batUpdate).eq('id', bat.id);
+      if(deduct==='home') bat.home_qty -= c.qty; else bat.shop_qty -= c.qty;
+      await sb.from('items').update(carUpdate).eq('id', car.id);
+      if(deduct==='home') car.home_qty -= c.qty; else car.shop_qty -= c.qty;
+    } else {
+      const updateQty = deduct==='home' ? {home_qty: item.home_qty - c.qty} : {shop_qty: item.shop_qty - c.qty};
+      const { error: e1 } = await sb.from('items').update(updateQty).eq('id', item.id);
+      if(e1) { alert('下单失败：' + item.name); setSync('err','失败'); return; }
+      if(deduct==='home') item.home_qty -= c.qty; else item.shop_qty -= c.qty;
+    }
     const itemTotal = (+(item.price||0)) * c.qty;
     await sb.from('orders').insert({
       customer, item_id: item.id, item_name: item.name,
@@ -1050,13 +1151,27 @@ function renderInstoreCart() {
 async function instoreCheckout() {
   if(!instoreCart.length) { alert('购物车是空的，请先扫描商品'); return; }
 
-  // Check stock
+  // Check stock (including bundle components)
   for(const c of instoreCart) {
     const item = items.find(i => i.id === c.item.id);
     if(!item) { alert('商品 "' + c.item.name + '" 找不到，请刷新'); return; }
-    if(item.shop_qty < c.qty) {
-      alert('店里库存不足！\n"' + item.name + '" 只剩 ' + item.shop_qty + ' 个，你消费了 ' + c.qty + ' 个');
-      return;
+    if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
+      // Bundle: check component stock instead
+      const bat = items.find(i => i.id === item.bundle_components.battery_id);
+      const car = items.find(i => i.id === item.bundle_components.cartridge_id);
+      if(!bat || bat.shop_qty < c.qty) {
+        alert('店里库存不足！\n套装零件 "' + (bat?bat.name:'Battery') + '" 只剩 ' + (bat?bat.shop_qty:0) + ' 个，套装需要 ' + c.qty + ' 个');
+        return;
+      }
+      if(!car || car.shop_qty < c.qty) {
+        alert('店里库存不足！\n套装零件 "' + (car?car.name:'Cartridge') + '" 只剩 ' + (car?car.shop_qty:0) + ' 个，套装需要 ' + c.qty + ' 个');
+        return;
+      }
+    } else {
+      if(item.shop_qty < c.qty) {
+        alert('店里库存不足！\n"' + item.name + '" 只剩 ' + item.shop_qty + ' 个，你消费了 ' + c.qty + ' 个');
+        return;
+      }
     }
   }
 
@@ -1065,9 +1180,19 @@ async function instoreCheckout() {
 
   for(const c of instoreCart) {
     const item = items.find(i => i.id === c.item.id);
-    const { error: e1 } = await sb.from('items').update({ shop_qty: item.shop_qty - c.qty }).eq('id', item.id);
-    if(e1) { alert('结账失败：' + item.name); setSync('err','失败'); return; }
-    item.shop_qty -= c.qty;
+    if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
+      // Bundle: deduct components, not the bundle item itself
+      const bat = items.find(i => i.id === item.bundle_components.battery_id);
+      const car = items.find(i => i.id === item.bundle_components.cartridge_id);
+      await sb.from('items').update({ shop_qty: bat.shop_qty - c.qty }).eq('id', bat.id);
+      bat.shop_qty -= c.qty;
+      await sb.from('items').update({ shop_qty: car.shop_qty - c.qty }).eq('id', car.id);
+      car.shop_qty -= c.qty;
+    } else {
+      const { error: e1 } = await sb.from('items').update({ shop_qty: item.shop_qty - c.qty }).eq('id', item.id);
+      if(e1) { alert('结账失败：' + item.name); setSync('err','失败'); return; }
+      item.shop_qty -= c.qty;
+    }
     await sb.from('orders').insert({
       customer: '门市现场', item_id: item.id, item_name: item.name,
       qty: c.qty, location: '门市', deduct_from: 'shop', status: 'instore',
@@ -1197,12 +1322,20 @@ function renderOrderSearch() {
   if(query) filtered = filtered.filter(i => i.name.toLowerCase().includes(query));
   if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:10px">没有找到商品</div>'; return; }
   el.innerHTML = '<div class="search-results">' + filtered.map(it => {
-    const cat = it.category ? `<span style="color:var(--text3)"> · ${it.category}</span>` : '';
+    const catLabel = it.category ? `<span style="color:var(--text3)"> · ${it.category}</span>` : '';
     const price = it.price ? ` · RM ${(+it.price).toFixed(2)}` : '';
+    let stockMeta = `家里:${it.home_qty} 店里:${it.shop_qty}${price}`;
+    if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
+      const bat = items.find(i=>i.id===it.bundle_components.battery_id);
+      const car = items.find(i=>i.id===it.bundle_components.cartridge_id);
+      const canMakeHome = (bat&&car) ? Math.min(bat.home_qty, car.home_qty) : 0;
+      const canMakeShop = (bat&&car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
+      stockMeta = `🎁 套装 · 家里可组 ${canMakeHome} 套 / 店里可组 ${canMakeShop} 套${price}`;
+    }
     return `<div class="search-result-item" onclick="addToCart(items.find(i=>i.id==${it.id}));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
       <div>
-        <div class="search-result-name">${it.name}${cat}</div>
-        <div class="search-result-meta">家里:${it.home_qty} 店里:${it.shop_qty}${price}</div>
+        <div class="search-result-name">${it.name}${catLabel}</div>
+        <div class="search-result-meta">${stockMeta}</div>
       </div>
       <span class="search-result-price">${it.price ? 'RM '+((+it.price).toFixed(2)) : ''}</span>
     </div>`;
@@ -1221,10 +1354,17 @@ function renderInstoreSearch() {
   el.innerHTML = '<div class="search-results">' + filtered.map(it => {
     const catLabel = it.category ? `<span style="color:var(--text3)"> · ${it.category}</span>` : '';
     const price = it.price ? ` · RM ${(+it.price).toFixed(2)}` : '';
+    let stockMeta = `店里:${it.shop_qty}${price}`;
+    if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
+      const bat = items.find(i=>i.id===it.bundle_components.battery_id);
+      const car = items.find(i=>i.id===it.bundle_components.cartridge_id);
+      const canMake = (bat&&car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
+      stockMeta = `🎁 套装 · 店里可组 ${canMake} 套${price}`;
+    }
     return `<div class="search-result-item" onclick="addToInstoreCart(items.find(i=>i.id==${it.id}));document.getElementById('ins-search-name').value='';document.getElementById('ins-search-results').innerHTML=''">
       <div>
         <div class="search-result-name">${it.name}${catLabel}</div>
-        <div class="search-result-meta">店里:${it.shop_qty}${price}</div>
+        <div class="search-result-meta">${stockMeta}</div>
       </div>
       <span class="search-result-price">${it.price ? 'RM '+((+it.price).toFixed(2)) : ''}</span>
     </div>`;
