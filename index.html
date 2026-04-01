@@ -275,6 +275,14 @@
     <div class="card">
       <div class="card-title">🏪 当场扫码消费</div>
       <div class="form-row">
+        <label>按名字找</label>
+        <select id="ins-search-category" onchange="renderInstoreSearch()" style="max-width:130px">
+          <option value="">全部类别</option>
+        </select>
+        <input type="text" id="ins-search-name" placeholder="输入商品名搜索..." oninput="renderInstoreSearch()" style="flex:1">
+      </div>
+      <div id="ins-search-results"></div>
+      <div class="form-row">
         <label>扫描商品</label>
         <div class="barcode-input-wrap">
           <input type="text" id="ins-barcode-input" placeholder="扫描 barcode 加入" oninput="onInstoreBarcodeTyped(this.value)">
@@ -409,6 +417,7 @@
   <div class="modal-overlay" id="adj-modal">
   <div class="modal">
     <h3 id="adj-title">调整库存</h3>
+    <div class="form-row"><label>商品名</label><input type="text" id="adj-name" placeholder="商品名称"></div>
     <div class="form-row"><label>家里</label><input type="number" id="adj-home" min="0"></div>
     <div class="form-row"><label>店里</label><input type="number" id="adj-shop" min="0"></div>
     <div class="form-row"><label>单价 (RM)</label><input type="number" id="adj-price" min="0" step="0.01" placeholder="0.00"></div>
@@ -580,14 +589,48 @@ function renderCatModalList() {
   if(!cats.length) { el.innerHTML = '<div class="empty">还没有 category</div>'; return; }
   el.innerHTML = cats.map(c => {
     const count = items.filter(i=>i.category===c).length;
-    return `<div class="cat-modal-row">
+    const safe = c.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return `<div class="cat-modal-row" id="catrow-${safe}">
       <span>
         <span class="cat-modal-name">${c}</span>
         <span class="cat-modal-count">${count} 个商品</span>
       </span>
-      <button class="btn btn-danger" style="font-size:12px;padding:4px 10px" onclick="deleteCategory('${c.replace(/'/g,"\\'")}')">删除</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn" style="font-size:12px;padding:4px 10px" onclick="showRenameInput('${safe}','${safe}')">✏️ 改名</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:4px 10px" onclick="deleteCategory('${safe}')">删除</button>
+      </div>
     </div>`;
   }).join('');
+}
+
+function showRenameInput(cat, safe) {
+  const row = document.getElementById('catrow-'+safe);
+  if(!row) return;
+  row.innerHTML = `
+    <input type="text" value="${cat}" id="rename-input-${safe}" style="flex:1;font-size:13px;padding:6px 10px" onkeydown="if(event.key==='Enter')renameCategory('${safe}',this.value)">
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="btn btn-success" style="font-size:12px;padding:4px 10px" onclick="renameCategory('${safe}',document.getElementById('rename-input-${safe}').value)">保存</button>
+      <button class="btn" style="font-size:12px;padding:4px 10px" onclick="renderCatModalList()">取消</button>
+    </div>`;
+  const inp = document.getElementById('rename-input-'+safe);
+  if(inp) { inp.focus(); inp.select(); }
+}
+
+async function renameCategory(oldCat, newCatRaw) {
+  const newCat = newCatRaw.trim().toUpperCase();
+  if(!newCat) { alert('名称不能为空'); return; }
+  if(newCat === oldCat) { renderCatModalList(); return; }
+  if(getCategories().includes(newCat)) { alert('"' + newCat + '" 已存在！'); return; }
+  setSync('busy','更新中...');
+  // Update all items with old category
+  const count = items.filter(i=>i.category===oldCat).length;
+  if(count > 0) await sb.from('items').update({category: newCat}).eq('category', oldCat);
+  // Update extraCategories
+  const idx = extraCategories.indexOf(oldCat);
+  if(idx !== -1) { extraCategories[idx] = newCat; saveExtraCategories(); }
+  await loadItems();
+  renderCatModalList();
+  setSync('ok','已改名 · '+timeNow());
 }
 
 function renderCatTags() {
@@ -642,6 +685,8 @@ function updateCategoryDropdowns() {
   if(filterCat) filterCat.innerHTML = filterOpts;
   const orderCat = document.getElementById('o-search-category');
   if(orderCat) orderCat.innerHTML = orderOpts;
+  const insCat = document.getElementById('ins-search-category');
+  if(insCat) insCat.innerHTML = orderOpts;
 }
 
 function toggleNewCategoryInput() {
@@ -798,7 +843,8 @@ async function delItem(id) {
 function openAdj(id) {
   const it = items.find(i=>i.id==id);
   adjId = it.id;
-  document.getElementById('adj-title').textContent = '调整库存：'+it.name;
+  document.getElementById('adj-title').textContent = '调整：'+it.name;
+  document.getElementById('adj-name').value = it.name;
   document.getElementById('adj-home').value = it.home_qty;
   document.getElementById('adj-shop').value = it.shop_qty;
   document.getElementById('adj-price').value = it.price || 0;
@@ -814,15 +860,17 @@ function openAdj(id) {
 }
 function closeAdj() { document.getElementById('adj-modal').classList.remove('open'); }
 async function saveAdj() {
+  const adjName = document.getElementById('adj-name').value.trim();
+  if(!adjName) { alert('商品名不能为空'); return; }
   setSync('busy','保存中...');
   const adjCat = document.getElementById('adj-category').value;
   const adjBarcode = document.getElementById('adj-barcode').value.trim();
-  // Check barcode duplicate (excluding current item)
   if(adjBarcode) {
     const dup = items.find(i => i.barcode && i.barcode === adjBarcode && i.id != adjId);
     if(dup) { alert('这个 barcode 已被 "' + dup.name + '" 使用！'); setSync('ok',''); return; }
   }
   await sb.from('items').update({
+    name: adjName,
     home_qty: +document.getElementById('adj-home').value||0,
     shop_qty: +document.getElementById('adj-shop').value||0,
     price: +document.getElementById('adj-price').value||0,
@@ -1151,10 +1199,32 @@ function renderOrderSearch() {
   el.innerHTML = '<div class="search-results">' + filtered.map(it => {
     const cat = it.category ? `<span style="color:var(--text3)"> · ${it.category}</span>` : '';
     const price = it.price ? ` · RM ${(+it.price).toFixed(2)}` : '';
-    return `<div class="search-result-item" onclick="addToCart(items.find(i=>i.id==='${it.id}'));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
+    return `<div class="search-result-item" onclick="addToCart(items.find(i=>i.id==${it.id}));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
       <div>
         <div class="search-result-name">${it.name}${cat}</div>
         <div class="search-result-meta">家里:${it.home_qty} 店里:${it.shop_qty}${price}</div>
+      </div>
+      <span class="search-result-price">${it.price ? 'RM '+((+it.price).toFixed(2)) : ''}</span>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function renderInstoreSearch() {
+  const query = document.getElementById('ins-search-name').value.trim().toLowerCase();
+  const cat = document.getElementById('ins-search-category').value;
+  const el = document.getElementById('ins-search-results');
+  if(!query && !cat) { el.innerHTML = ''; return; }
+  let filtered = items;
+  if(cat) filtered = filtered.filter(i => i.category === cat);
+  if(query) filtered = filtered.filter(i => i.name.toLowerCase().includes(query));
+  if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:10px">没有找到商品</div>'; return; }
+  el.innerHTML = '<div class="search-results">' + filtered.map(it => {
+    const catLabel = it.category ? `<span style="color:var(--text3)"> · ${it.category}</span>` : '';
+    const price = it.price ? ` · RM ${(+it.price).toFixed(2)}` : '';
+    return `<div class="search-result-item" onclick="addToInstoreCart(items.find(i=>i.id==${it.id}));document.getElementById('ins-search-name').value='';document.getElementById('ins-search-results').innerHTML=''">
+      <div>
+        <div class="search-result-name">${it.name}${catLabel}</div>
+        <div class="search-result-meta">店里:${it.shop_qty}${price}</div>
       </div>
       <span class="search-result-price">${it.price ? 'RM '+((+it.price).toFixed(2)) : ''}</span>
     </div>`;
