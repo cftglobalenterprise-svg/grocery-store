@@ -966,11 +966,13 @@ function addToCart(item) {
 }
 
 function removeFromCart(itemId) {
+  itemId = parseInt(itemId);
   cart = cart.filter(c => c.item.id !== itemId);
   renderCart();
 }
 
 function updateCartQty(itemId, val) {
+  itemId = parseInt(itemId);
   const entry = cart.find(c => c.item.id === itemId);
   if(entry) entry.qty = Math.max(1, parseInt(val)||1);
   renderCart();
@@ -1110,11 +1112,13 @@ function addToInstoreCart(item) {
 }
 
 function removeFromInstoreCart(itemId) {
+  itemId = parseInt(itemId);
   instoreCart = instoreCart.filter(c => c.item.id !== itemId);
   renderInstoreCart();
 }
 
 function updateInstoreQty(itemId, val) {
+  itemId = parseInt(itemId);
   const entry = instoreCart.find(c => c.item.id === itemId);
   if(entry) entry.qty = Math.max(1, parseInt(val)||1);
   renderInstoreCart();
