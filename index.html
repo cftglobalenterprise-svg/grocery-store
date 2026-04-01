@@ -33,7 +33,7 @@
   .tab { padding: 14px 18px; font-size: 14px; font-weight: 500; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
   .tab.active { color: var(--text); border-bottom-color: var(--text); }
 
-  .page { display: none; padding: 16px; max-width: 600px; margin: 0 auto; }
+  .page { display: none; padding: 16px; max-width: 1100px; margin: 0 auto; }
   .page.active { display: block; }
 
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
@@ -72,15 +72,15 @@
   .badge-cancel { background: var(--red-bg); color: var(--red); }
   .badge-barcode { background: var(--surface2); color: var(--text3); font-family: 'DM Mono', monospace; font-size: 10px; }
 
-  .item-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .item-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
   .item-row:last-child { border-bottom: none; }
   .item-info { flex: 1; min-width: 0; }
-  .item-name { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .stock-row { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
-  .stock-chip { display: flex; align-items: center; gap: 4px; font-size: 12px; }
-  .stock-num { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: var(--text); }
-  .stock-sep { color: var(--text3); font-size: 12px; }
-  .item-actions { display: flex; flex-direction: column; gap: 4px; }
+  .item-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+  .stock-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .stock-chip { display: flex; align-items: center; gap: 5px; font-size: 13px; }
+  .stock-num { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 600; color: var(--text); }
+  .stock-sep { color: var(--text3); font-size: 13px; }
+  .item-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
 
   .order-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
   .order-row:last-child { border-bottom: none; }
@@ -164,10 +164,10 @@
   .subtotal-tag { font-size: 12px; color: var(--green); font-family: 'DM Mono', monospace; font-weight: 600; }
 
   /* STOCK TWO-COLUMN LAYOUT */
-  .stock-layout { display: flex; gap: 12px; align-items: flex-start; }
-  .stock-left { flex: 0 0 320px; position: sticky; top: 113px; }
+  .stock-layout { display: flex; gap: 16px; align-items: flex-start; }
+  .stock-left { flex: 0 0 340px; position: sticky; top: 113px; }
   .stock-right { flex: 1; min-width: 0; }
-  @media (max-width: 700px) {
+  @media (max-width: 780px) {
     .stock-layout { flex-direction: column; }
     .stock-left { flex: none; width: 100%; position: static; }
     .stock-right { width: 100%; }
@@ -522,26 +522,26 @@ function renderItems() {
   if(!filtered.length) { el.innerHTML='<div class="empty">此 Category 没有商品</div>'; return; }
   el.innerHTML = filtered.map(it => {
     const total = it.home_qty + it.shop_qty;
-    const warn = total <= it.threshold ? '<span class="badge badge-warn">低库存</span>' : '';
-    const bc = it.barcode ? `<span class="badge badge-barcode">🔖 ${it.barcode}</span>` : '';
-    const price = it.price ? `<span class="price-tag">RM ${(+it.price).toFixed(2)}</span>` : '';
-    const cat = it.category ? `<span class="badge" style="background:var(--surface2);color:var(--text2)">${it.category}</span>` : '';
+    const warn = total <= it.threshold ? '<span class="badge badge-warn">⚠ 低库存</span>' : '';
+    const bc = it.barcode ? `<div style="margin-top:5px"><span class="badge badge-barcode">🔖 ${it.barcode}</span></div>` : '';
+    const price = it.price ? `<span style="font-size:13px;font-weight:600;color:var(--green);font-family:'DM Mono',monospace">RM ${(+it.price).toFixed(2)}</span>` : '';
+    const cat = it.category ? `<span class="badge" style="background:var(--surface2);color:var(--text2);font-size:11px">${it.category}</span>` : '';
     return `<div class="item-row">
       <div class="item-info">
-        <div class="item-name">${it.name} ${warn} ${cat}</div>
+        <div class="item-name">${it.name} ${warn}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">${cat} ${price}</div>
         <div class="stock-row">
           <div class="stock-chip"><span class="badge badge-home">家里</span><span class="stock-num">${it.home_qty}</span></div>
           <span class="stock-sep">+</span>
           <div class="stock-chip"><span class="badge badge-shop">店里</span><span class="stock-num">${it.shop_qty}</span></div>
           <span class="stock-sep">=</span>
-          <span class="stock-num">${total}</span>
-          ${price}
-          ${bc}
+          <span class="stock-num" style="font-size:16px">${total}</span>
         </div>
+        ${bc}
       </div>
       <div class="item-actions">
-        <button class="btn" style="font-size:12px;padding:5px 10px" onclick="openAdj('${it.id}')">调整</button>
-        <button class="btn btn-danger" style="font-size:12px;padding:5px 10px" onclick="delItem('${it.id}')">删除</button>
+        <button class="btn" style="font-size:12px;padding:6px 12px" onclick="openAdj('${it.id}')">✏️ 调整</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:6px 12px" onclick="delItem('${it.id}')">🗑 删除</button>
       </div>
     </div>`;
   }).join('');
