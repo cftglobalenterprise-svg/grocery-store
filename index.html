@@ -531,15 +531,15 @@ function updateMetrics() {
 }
 
 async function delItem(id) {
-  const it = items.find(i=>i.id===id);
+  const it = items.find(i=>i.id==id);
   if(!confirm('删除 '+it.name+'？')) return;
   setSync('busy','删除中...');
   await sb.from('items').delete().eq('id',id);
 }
 
 function openAdj(id) {
-  const it = items.find(i=>i.id===id);
-  adjId = id;
+  const it = items.find(i=>i.id==id);
+  adjId = it.id;
   document.getElementById('adj-title').textContent = '调整库存：'+it.name;
   document.getElementById('adj-home').value = it.home_qty;
   document.getElementById('adj-shop').value = it.shop_qty;
@@ -568,19 +568,19 @@ async function saveAdj() {
 
 // ── CART ───────────────────────────────────────────────────────────
 function addToCart(item) {
-  const existing = cart.find(c => c.item.id === item.id);
+  const existing = cart.find(c => c.item.id == item.id);
   if(existing) { existing.qty += 1; }
   else { cart.push({ item, qty: 1 }); }
   renderCart();
 }
 
 function removeFromCart(itemId) {
-  cart = cart.filter(c => c.item.id !== itemId);
+  cart = cart.filter(c => c.item.id != itemId);
   renderCart();
 }
 
 function updateCartQty(itemId, val) {
-  const entry = cart.find(c => c.item.id === itemId);
+  const entry = cart.find(c => c.item.id == itemId);
   if(entry) entry.qty = Math.max(1, parseInt(val)||1);
   renderCart();
 }
@@ -684,19 +684,19 @@ function onInstoreBarcodeTyped(val) {
 }
 
 function addToInstoreCart(item) {
-  const existing = instoreCart.find(c => c.item.id === item.id);
+  const existing = instoreCart.find(c => c.item.id == item.id);
   if(existing) existing.qty += 1;
   else instoreCart.push({ item, qty: 1 });
   renderInstoreCart();
 }
 
 function removeFromInstoreCart(itemId) {
-  instoreCart = instoreCart.filter(c => c.item.id !== itemId);
+  instoreCart = instoreCart.filter(c => c.item.id != itemId);
   renderInstoreCart();
 }
 
 function updateInstoreQty(itemId, val) {
-  const entry = instoreCart.find(c => c.item.id === itemId);
+  const entry = instoreCart.find(c => c.item.id == itemId);
   if(entry) entry.qty = Math.max(1, parseInt(val)||1);
   renderInstoreCart();
 }
@@ -876,7 +876,7 @@ function renderOrderSearch() {
   el.innerHTML = '<div class="search-results">' + filtered.map(it => {
     const cat = it.category ? `<span style="color:var(--text3)"> · ${it.category}</span>` : '';
     const price = it.price ? ` · RM ${(+it.price).toFixed(2)}` : '';
-    return `<div class="search-result-item" onclick="addToCart(items.find(i=>i.id==='${it.id}'));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
+    return `<div class="search-result-item" onclick="addToCart(items.find(i=>i.id==${it.id}));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
       <div>
         <div class="search-result-name">${it.name}${cat}</div>
         <div class="search-result-meta">家里:${it.home_qty} 店里:${it.shop_qty}${price}</div>
