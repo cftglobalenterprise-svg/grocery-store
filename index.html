@@ -480,6 +480,8 @@ async function addItem() {
   document.getElementById('new-price').value=0;
   catSelect.value='';
   customCat.value='';
+  await loadItems();
+  setSync('ok','已添加 · '+timeNow());
 }
 
 function getCategories() {
@@ -513,11 +515,15 @@ function toggleNewCategoryInput() {
 
 function renderItems() {
   updateMetrics();
+  // Save current filter selection before dropdown refresh
+  const filterCat = document.getElementById('filter-category');
+  const savedCat = filterCat ? filterCat.value : '';
   updateCategoryDropdowns();
+  // Restore selection after dropdown was rebuilt
+  if(filterCat && savedCat) filterCat.value = savedCat;
+  const selectedCat = filterCat ? filterCat.value : '';
   const el = document.getElementById('item-list');
   if(!items.length) { el.innerHTML='<div class="empty">还没有商品，先添加吧</div>'; return; }
-  const filterCat = document.getElementById('filter-category');
-  const selectedCat = filterCat ? filterCat.value : '';
   const filtered = selectedCat ? items.filter(i=>i.category===selectedCat) : items;
   if(!filtered.length) { el.innerHTML='<div class="empty">此 Category 没有商品</div>'; return; }
   el.innerHTML = filtered.map(it => {
