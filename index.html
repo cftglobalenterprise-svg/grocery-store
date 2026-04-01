@@ -138,6 +138,24 @@
   .barcode-input-wrap { flex: 1; display: flex; gap: 6px; }
   .barcode-input-wrap input { flex: 1; }
 
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+  .filter-bar select { flex: 1; }
+
+  .cat-section { margin-bottom: 4px; }
+  .cat-toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--surface2); border-radius: var(--radius-sm); cursor: pointer; user-select: none; font-size: 13px; font-weight: 600; color: var(--text); }
+  .cat-toggle:hover { background: var(--border); }
+  .cat-arrow { font-size: 11px; color: var(--text3); transition: transform 0.2s; }
+  .cat-arrow.open { transform: rotate(90deg); }
+  .cat-body { border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); overflow: hidden; }
+
+  .search-results { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 4px; overflow: hidden; max-height: 220px; overflow-y: auto; }
+  .search-result-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s; }
+  .search-result-item:last-child { border-bottom: none; }
+  .search-result-item:hover { background: var(--surface2); }
+  .search-result-name { font-size: 13px; font-weight: 500; }
+  .search-result-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .search-result-price { font-size: 12px; color: var(--green); font-family: 'DM Mono', monospace; font-weight: 600; }
+
   .total-bar { display: flex; justify-content: space-between; align-items: center; background: var(--surface2); border-radius: var(--radius-sm); padding: 12px 14px; margin-top: 10px; }
   .total-bar .total-label { font-size: 13px; font-weight: 600; color: var(--text2); }
   .total-bar .total-amount { font-size: 20px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--text); }
@@ -167,10 +185,10 @@
   </div>
 
   <div class="tabs">
-    <div class="tab active" onclick="switchTab('stock',this)">库存</div>
+    <div class="tab active" onclick="switchTab('stock',this)">🗃️ 库存</div>
     <div class="tab" onclick="switchTab('instore',this)">🏪 门市</div>
-    <div class="tab" onclick="switchTab('orders',this)">订单</div>
-    <div class="tab" onclick="switchTab('overview',this)">总览</div>
+    <div class="tab" onclick="switchTab('orders',this)">📦 订单</div>
+    <div class="tab" onclick="switchTab('overview',this)">📊 总览</div>
   </div>
 
   <!-- STOCK PAGE -->
@@ -183,6 +201,13 @@
     <div class="card">
       <div class="card-title">添加商品</div>
       <div class="form-row"><label>商品名</label><input type="text" id="new-name" placeholder="例：糖果 Mamee"></div>
+      <div class="form-row"><label>Category</label>
+        <select id="new-category">
+          <option value="">-- 选择 Category --</option>
+        </select>
+        <input type="text" id="new-category-custom" placeholder="或输入新 category" style="display:none">
+        <button class="btn" id="new-category-toggle" onclick="toggleNewCategoryInput()" style="flex-shrink:0;font-size:12px;padding:7px 10px">＋新</button>
+      </div>
       <div class="form-row">
         <label>Barcode</label>
         <div class="barcode-input-wrap">
@@ -198,6 +223,11 @@
     </div>
     <div class="card">
       <div class="card-title">库存列表</div>
+      <div class="filter-bar">
+        <select id="filter-category" onchange="renderItems()">
+          <option value="">全部 Category</option>
+        </select>
+      </div>
       <div id="item-list"><div class="empty">还没有商品，先添加吧</div></div>
     </div>
   </div>
@@ -244,6 +274,16 @@
       </div>
 
       <div class="divider"></div>
+
+      <!-- Search by name or scan -->
+      <div class="form-row">
+        <label>按名字找</label>
+        <select id="o-search-category" onchange="renderOrderSearch()" style="max-width:130px">
+          <option value="">全部类别</option>
+        </select>
+        <input type="text" id="o-search-name" placeholder="输入商品名搜索..." oninput="renderOrderSearch()" style="flex:1">
+      </div>
+      <div id="o-search-results"></div>
 
       <!-- Scan -->
       <div class="form-row">
@@ -296,6 +336,7 @@
     <div class="form-row"><label>家里</label><input type="number" id="adj-home" min="0"></div>
     <div class="form-row"><label>店里</label><input type="number" id="adj-shop" min="0"></div>
     <div class="form-row"><label>单价 (RM)</label><input type="number" id="adj-price" min="0" step="0.01" placeholder="0.00"></div>
+    <div class="form-row"><label>Category</label><select id="adj-category"><option value="">-- 无 --</option></select></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAdj()">取消</button>
       <button class="btn btn-block" style="width:auto;margin:0" onclick="saveAdj()">保存</button>
@@ -396,13 +437,17 @@ async function addItem() {
     const dup = items.find(i => i.barcode && i.barcode === barcode);
     if(dup) { alert('这个 barcode 已被 "' + dup.name + '" 使用，请检查！'); return; }
   }
+  const customCat = document.getElementById('new-category-custom');
+  const catSelect = document.getElementById('new-category');
+  const category = (customCat.style.display !== 'none' ? customCat.value.trim() : catSelect.value) || '';
   setSync('busy','保存中...');
   const { error } = await sb.from('items').insert({
     name, barcode: barcode||null,
     home_qty: +document.getElementById('new-home').value||0,
     shop_qty: +document.getElementById('new-shop').value||0,
     threshold: +document.getElementById('new-threshold').value||10,
-    price: +document.getElementById('new-price').value||0
+    price: +document.getElementById('new-price').value||0,
+    category: category||null
   });
   if(error) { alert('添加失败：'+error.message); setSync('err','保存失败'); return; }
   document.getElementById('new-name').value='';
@@ -410,20 +455,57 @@ async function addItem() {
   document.getElementById('new-home').value=0;
   document.getElementById('new-shop').value=0;
   document.getElementById('new-price').value=0;
+  catSelect.value='';
+  customCat.value='';
+}
+
+function getCategories() {
+  const cats = [...new Set(items.map(i=>i.category).filter(Boolean))].sort();
+  return cats;
+}
+
+function updateCategoryDropdowns() {
+  const cats = getCategories();
+  const opts = '<option value="">-- 选择 Category --</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const filterOpts = '<option value="">全部 Category</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const orderOpts = '<option value="">全部类别</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const newCat = document.getElementById('new-category');
+  if(newCat) newCat.innerHTML = opts;
+  const filterCat = document.getElementById('filter-category');
+  if(filterCat) filterCat.innerHTML = filterOpts;
+  const orderCat = document.getElementById('o-search-category');
+  if(orderCat) orderCat.innerHTML = orderOpts;
+}
+
+function toggleNewCategoryInput() {
+  const custom = document.getElementById('new-category-custom');
+  const sel = document.getElementById('new-category');
+  const btn = document.getElementById('new-category-toggle');
+  if(custom.style.display === 'none') {
+    custom.style.display = ''; sel.style.display = 'none'; btn.textContent = '取消';
+  } else {
+    custom.style.display = 'none'; sel.style.display = ''; btn.textContent = '＋新';
+  }
 }
 
 function renderItems() {
   updateMetrics();
+  updateCategoryDropdowns();
   const el = document.getElementById('item-list');
   if(!items.length) { el.innerHTML='<div class="empty">还没有商品，先添加吧</div>'; return; }
-  el.innerHTML = items.map(it => {
+  const filterCat = document.getElementById('filter-category');
+  const selectedCat = filterCat ? filterCat.value : '';
+  const filtered = selectedCat ? items.filter(i=>i.category===selectedCat) : items;
+  if(!filtered.length) { el.innerHTML='<div class="empty">此 Category 没有商品</div>'; return; }
+  el.innerHTML = filtered.map(it => {
     const total = it.home_qty + it.shop_qty;
     const warn = total <= it.threshold ? '<span class="badge badge-warn">低库存</span>' : '';
     const bc = it.barcode ? `<span class="badge badge-barcode">🔖 ${it.barcode}</span>` : '';
     const price = it.price ? `<span class="price-tag">RM ${(+it.price).toFixed(2)}</span>` : '';
+    const cat = it.category ? `<span class="badge" style="background:var(--surface2);color:var(--text2)">${it.category}</span>` : '';
     return `<div class="item-row">
       <div class="item-info">
-        <div class="item-name">${it.name} ${warn}</div>
+        <div class="item-name">${it.name} ${warn} ${cat}</div>
         <div class="stock-row">
           <div class="stock-chip"><span class="badge badge-home">家里</span><span class="stock-num">${it.home_qty}</span></div>
           <span class="stock-sep">+</span>
@@ -462,15 +544,24 @@ function openAdj(id) {
   document.getElementById('adj-home').value = it.home_qty;
   document.getElementById('adj-shop').value = it.shop_qty;
   document.getElementById('adj-price').value = it.price || 0;
+  // populate adj category select
+  const cats = getCategories();
+  const adjCat = document.getElementById('adj-category');
+  adjCat.innerHTML = '<option value="">-- 无 --</option>' + cats.map(c=>`<option value="${c}"${it.category===c?' selected':''}>${c}</option>`).join('');
+  if(it.category && !cats.includes(it.category)) {
+    adjCat.innerHTML += `<option value="${it.category}" selected>${it.category}</option>`;
+  }
   document.getElementById('adj-modal').classList.add('open');
 }
 function closeAdj() { document.getElementById('adj-modal').classList.remove('open'); }
 async function saveAdj() {
   setSync('busy','保存中...');
+  const adjCat = document.getElementById('adj-category').value;
   await sb.from('items').update({
     home_qty: +document.getElementById('adj-home').value||0,
     shop_qty: +document.getElementById('adj-shop').value||0,
-    price: +document.getElementById('adj-price').value||0
+    price: +document.getElementById('adj-price').value||0,
+    category: adjCat||null
   }).eq('id', adjId);
   closeAdj();
 }
@@ -773,6 +864,28 @@ async function cancelGroup(idsStr) {
   }
 }
 
+function renderOrderSearch() {
+  const query = document.getElementById('o-search-name').value.trim().toLowerCase();
+  const cat = document.getElementById('o-search-category').value;
+  const el = document.getElementById('o-search-results');
+  if(!query && !cat) { el.innerHTML = ''; return; }
+  let filtered = items;
+  if(cat) filtered = filtered.filter(i => i.category === cat);
+  if(query) filtered = filtered.filter(i => i.name.toLowerCase().includes(query));
+  if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:10px">没有找到商品</div>'; return; }
+  el.innerHTML = '<div class="search-results">' + filtered.map(it => {
+    const cat = it.category ? `<span style="color:var(--text3)"> · ${it.category}</span>` : '';
+    const price = it.price ? ` · RM ${(+it.price).toFixed(2)}` : '';
+    return `<div class="search-result-item" onclick="addToCart(items.find(i=>i.id==='${it.id}'));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
+      <div>
+        <div class="search-result-name">${it.name}${cat}</div>
+        <div class="search-result-meta">家里:${it.home_qty} 店里:${it.shop_qty}${price}</div>
+      </div>
+      <span class="search-result-price">${it.price ? 'RM '+((+it.price).toFixed(2)) : ''}</span>
+    </div>`;
+  }).join('') + '</div>';
+}
+
 function renderOverview() {
   const low = items.filter(i=>(i.home_qty+i.shop_qty)<=i.threshold);
   document.getElementById('warn-list').innerHTML = low.length ? low.map(it =>
@@ -781,18 +894,43 @@ function renderOverview() {
     </div>`
   ).join('') : '<div class="empty">所有库存充足 ✓</div>';
 
-  document.getElementById('ov-list').innerHTML = items.length ? items.map(it => {
-    const total = it.home_qty + it.shop_qty;
-    const pct = it.threshold > 0 ? Math.min(100, Math.round(total / it.threshold * 50)) : 100;
-    const bc = total <= it.threshold ? '#e67e22' : total <= it.threshold*2 ? '#27ae60' : '#2980b9';
-    return `<div class="ov-item">
-      <div class="ov-header">
-        <span class="ov-name">${it.name}</span>
-        <span class="ov-nums">家:${it.home_qty} 店:${it.shop_qty} 共${total}</span>
+  if(!items.length) { document.getElementById('ov-list').innerHTML = '<div class="empty">还没有商品</div>'; return; }
+
+  // Group by category
+  const cats = [...new Set(items.map(i=>i.category||'未分类'))].sort();
+  document.getElementById('ov-list').innerHTML = cats.map(cat => {
+    const catItems = items.filter(i=>(i.category||'未分类')===cat);
+    const rows = catItems.map(it => {
+      const total = it.home_qty + it.shop_qty;
+      const pct = it.threshold > 0 ? Math.min(100, Math.round(total / it.threshold * 50)) : 100;
+      const bc = total <= it.threshold ? '#e67e22' : total <= it.threshold*2 ? '#27ae60' : '#2980b9';
+      return `<div class="ov-item" style="padding:8px 12px">
+        <div class="ov-header">
+          <span class="ov-name">${it.name}</span>
+          <span class="ov-nums">家:${it.home_qty} 店:${it.shop_qty} 共${total}</span>
+        </div>
+        <div class="progress"><div class="progress-bar" style="width:${pct}%;background:${bc}"></div></div>
+      </div>`;
+    }).join('');
+    const catId = 'cat-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
+    return `<div class="cat-section">
+      <div class="cat-toggle" onclick="toggleCat('${catId}')">
+        <span>${cat} <span style="font-size:11px;color:var(--text3);font-weight:400">(${catItems.length} 种)</span></span>
+        <span class="cat-arrow open" id="arr-${catId}">▶</span>
       </div>
-      <div class="progress"><div class="progress-bar" style="width:${pct}%;background:${bc}"></div></div>
+      <div class="cat-body" id="${catId}">${rows}</div>
     </div>`;
-  }).join('') : '<div class="empty">还没有商品</div>';
+  }).join('');
+}
+
+function toggleCat(id) {
+  const body = document.getElementById(id);
+  const arr = document.getElementById('arr-'+id);
+  if(body.style.display === 'none') {
+    body.style.display = ''; arr.classList.add('open');
+  } else {
+    body.style.display = 'none'; arr.classList.remove('open');
+  }
 }
 
 // ── SCANNER ────────────────────────────────────────────────────────
