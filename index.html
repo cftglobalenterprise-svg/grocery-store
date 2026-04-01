@@ -72,7 +72,11 @@
   .badge-cancel { background: var(--red-bg); color: var(--red); }
   .badge-barcode { background: var(--surface2); color: var(--text3); font-family: 'DM Mono', monospace; font-size: 10px; }
 
+  .bulk-bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--amber-bg); border-radius: var(--radius-sm); margin-bottom: 10px; font-size: 13px; color: var(--amber); font-weight: 500; }
+  .bulk-bar.hidden { display: none; }
+  .item-checkbox { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; accent-color: var(--text); }
   .item-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .item-row.selected { background: var(--amber-bg); margin: 0 -16px; padding: 14px 16px; border-radius: 0; }
   .item-row:last-child { border-bottom: none; }
   .item-info { flex: 1; min-width: 0; }
   .item-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -242,6 +246,12 @@
             <select id="filter-category" onchange="renderItems()">
               <option value="">全部 Category</option>
             </select>
+            <button class="btn" style="font-size:12px;padding:7px 12px;flex-shrink:0" onclick="toggleSelectAll()">全选</button>
+          </div>
+          <div id="bulk-bar" class="bulk-bar hidden">
+            <span id="bulk-count">已选 0 项</span>
+            <button class="btn" style="font-size:12px;padding:5px 10px;margin-left:auto" onclick="openBulkEdit()">✏️ 批量编辑</button>
+            <button class="btn btn-danger" style="font-size:12px;padding:5px 10px" onclick="clearSelection()">取消选择</button>
           </div>
           <div id="item-list"><div class="empty">还没有商品，先添加吧</div></div>
         </div>
@@ -347,6 +357,27 @@
   </div>
 </div>
 
+<!-- BULK EDIT MODAL -->
+<div class="modal-overlay" id="bulk-modal">
+  <div class="modal" style="max-width:400px">
+    <h3>✏️ 批量编辑</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px" id="bulk-modal-desc">已选 0 项商品</p>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:12px">留空的字段不会被修改</p>
+    <div class="form-row"><label>单价 (RM)</label><input type="number" id="bulk-price" min="0" step="0.01" placeholder="留空=不改"></div>
+    <div class="form-row"><label>Category</label>
+      <select id="bulk-category">
+        <option value="">留空=不改</option>
+      </select>
+    </div>
+    <div class="form-row"><label>家里数量</label><input type="number" id="bulk-home" min="0" placeholder="留空=不改"></div>
+    <div class="form-row"><label>店里数量</label><input type="number" id="bulk-shop" min="0" placeholder="留空=不改"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeBulkEdit()">取消</button>
+      <button class="btn btn-block" style="width:auto;margin:0" onclick="saveBulkEdit()">保存全部</button>
+    </div>
+  </div>
+</div>
+
   <div class="modal-overlay" id="adj-modal">
   <div class="modal">
     <h3 id="adj-title">调整库存</h3>
@@ -392,6 +423,7 @@ let scanTarget = null, scannerRunning = false;
 // cart: [{ item: {...}, qty: number }]
 let cart = [];
 let instoreCart = [];
+let selectedIds = new Set();
 
 function setSync(state, msg) {
   const dot = document.getElementById('sync-dot');
@@ -532,7 +564,10 @@ function renderItems() {
     const bc = it.barcode ? `<div style="margin-top:5px"><span class="badge badge-barcode">🔖 ${it.barcode}</span></div>` : '';
     const price = it.price ? `<span style="font-size:13px;font-weight:600;color:var(--green);font-family:'DM Mono',monospace">RM ${(+it.price).toFixed(2)}</span>` : '';
     const cat = it.category ? `<span class="badge" style="background:var(--surface2);color:var(--text2);font-size:11px">${it.category}</span>` : '';
-    return `<div class="item-row">
+    const checked = selectedIds.has(it.id) ? 'checked' : '';
+    const rowClass = selectedIds.has(it.id) ? 'item-row selected' : 'item-row';
+    return `<div class="${rowClass}" id="row-${it.id}">
+      <input type="checkbox" class="item-checkbox" ${checked} onchange="toggleSelect(${it.id}, this.checked)">
       <div class="item-info">
         <div class="item-name">${it.name} ${warn}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">${cat} ${price}</div>
@@ -546,17 +581,96 @@ function renderItems() {
         ${bc}
       </div>
       <div class="item-actions">
-        <button class="btn" style="font-size:12px;padding:6px 12px" onclick="openAdj('${it.id}')">✏️ 调整</button>
-        <button class="btn btn-danger" style="font-size:12px;padding:6px 12px" onclick="delItem('${it.id}')">🗑 删除</button>
+        <button class="btn" style="font-size:12px;padding:6px 12px" onclick="openAdj(${it.id})">✏️ 调整</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:6px 12px" onclick="delItem(${it.id})">🗑 删除</button>
       </div>
     </div>`;
   }).join('');
+  updateBulkBar();
 }
 
 function updateMetrics() {
   document.getElementById('m-total').textContent = items.length;
   document.getElementById('m-home').textContent = items.reduce((s,i)=>s+i.home_qty,0);
   document.getElementById('m-shop').textContent = items.reduce((s,i)=>s+i.shop_qty,0);
+}
+
+// ── BULK SELECT ────────────────────────────────────────────────────
+function toggleSelect(id, checked) {
+  if(checked) selectedIds.add(id);
+  else selectedIds.delete(id);
+  const row = document.getElementById('row-'+id);
+  if(row) row.className = checked ? 'item-row selected' : 'item-row';
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  const count = document.getElementById('bulk-count');
+  if(!bar) return;
+  if(selectedIds.size > 0) {
+    bar.classList.remove('hidden');
+    count.textContent = '已选 ' + selectedIds.size + ' 项';
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+function toggleSelectAll() {
+  const filterCat = document.getElementById('filter-category');
+  const selectedCat = filterCat ? filterCat.value : '';
+  const visible = selectedCat ? items.filter(i=>i.category===selectedCat) : items;
+  const allSelected = visible.every(i => selectedIds.has(i.id));
+  if(allSelected) {
+    visible.forEach(i => selectedIds.delete(i.id));
+  } else {
+    visible.forEach(i => selectedIds.add(i.id));
+  }
+  renderItems();
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  renderItems();
+}
+
+function openBulkEdit() {
+  if(selectedIds.size === 0) return;
+  document.getElementById('bulk-modal-desc').textContent = '已选 ' + selectedIds.size + ' 项商品，留空的字段不会被修改';
+  document.getElementById('bulk-price').value = '';
+  document.getElementById('bulk-home').value = '';
+  document.getElementById('bulk-shop').value = '';
+  // populate category dropdown
+  const cats = getCategories();
+  document.getElementById('bulk-category').innerHTML = '<option value="">留空=不改</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  document.getElementById('bulk-modal').classList.add('open');
+}
+
+function closeBulkEdit() {
+  document.getElementById('bulk-modal').classList.remove('open');
+}
+
+async function saveBulkEdit() {
+  const price = document.getElementById('bulk-price').value;
+  const cat = document.getElementById('bulk-category').value;
+  const home = document.getElementById('bulk-home').value;
+  const shop = document.getElementById('bulk-shop').value;
+  if(price==='' && cat==='' && home==='' && shop==='') {
+    alert('请至少填写一个字段'); return;
+  }
+  const update = {};
+  if(price !== '') update.price = +price;
+  if(cat !== '') update.category = cat;
+  if(home !== '') update.home_qty = +home;
+  if(shop !== '') update.shop_qty = +shop;
+  setSync('busy','批量更新中...');
+  closeBulkEdit();
+  for(const id of selectedIds) {
+    await sb.from('items').update(update).eq('id', id);
+  }
+  selectedIds.clear();
+  await loadItems();
+  setSync('ok','批量更新完成 · '+timeNow());
 }
 
 async function delItem(id) {
