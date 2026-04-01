@@ -397,13 +397,19 @@ async function init() {
 async function loadItems() {
   const { data, error } = await sb.from('items').select('*').order('created_at');
   if(error) throw error;
-  items = data || []; renderItems();
+  items = data || [];
+  renderItems();
+  // Re-render overview if visible
+  const ovPage = document.getElementById('page-overview');
+  if(ovPage && ovPage.classList.contains('active')) renderOverview();
 }
 
 async function loadOrders() {
   const { data, error } = await sb.from('orders').select('*').order('created_at', {ascending:false});
   if(error) throw error;
-  orders = data || []; renderOrders();
+  orders = data || [];
+  renderOrders();
+  renderInstoreHistory();
 }
 
 function subscribeRealtime() {
@@ -535,6 +541,8 @@ async function delItem(id) {
   if(!confirm('删除 '+it.name+'？')) return;
   setSync('busy','删除中...');
   await sb.from('items').delete().eq('id',id);
+  await loadItems();
+  setSync('ok','已删除 · '+timeNow());
 }
 
 function openAdj(id) {
@@ -564,23 +572,25 @@ async function saveAdj() {
     category: adjCat||null
   }).eq('id', adjId);
   closeAdj();
+  await loadItems();
+  setSync('ok','已保存 · '+timeNow());
 }
 
 // ── CART ───────────────────────────────────────────────────────────
 function addToCart(item) {
-  const existing = cart.find(c => c.item.id == item.id);
+  const existing = cart.find(c => c.item.id === item.id);
   if(existing) { existing.qty += 1; }
   else { cart.push({ item, qty: 1 }); }
   renderCart();
 }
 
 function removeFromCart(itemId) {
-  cart = cart.filter(c => c.item.id != itemId);
+  cart = cart.filter(c => c.item.id !== itemId);
   renderCart();
 }
 
 function updateCartQty(itemId, val) {
-  const entry = cart.find(c => c.item.id == itemId);
+  const entry = cart.find(c => c.item.id === itemId);
   if(entry) entry.qty = Math.max(1, parseInt(val)||1);
   renderCart();
 }
@@ -669,6 +679,8 @@ async function addOrder() {
   document.getElementById('o-customer').value='';
   document.getElementById('o-location').value='';
   clearCart();
+  await loadItems();
+  await loadOrders();
   setSync('ok','下单成功 · '+timeNow());
 }
 
@@ -684,19 +696,19 @@ function onInstoreBarcodeTyped(val) {
 }
 
 function addToInstoreCart(item) {
-  const existing = instoreCart.find(c => c.item.id == item.id);
+  const existing = instoreCart.find(c => c.item.id === item.id);
   if(existing) existing.qty += 1;
   else instoreCart.push({ item, qty: 1 });
   renderInstoreCart();
 }
 
 function removeFromInstoreCart(itemId) {
-  instoreCart = instoreCart.filter(c => c.item.id != itemId);
+  instoreCart = instoreCart.filter(c => c.item.id !== itemId);
   renderInstoreCart();
 }
 
 function updateInstoreQty(itemId, val) {
-  const entry = instoreCart.find(c => c.item.id == itemId);
+  const entry = instoreCart.find(c => c.item.id === itemId);
   if(entry) entry.qty = Math.max(1, parseInt(val)||1);
   renderInstoreCart();
 }
@@ -760,7 +772,8 @@ async function instoreCheckout() {
   instoreCart = [];
   renderInstoreCart();
   document.getElementById('ins-barcode-input').value = '';
-  renderInstoreHistory();
+  await loadItems();
+  await loadOrders();
   setSync('ok','结账成功 · '+timeNow());
 }
 
@@ -845,6 +858,8 @@ async function collectGroup(idsStr) {
   const ids = idsStr.split(',');
   setSync('busy','更新中...');
   for(const id of ids) await sb.from('orders').update({status:'collected'}).eq('id',id);
+  await loadOrders();
+  setSync('ok','已更新 · '+timeNow());
 }
 
 async function cancelGroup(idsStr) {
@@ -852,16 +867,18 @@ async function cancelGroup(idsStr) {
   if(!confirm('取消这笔订单并归还所有库存？')) return;
   setSync('busy','取消中...');
   for(const id of ids) {
-    const o = orders.find(x=>x.id===id);
+    const o = orders.find(x=>x.id==id);
     if(!o) continue;
-    const item = items.find(i=>i.id===o.item_id);
+    const item = items.find(i=>i.id==o.item_id);
     if(item) {
       const restore = o.deduct_from==='shop' ? {shop_qty: item.shop_qty+o.qty} : {home_qty: item.home_qty+o.qty};
       await sb.from('items').update(restore).eq('id', item.id);
-      if(o.deduct_from==='shop') item.shop_qty+=o.qty; else item.home_qty+=o.qty;
     }
     await sb.from('orders').update({status:'cancelled'}).eq('id',id);
   }
+  await loadItems();
+  await loadOrders();
+  setSync('ok','已取消 · '+timeNow());
 }
 
 function renderOrderSearch() {
@@ -876,7 +893,7 @@ function renderOrderSearch() {
   el.innerHTML = '<div class="search-results">' + filtered.map(it => {
     const cat = it.category ? `<span style="color:var(--text3)"> · ${it.category}</span>` : '';
     const price = it.price ? ` · RM ${(+it.price).toFixed(2)}` : '';
-    return `<div class="search-result-item" onclick="addToCart(items.find(i=>i.id==${it.id}));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
+    return `<div class="search-result-item" onclick="addToCart(items.find(i=>i.id==='${it.id}'));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
       <div>
         <div class="search-result-name">${it.name}${cat}</div>
         <div class="search-result-meta">家里:${it.home_qty} 店里:${it.shop_qty}${price}</div>
