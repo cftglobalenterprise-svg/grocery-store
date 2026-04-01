@@ -143,13 +143,11 @@
   .barcode-input-wrap { flex: 1; display: flex; gap: 6px; }
   .barcode-input-wrap input { flex: 1; }
 
-  .cat-mgmt-bar { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 12px; flex-wrap: wrap; }
-  .cat-mgmt-bar .cat-mgmt-label { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px; margin-right: 4px; }
-  .cat-tag { display: inline-flex; align-items: center; gap: 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 500; color: var(--text); }
-  .cat-tag-del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 13px; line-height: 1; padding: 0; }
-  .cat-tag-del:hover { color: var(--red); }
-  .cat-mgmt-add { display: flex; gap: 6px; align-items: center; margin-left: auto; }
-  .cat-mgmt-add input { width: 130px; flex: none; }
+  .cat-modal-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 4px; background: var(--surface2); }
+  .cat-modal-row:last-child { margin-bottom: 0; }
+  .cat-modal-name { font-size: 14px; font-weight: 500; }
+  .cat-modal-count { font-size: 12px; color: var(--text3); margin-left: 8px; }
+  .cat-modal-list { max-height: 320px; overflow-y: auto; margin-bottom: 14px; }
   .filter-bar select { flex: 1; }
 
   .cat-section { margin-bottom: 4px; }
@@ -220,14 +218,9 @@
       <div class="metric"><div class="metric-val" id="m-shop">0</div><div class="metric-lbl">店里</div></div>
     </div>
 
-    <!-- CATEGORY MANAGEMENT BAR -->
-    <div class="cat-mgmt-bar">
-      <span class="cat-mgmt-label">🏷 Categories</span>
-      <div id="cat-tags" style="display:flex;flex-wrap:wrap;gap:6px;flex:1"></div>
-      <div class="cat-mgmt-add">
-        <input type="text" id="new-cat-input" placeholder="新 category 名称" style="font-size:13px;padding:6px 10px" onkeydown="if(event.key==='Enter')addCategory()">
-        <button class="btn" style="font-size:12px;padding:6px 12px;flex-shrink:0" onclick="addCategory()">＋ 添加</button>
-      </div>
+    <!-- CATEGORY MANAGEMENT BUTTON -->
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn" style="font-size:13px;padding:8px 16px" onclick="openCatModal()">🏷 管理 Categories</button>
     </div>
 
     <div class="stock-layout">
@@ -370,6 +363,23 @@
     <div class="card">
       <div class="card-title">库存总览</div>
       <div id="ov-list"><div class="empty">还没有商品</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CATEGORY MODAL -->
+<div class="modal-overlay" id="cat-modal">
+  <div class="modal" style="max-width:420px">
+    <h3>🏷 管理 Categories</h3>
+    <div class="cat-modal-list" id="cat-modal-list"></div>
+    <div class="divider"></div>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px">新增 Category</p>
+    <div class="form-row" style="margin-bottom:0">
+      <input type="text" id="new-cat-input" placeholder="输入名称（Enter 确认）" onkeydown="if(event.key==='Enter')addCategory()">
+      <button class="btn" style="flex-shrink:0" onclick="addCategory()">＋ 添加</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-block" style="margin:0" onclick="closeCatModal()">关闭</button>
     </div>
   </div>
 </div>
@@ -553,18 +563,34 @@ function getCategories() {
   return all;
 }
 
-function renderCatTags() {
+function openCatModal() {
+  renderCatModalList();
+  document.getElementById('cat-modal').classList.add('open');
+}
+function closeCatModal() {
+  document.getElementById('cat-modal').classList.remove('open');
+  document.getElementById('new-cat-input').value = '';
+}
+
+function renderCatModalList() {
   const cats = getCategories();
-  const el = document.getElementById('cat-tags');
+  const el = document.getElementById('cat-modal-list');
   if(!el) return;
-  if(!cats.length) { el.innerHTML = '<span style="font-size:12px;color:var(--text3)">还没有 category</span>'; return; }
+  if(!cats.length) { el.innerHTML = '<div class="empty">还没有 category</div>'; return; }
   el.innerHTML = cats.map(c => {
     const count = items.filter(i=>i.category===c).length;
-    return `<span class="cat-tag">
-      ${c} <span style="color:var(--text3);font-size:11px">(${count})</span>
-      <button class="cat-tag-del" onclick="deleteCategory('${c.replace(/'/g,"\\'")}')" title="删除">✕</button>
-    </span>`;
+    return `<div class="cat-modal-row">
+      <span>
+        <span class="cat-modal-name">${c}</span>
+        <span class="cat-modal-count">${count} 个商品</span>
+      </span>
+      <button class="btn btn-danger" style="font-size:12px;padding:4px 10px" onclick="deleteCategory('${c.replace(/'/g,"\\'")}')">删除</button>
+    </div>`;
   }).join('');
+}
+
+function renderCatTags() {
+  // No longer used for display, just refresh dropdowns
 }
 
 function addCategory() {
@@ -575,7 +601,7 @@ function addCategory() {
   extraCategories.push(val);
   saveExtraCategories();
   input.value = '';
-  renderCatTags();
+  renderCatModalList();
   updateCategoryDropdowns();
 }
 
@@ -583,23 +609,24 @@ async function deleteCategory(cat) {
   const count = items.filter(i=>i.category===cat).length;
   const msg = count > 0
     ? `删除 "${cat}"？\n此 category 下有 ${count} 个商品，全部会归到 OTHER。`
-    : `删除 "${cat}"？`;
+    : `确定删除 "${cat}"？`;
   if(!confirm(msg)) return;
-  // Move items to OTHER
   if(count > 0) {
     setSync('busy','更新中...');
     await sb.from('items').update({category:'OTHER'}).eq('category', cat);
   }
-  // Remove from extra list
   extraCategories = extraCategories.filter(c=>c!==cat);
   saveExtraCategories();
-  // Make sure OTHER is in extraCategories if we just moved items there
   if(count > 0 && !extraCategories.includes('OTHER')) {
     extraCategories.push('OTHER');
     saveExtraCategories();
   }
-  if(count > 0) await loadItems();
-  else { renderCatTags(); updateCategoryDropdowns(); }
+  if(count > 0) {
+    await loadItems();
+  } else {
+    updateCategoryDropdowns();
+  }
+  renderCatModalList();
   setSync('ok','已删除 · '+timeNow());
 }
 
@@ -614,7 +641,6 @@ function updateCategoryDropdowns() {
   if(filterCat) filterCat.innerHTML = filterOpts;
   const orderCat = document.getElementById('o-search-category');
   if(orderCat) orderCat.innerHTML = orderOpts;
-  renderCatTags();
 }
 
 function toggleNewCategoryInput() {
