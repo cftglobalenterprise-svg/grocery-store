@@ -256,6 +256,7 @@
             <select id="filter-category" onchange="renderItems()">
               <option value="">全部 Category</option>
             </select>
+            <input type="text" id="stock-search" placeholder="🔍 搜索商品名..." oninput="renderItems()" style="flex:1;min-width:0">
             <button class="btn" style="font-size:12px;padding:7px 12px;flex-shrink:0" onclick="toggleSelectAll()">全选</button>
           </div>
           <div id="bulk-bar" class="bulk-bar hidden">
@@ -663,10 +664,13 @@ function renderItems() {
   // Restore selection after dropdown was rebuilt
   if(filterCat && savedCat) filterCat.value = savedCat;
   const selectedCat = filterCat ? filterCat.value : '';
+  const searchEl = document.getElementById('stock-search');
+  const searchQuery = searchEl ? searchEl.value.trim().toLowerCase() : '';
   const el = document.getElementById('item-list');
   if(!items.length) { el.innerHTML='<div class="empty">还没有商品，先添加吧</div>'; return; }
-  const filtered = selectedCat ? items.filter(i=>i.category===selectedCat) : items;
-  if(!filtered.length) { el.innerHTML='<div class="empty">此 Category 没有商品</div>'; return; }
+  let filtered = selectedCat ? items.filter(i=>i.category===selectedCat) : items;
+  if(searchQuery) filtered = filtered.filter(i=>i.name.toLowerCase().includes(searchQuery));
+  if(!filtered.length) { el.innerHTML='<div class="empty">没有找到符合的商品</div>'; return; }
   el.innerHTML = filtered.map(it => {
     const total = it.home_qty + it.shop_qty;
     const warn = total <= it.threshold ? '<span class="badge badge-warn">⚠ 低库存</span>' : '';
