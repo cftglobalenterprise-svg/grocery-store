@@ -171,6 +171,35 @@
   .price-tag { font-size: 12px; color: var(--text2); font-family: 'DM Mono', monospace; }
   .subtotal-tag { font-size: 12px; color: var(--green); font-family: 'DM Mono', monospace; font-weight: 600; }
 
+  /* CUSTOMER MODE */
+  .cust-cat-selector { padding:16px; background:var(--surface); border-bottom:1px solid var(--border); }
+  .cust-cat-selector-title { font-size:13px; font-weight:600; color:var(--text2); margin-bottom:10px; }
+  .cust-cat-chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .cust-cat-chip { display:flex; align-items:center; gap:6px; padding:6px 12px; border:1px solid var(--border); border-radius:20px; font-size:13px; font-weight:500; cursor:pointer; background:var(--surface2); color:var(--text2); transition:all 0.15s; user-select:none; }
+  .cust-cat-chip.active { background:var(--text); color:#fff; border-color:var(--text); }
+  .cust-cat-chip input { display:none; }
+  .cust-toggle-all { font-size:12px; color:var(--text3); cursor:pointer; padding:4px 8px; border-radius:var(--radius-sm); border:1px solid var(--border); background:none; }
+  .cust-toggle-all:hover { background:var(--surface2); }
+  #customer-overlay { display:none; position:fixed; inset:0; background:var(--bg); z-index:500; overflow-y:auto; }
+  #customer-overlay.open { display:block; }
+  .cust-topbar { background:var(--surface); border-bottom:1px solid var(--border); padding:14px 20px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
+  .cust-title { font-size:17px; font-weight:700; }
+  .cust-close { background:none; border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 14px; font-size:13px; font-weight:500; cursor:pointer; }
+  .cust-close:hover { background:var(--surface2); }
+  .cust-body { max-width:680px; margin:0 auto; padding:16px; }
+  .cust-cat-toggle { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); cursor:pointer; margin-bottom:4px; user-select:none; }
+  .cust-cat-name { font-size:15px; font-weight:700; color:var(--text); }
+  .cust-cat-count { font-size:12px; color:var(--text3); margin-left:8px; font-weight:400; }
+  .cust-cat-arrow { font-size:11px; color:var(--text3); transition:transform 0.2s; }
+  .cust-cat-arrow.open { transform:rotate(90deg); }
+  .cust-cat-body { border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius-sm) var(--radius-sm); overflow:hidden; margin-bottom:10px; }
+  .cust-item { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); }
+  .cust-item:last-child { border-bottom:none; }
+  .cust-item.out { opacity:0.38; }
+  .cust-item-name { font-size:15px; font-weight:500; color:var(--text); }
+  .cust-badge-in { font-size:12px; font-weight:700; color:var(--green); background:var(--green-bg); padding:3px 10px; border-radius:20px; white-space:nowrap; }
+  .cust-badge-out { font-size:12px; font-weight:600; color:var(--text3); background:var(--surface2); padding:3px 10px; border-radius:20px; white-space:nowrap; }
+
   /* STOCK TWO-COLUMN LAYOUT */
   .stock-layout { display: flex; gap: 16px; align-items: flex-start; }
   .stock-left { flex: 0 0 340px; position: sticky; top: 113px; }
@@ -215,6 +244,7 @@
 <div id="app" style="display:none">
   <div class="topbar">
     <div class="topbar-title">🛒 杂货店库存</div>
+    <button class="btn" style="font-size:12px;padding:7px 13px;flex-shrink:0" onclick="openCustomerMode()">📱 顾客展示</button>
     <div class="sync-indicator">
       <div class="sync-dot" id="sync-dot"></div>
       <span id="sync-msg">已连接</span>
@@ -453,6 +483,23 @@
       <div id="ov-list"><div class="empty">还没有商品</div></div>
     </div>
   </div>
+</div>
+
+<!-- CUSTOMER MODE OVERLAY -->
+<div id="customer-overlay">
+  <div class="cust-topbar">
+    <div class="cust-title">🛒 今日货品</div>
+    <button class="cust-close" onclick="closeCustomerMode()">✕ 退出</button>
+  </div>
+  <!-- Category selector (your side only) -->
+  <div class="cust-cat-selector" id="cust-cat-selector">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <span class="cust-cat-selector-title">📂 选择展示的 Category（只有你看到这里）</span>
+      <button class="cust-toggle-all" onclick="custToggleAll()">全选/全取</button>
+    </div>
+    <div class="cust-cat-chips" id="cust-cat-chips"></div>
+  </div>
+  <div class="cust-body" id="cust-body"></div>
 </div>
 
 <!-- CATEGORY MODAL -->
@@ -1768,6 +1815,121 @@ async function confirmRestock() {
   setSync('ok', `已进货：${it.name} +${qty} → ${locName} · ${timeNow()}`);
   clearRestock();
   await loadItems();
+}
+
+// ── CUSTOMER MODE ───────────────────────────────────────────────────
+// selected cats persisted in memory across opens
+let custSelectedCats = new Set();
+
+function openCustomerMode() {
+  // Build all available cats
+  const allCats = [...new Set(items.filter(i=>!i.bundle_components).map(i => i.category || '未分类'))].sort();
+  // First open: select all by default
+  if(custSelectedCats.size === 0) allCats.forEach(c => custSelectedCats.add(c));
+  // Render chip selector
+  const chipsEl = document.getElementById('cust-cat-chips');
+  chipsEl.innerHTML = allCats.map(cat => {
+    const active = custSelectedCats.has(cat) ? 'active' : '';
+    return `<div class="cust-cat-chip ${active}" onclick="custToggleCat('${cat.replace(/'/g,"\'")}', this)">
+      ${cat}
+    </div>`;
+  }).join('');
+  renderCustomerMode();
+  document.getElementById('customer-overlay').classList.add('open');
+}
+
+function closeCustomerMode() {
+  document.getElementById('customer-overlay').classList.remove('open');
+}
+
+function custToggleCat(cat, el) {
+  if(custSelectedCats.has(cat)) {
+    custSelectedCats.delete(cat);
+    el.classList.remove('active');
+  } else {
+    custSelectedCats.add(cat);
+    el.classList.add('active');
+  }
+  renderCustomerMode();
+}
+
+function custToggleAll() {
+  const allCats = [...new Set(items.filter(i=>!i.bundle_components).map(i => i.category || '未分类'))];
+  const allSelected = allCats.every(c => custSelectedCats.has(c));
+  if(allSelected) {
+    custSelectedCats.clear();
+  } else {
+    allCats.forEach(c => custSelectedCats.add(c));
+  }
+  // Re-render chips
+  document.querySelectorAll('.cust-cat-chip').forEach(chip => {
+    const cat = chip.textContent.trim();
+    chip.classList.toggle('active', custSelectedCats.has(cat));
+  });
+  renderCustomerMode();
+}
+
+function renderCustomerMode() {
+  const el = document.getElementById('cust-body');
+  if(!items.length) { el.innerHTML = '<div class="empty">还没有商品</div>'; return; }
+
+  const activeCats = [...custSelectedCats].sort();
+  if(!activeCats.length) {
+    el.innerHTML = '<div class="empty" style="padding:2rem">请先在上方选择要展示的 Category</div>';
+    return;
+  }
+
+  el.innerHTML = activeCats.map(cat => {
+    const catItems = items
+      .filter(i => (i.category || '未分类') === cat && !i.bundle_components)
+      .sort((a,b) => {
+        // in-stock first, then by name
+        const aStock = a.home_qty + a.shop_qty;
+        const bStock = b.home_qty + b.shop_qty;
+        if((aStock>0) !== (bStock>0)) return aStock > 0 ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+    if(!catItems.length) return '';
+
+    const inCount = catItems.filter(i => (i.home_qty + i.shop_qty) > 0).length;
+    const catId = 'cust-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
+    const rows = catItems.map(it => {
+      const total = it.home_qty + it.shop_qty;
+      const inStock = total > 0;
+      // Show actual qty
+      const qtyLabel = inStock
+        ? `<span class="cust-badge-in">✓ 剩 ${total} 个</span>`
+        : `<span class="cust-badge-out">✗ 无货</span>`;
+      return `<div class="cust-item${inStock ? '' : ' out'}">
+        <span class="cust-item-name">${it.name}</span>
+        ${qtyLabel}
+      </div>`;
+    }).join('');
+
+    return `<div>
+      <div class="cust-cat-toggle" onclick="toggleCustCat('${catId}')">
+        <span>
+          <span class="cust-cat-name">${cat}</span>
+          <span class="cust-cat-count">${inCount}/${catItems.length} 种有货</span>
+        </span>
+        <span class="cust-cat-arrow open" id="custarr-${catId}">▶</span>
+      </div>
+      <div class="cust-cat-body" id="${catId}">${rows}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCustCat(id) {
+  const body = document.getElementById(id);
+  const arr = document.getElementById('custarr-' + id);
+  if(!body) return;
+  if(body.style.display === 'none') {
+    body.style.display = '';
+    arr.classList.add('open');
+  } else {
+    body.style.display = 'none';
+    arr.classList.remove('open');
+  }
 }
 
 init();
