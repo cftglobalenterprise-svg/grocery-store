@@ -270,22 +270,20 @@
       <div class="metric"><div class="metric-val" id="m-shop">0</div><div class="metric-lbl">店里</div></div>
     </div>
 
-    <!-- CATEGORY MANAGEMENT BUTTON -->
-    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-      <button class="btn" style="font-size:13px;padding:8px 16px" onclick="openCatModal()">🏷 管理 Categories</button>
-    </div>
-
     <div class="stock-layout">
       <div class="stock-left">
         <div class="card">
           <div class="card-title">添加商品</div>
           <div class="form-row"><label>商品名</label><input type="text" id="new-name" placeholder="例：糖果 Mamee"></div>
           <div class="form-row"><label>Category</label>
-            <select id="new-category">
+            <select id="new-category" style="flex:1;min-width:0">
               <option value="">-- 选择 Category --</option>
             </select>
-            <input type="text" id="new-category-custom" placeholder="或输入新 category" style="display:none">
-            <button class="btn" id="new-category-toggle" onclick="toggleNewCategoryInput()" style="flex-shrink:0;font-size:12px;padding:7px 10px">＋新</button>
+          </div>
+          <div class="form-row" id="new-category-extra-row">
+            <label></label>
+            <input type="text" id="new-category-custom" placeholder="输入新 category 名称" style="display:none;flex:1">
+            <button class="btn" id="new-category-toggle" onclick="toggleNewCategoryInput()" style="flex-shrink:0;font-size:12px;padding:6px 10px">＋ 新 Category</button>
           </div>
           <div class="form-row">
             <label>Barcode</label>
@@ -343,11 +341,12 @@
         <div class="card">
           <div class="card-title">库存列表</div>
           <div class="filter-bar">
-            <select id="filter-category" onchange="renderItems()">
+            <select id="filter-category" onchange="renderItems()" style="min-width:0">
               <option value="">全部 Category</option>
             </select>
-            <input type="text" id="stock-search" placeholder="🔍 搜索商品名..." oninput="renderItems()" style="flex:1;min-width:0">
-            <button class="btn" style="font-size:12px;padding:7px 12px;flex-shrink:0" onclick="toggleSelectAll()">全选</button>
+            <input type="text" id="stock-search" placeholder="🔍 搜索..." oninput="renderItems()" style="flex:1;min-width:0">
+            <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="toggleSelectAll()">全选</button>
+            <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="openCatModal()" title="管理 Categories">🏷</button>
           </div>
           <div id="bulk-bar" class="bulk-bar hidden">
             <span id="bulk-count">已选 0 项</span>
