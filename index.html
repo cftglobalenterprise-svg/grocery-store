@@ -601,39 +601,59 @@
   <!-- OVERVIEW PAGE -->
   <div id="page-overview" class="page">
 
-    <!-- ALERT CARDS ROW (3 columns on wide, stack on mobile) -->
-    <div id="ov-alert-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px">
-
-      <!-- Card 1: Need to replenish shop from home -->
-      <div class="card" style="margin-bottom:0;border-top:3px solid var(--amber)">
-        <div class="card-title" style="color:var(--amber)">🏪 需从家里补到店里</div>
-        <p style="font-size:11px;color:var(--text3);margin-bottom:10px">店里库存 &lt; 2 个</p>
-        <div id="warn-shop"><div class="empty">店里库存充足 ✓</div></div>
+    <!-- Health summary bar -->
+    <div id="ov-health-bar" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:160px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">店里达标</div>
+        <div class="progress" style="height:6px"><div id="ov-bar-shop" class="progress-bar" style="height:6px"></div></div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px"><span id="ov-txt-shop"></span></div>
       </div>
-
-      <!-- Card 2: Need to order (total low) -->
-      <div class="card" style="margin-bottom:0;border-top:3px solid var(--red)">
-        <div class="card-title" style="color:var(--red)">📋 需要下单订货</div>
-        <p style="font-size:11px;color:var(--text3);margin-bottom:10px">家里＋店里总和 &lt; 10 个</p>
-        <div id="warn-order"><div class="empty">库存总量充足 ✓</div></div>
+      <div style="width:1px;height:36px;background:var(--border);flex-shrink:0"></div>
+      <div style="flex:1;min-width:160px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">总量达标</div>
+        <div class="progress" style="height:6px"><div id="ov-bar-total" class="progress-bar" style="height:6px"></div></div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px"><span id="ov-txt-total"></span></div>
       </div>
-
-      <!-- Card 3: All good summary -->
-      <div class="card" style="margin-bottom:0;border-top:3px solid var(--green)">
-        <div class="card-title" style="color:var(--green)">✅ 库存状态</div>
-        <p style="font-size:11px;color:var(--text3);margin-bottom:10px">整体健康度</p>
-        <div id="ov-summary"></div>
-      </div>
-
+      <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0" id="ov-total-val" title="全部库存总价值"></div>
     </div>
-    <style>
-      @media(max-width:700px){ #ov-alert-row { grid-template-columns:1fr !important; } }
-    </style>
 
-    <!-- Full inventory by category -->
-    <div class="card">
-      <div class="card-title">📦 库存总览</div>
-      <div id="ov-list"><div class="empty">还没有商品</div></div>
+    <!-- Alert: 补店里 (collapsible) -->
+    <div class="card" style="margin-bottom:10px;padding:0;overflow:hidden">
+      <div id="ov-sec-shop-hdr" onclick="toggleOvSection('shop')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:14px;font-weight:600">🏪 补店里</span>
+          <span id="ov-shop-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600"></span>
+        </div>
+        <span id="ov-arr-shop" style="font-size:13px;color:var(--text3);transition:transform 0.2s">▼</span>
+      </div>
+      <div id="ov-sec-shop-body" style="border-top:1px solid var(--border);max-height:340px;overflow-y:auto">
+        <div id="warn-shop" style="padding:0 16px"></div>
+      </div>
+    </div>
+
+    <!-- Alert: 下单订货 (collapsible) -->
+    <div class="card" style="margin-bottom:10px;padding:0;overflow:hidden">
+      <div id="ov-sec-order-hdr" onclick="toggleOvSection('order')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:14px;font-weight:600">📋 需订货</span>
+          <span id="ov-order-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600"></span>
+        </div>
+        <span id="ov-arr-order" style="font-size:13px;color:var(--text3);transition:transform 0.2s">▼</span>
+      </div>
+      <div id="ov-sec-order-body" style="border-top:1px solid var(--border);max-height:340px;overflow-y:auto">
+        <div id="warn-order" style="padding:0 16px"></div>
+      </div>
+    </div>
+
+    <!-- Full inventory by category (collapsible) -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div onclick="toggleOvSection('inv')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none">
+        <span style="font-size:14px;font-weight:600">📦 全部库存</span>
+        <span id="ov-arr-inv" style="font-size:13px;color:var(--text3);transition:transform 0.2s">▼</span>
+      </div>
+      <div id="ov-sec-inv-body" style="border-top:1px solid var(--border)">
+        <div id="ov-list" style="padding:0 16px 8px"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -1691,144 +1711,145 @@ function renderInstoreSearch() {
   }).join('') + '</div>';
 }
 
+function toggleOvSection(sec) {
+  const body = document.getElementById('ov-sec-' + sec + '-body');
+  const arr  = document.getElementById('ov-arr-' + sec);
+  if(!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  if(arr) arr.style.transform = open ? 'rotate(-90deg)' : '';
+}
+
 function renderOverview() {
   if(!items.length) {
-    document.getElementById('warn-shop').innerHTML = '<div class="empty">还没有商品</div>';
-    document.getElementById('warn-order').innerHTML = '<div class="empty">还没有商品</div>';
-    document.getElementById('ov-summary').innerHTML = '';
-    document.getElementById('ov-list').innerHTML = '<div class="empty">还没有商品</div>';
+    document.getElementById('warn-shop').innerHTML  = '<div class="empty" style="padding:14px 0">店里库存充足 ✓</div>';
+    document.getElementById('warn-order').innerHTML = '<div class="empty" style="padding:14px 0">库存总量充足 ✓</div>';
+    document.getElementById('ov-list').innerHTML    = '<div class="empty">还没有商品</div>';
     return;
   }
 
-  const SHOP_MIN = 2;   // 店里最少 2 个
-  const TOTAL_MIN = 10; // 家里+店里总和最少 10 个
+  const SHOP_MIN  = 2;
+  const TOTAL_MIN = 10;
+  const realItems = items.filter(i => !i.bundle_components);
 
-  // ── Helper: render items grouped by category (collapsible) ────────
-  function renderAlertByCat(itemList, panelId, emptyMsg, rowFn, idPrefix) {
-    if(!itemList.length) { document.getElementById(panelId).innerHTML = `<div class="empty">${emptyMsg}</div>`; return; }
+  // ── Health bar ───────────────────────────────────────────────────
+  const totalCount = realItems.length;
+  const shopOk  = realItems.filter(i => i.shop_qty >= SHOP_MIN).length;
+  const totalOk = realItems.filter(i => (i.home_qty + i.shop_qty) >= TOTAL_MIN).length;
+  const shopPct  = totalCount ? Math.round(shopOk / totalCount * 100) : 100;
+  const totalPct = totalCount ? Math.round(totalOk / totalCount * 100) : 100;
+
+  const shopColor  = shopPct  === 100 ? 'var(--green)' : shopPct  >= 70 ? '#27ae60' : 'var(--amber)';
+  const totalColor = totalPct === 100 ? 'var(--green)' : totalPct >= 70 ? '#27ae60' : 'var(--red)';
+
+  document.getElementById('ov-bar-shop').style.cssText  = `width:${shopPct}%;background:${shopColor};height:6px`;
+  document.getElementById('ov-bar-total').style.cssText = `width:${totalPct}%;background:${totalColor};height:6px`;
+  document.getElementById('ov-txt-shop').textContent  = `${shopOk}/${totalCount} 种 (${shopPct}%)`;
+  document.getElementById('ov-txt-total').textContent = `${totalOk}/${totalCount} 种 (${totalPct}%)`;
+
+  const grandTotal = items.filter(i=>!i.bundle_components&&i.price>0)
+    .reduce((s,i)=>s+(+(i.price||0))*(i.home_qty+i.shop_qty),0);
+  const valEl = document.getElementById('ov-total-val');
+  if(valEl) {
+    valEl.textContent = grandTotal > 0 ? `RM ${grandTotal.toFixed(0)}` : '';
+    valEl.style.color = 'var(--green)';
+  }
+
+  // ── Alert helper: render flat list (no category grouping, simpler) ─
+  function renderAlertList(itemList, panelId, emptyMsg, rowFn) {
+    const el = document.getElementById(panelId);
+    if(!itemList.length) {
+      el.innerHTML = `<div class="empty" style="padding:14px 0">${emptyMsg}</div>`; return;
+    }
+    // Group by category, each category collapsible
     const cats = [...new Set(itemList.map(i=>i.category||'未分类'))].sort();
-    document.getElementById(panelId).innerHTML = cats.map(cat => {
+    el.innerHTML = cats.map(cat => {
       const catItems = itemList.filter(i=>(i.category||'未分类')===cat);
-      const catId = idPrefix + cat.replace(/[^a-zA-Z0-9]/g,'_');
-      return `<div class="cat-section" style="margin-bottom:4px">
-        <div class="cat-toggle" onclick="toggleCat('${catId}')" style="padding:8px 10px;font-size:12px">
-          <span>${cat} <span style="font-size:11px;color:var(--text3);font-weight:400">(${catItems.length} 种)</span></span>
-          <span class="cat-arrow open" id="arr-${catId}">▶</span>
+      const catId = panelId + '_' + cat.replace(/[^a-zA-Z0-9]/g,'_');
+      return `<div style="border-bottom:1px solid var(--border)">
+        <div onclick="toggleCat('${catId}')" style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;cursor:pointer;user-select:none">
+          <span style="font-size:12px;font-weight:600;color:var(--text2)">${cat} <span style="font-weight:400;color:var(--text3)">(${catItems.length})</span></span>
+          <span class="cat-arrow open" id="arr-${catId}" style="font-size:10px;color:var(--text3)">▶</span>
         </div>
-        <div class="cat-body" id="${catId}" style="padding:0 10px">${catItems.map(rowFn).join('')}</div>
+        <div id="${catId}">${catItems.map(rowFn).join('')}</div>
       </div>`;
     }).join('');
   }
 
-  // ── Panel 1: 店里 < 2，需从家里补 ──────────────────────────────
-  const needShop = items.filter(i => !i.bundle_components && i.shop_qty < SHOP_MIN);
-  renderAlertByCat(needShop, 'warn-shop', '店里库存充足 ✓', it => {
+  // ── Panel 1: 补店里 ──────────────────────────────────────────────
+  const needShop = realItems.filter(i => i.shop_qty < SHOP_MIN);
+  const shopBadge = document.getElementById('ov-shop-badge');
+  if(shopBadge) {
+    shopBadge.textContent = needShop.length ? `${needShop.length} 项` : '充足 ✓';
+    shopBadge.style.cssText = needShop.length
+      ? 'background:var(--amber-bg);color:var(--amber);font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600'
+      : 'background:var(--green-bg);color:var(--green);font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600';
+  }
+  renderAlertList(needShop, 'warn-shop', '店里库存充足 ✓', it => {
     const needed = SHOP_MIN - it.shop_qty;
     const homeOk = it.home_qty >= needed;
-    return `<div class="ov-item" style="padding:8px 0">
-      <div class="ov-header">
-        <span class="ov-name" style="font-size:13px">${it.name}</span>
-        <span class="badge ${homeOk ? 'badge-warn' : 'badge-cancel'}">${homeOk ? '可补' : '家里也不足'}</span>
-      </div>
-      <div style="font-size:12px;color:var(--text2);margin-top:3px">
-        店里 <b>${it.shop_qty}</b> 个 → 需补 <b style="color:var(--amber)">${needed}</b> 个
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--border)">
+      <span style="font-size:13px;color:var(--text)">${it.name}</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <span style="font-size:12px;color:var(--text3)">店 <b style="font-family:'DM Mono',monospace">${it.shop_qty}</b> → 补 <b style="color:var(--amber)">${needed}</b></span>
+        <span style="font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${homeOk ? 'background:var(--amber-bg);color:var(--amber)' : 'background:var(--red-bg);color:var(--red)'}">${homeOk ? '可补' : '家里不足'}</span>
       </div>
     </div>`;
-  }, 'ws_');
+  });
 
-  // ── Panel 2: 总和 < 10，需下单订货 ─────────────────────────────
-  const needOrder = items.filter(i => !i.bundle_components && (i.home_qty + i.shop_qty) < TOTAL_MIN);
-  renderAlertByCat(needOrder, 'warn-order', '库存总量充足 ✓', it => {
+  // ── Panel 2: 需订货 ──────────────────────────────────────────────
+  const needOrder = realItems.filter(i => (i.home_qty + i.shop_qty) < TOTAL_MIN);
+  const orderBadge = document.getElementById('ov-order-badge');
+  if(orderBadge) {
+    orderBadge.textContent = needOrder.length ? `${needOrder.length} 项` : '充足 ✓';
+    orderBadge.style.cssText = needOrder.length
+      ? 'background:var(--red-bg);color:var(--red);font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600'
+      : 'background:var(--green-bg);color:var(--green);font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600';
+  }
+  renderAlertList(needOrder, 'warn-order', '库存总量充足 ✓', it => {
     const total = it.home_qty + it.shop_qty;
-    const needed = TOTAL_MIN - total;
     const pct = Math.round(total / TOTAL_MIN * 100);
     const barColor = total <= 3 ? 'var(--red)' : total <= 6 ? 'var(--amber)' : '#27ae60';
-    return `<div class="ov-item" style="padding:8px 0">
-      <div class="ov-header">
-        <span class="ov-name" style="font-size:13px">${it.name}</span>
-        <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--red);font-weight:600">${total}/${TOTAL_MIN}</span>
-      </div>
-      <div style="font-size:12px;color:var(--text2);margin-top:2px;margin-bottom:5px">
-        还差 <b style="color:var(--red)">${needed}</b> 个才达标
+    return `<div style="padding:8px 0;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <span style="font-size:13px;color:var(--text)">${it.name}</span>
+        <span style="font-size:12px;font-family:'DM Mono',monospace;color:${barColor};font-weight:600">${total}/${TOTAL_MIN}</span>
       </div>
       <div class="progress"><div class="progress-bar" style="width:${pct}%;background:${barColor}"></div></div>
     </div>`;
-  }, 'wo_');
+  });
 
-  // ── Panel 3: 健康度摘要 ─────────────────────────────────────────
-  const realItems = items.filter(i => !i.bundle_components);
-  const totalItems = realItems.length;
-  const shopOk = realItems.filter(i => i.shop_qty >= SHOP_MIN).length;
-  const totalOk = realItems.filter(i => (i.home_qty + i.shop_qty) >= TOTAL_MIN).length;
-  const shopPct = totalItems ? Math.round(shopOk / totalItems * 100) : 100;
-  const totalPct = totalItems ? Math.round(totalOk / totalItems * 100) : 100;
-  document.getElementById('ov-summary').innerHTML = `
-    <div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span style="color:var(--text2)">店里达标（≥${SHOP_MIN}个）</span>
-        <span style="font-weight:600;font-family:'DM Mono',monospace">${shopOk}/${totalItems}</span>
-      </div>
-      <div class="progress"><div class="progress-bar" style="width:${shopPct}%;background:${shopPct===100?'var(--green)':shopPct>=70?'#27ae60':'var(--amber)'}"></div></div>
-    </div>
-    <div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span style="color:var(--text2)">总量达标（≥${TOTAL_MIN}个）</span>
-        <span style="font-weight:600;font-family:'DM Mono',monospace">${totalOk}/${totalItems}</span>
-      </div>
-      <div class="progress"><div class="progress-bar" style="width:${totalPct}%;background:${totalPct===100?'var(--green)':totalPct>=70?'#27ae60':'var(--red)'}"></div></div>
-    </div>
-    <div style="font-size:12px;color:var(--text3);text-align:center;padding-top:4px">
-      ${needShop.length===0 && needOrder.length===0 ? '🎉 全部库存健康！' : `⚠ 共 ${needShop.length+needOrder.length} 项需要处理`}
-    </div>`;
-
-  // ── Full inventory list by category ────────────────────────────
+  // ── Full inventory list ──────────────────────────────────────────
   const cats = [...new Set(items.map(i=>i.category||'未分类'))].sort();
-  // grand total
-  const grandTotal = items.filter(i=>!i.bundle_components&&i.price>0)
-    .reduce((s,i)=>s+(+(i.price||0))*(i.home_qty+i.shop_qty),0);
-  const grandTotalHtml = grandTotal > 0
-    ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:12px">
-        <span style="font-size:13px;font-weight:600;color:var(--text2)">📦 全部库存总价值</span>
-        <span style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)">RM ${grandTotal.toFixed(2)}</span>
-       </div>` : '';
-
-  document.getElementById('ov-list').innerHTML = grandTotalHtml + cats.map(cat => {
+  document.getElementById('ov-list').innerHTML = cats.map(cat => {
     const catItems = items.filter(i=>(i.category||'未分类')===cat);
+    const catAlerts = catItems.filter(i=>!i.bundle_components&&(i.shop_qty<SHOP_MIN||(i.home_qty+i.shop_qty)<TOTAL_MIN)).length;
+    const catValue = catItems.filter(i=>!i.bundle_components&&i.price>0)
+      .reduce((s,i)=>s+(+(i.price||0))*(i.home_qty+i.shop_qty),0);
+    const catId = 'cat-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
     const rows = catItems.map(it => {
       const total = it.home_qty + it.shop_qty;
       const isBundle = it.bundle_components;
-      // color based on new rules
-      let barColor, pct;
-      if(isBundle) {
-        pct = 100; barColor = '#9b59b6';
-      } else {
-        pct = Math.min(100, Math.round(total / TOTAL_MIN * 100));
-        barColor = total < 3 ? 'var(--red)' : total < TOTAL_MIN ? 'var(--amber)' : 'var(--green)';
-      }
-      const shopWarn = !isBundle && it.shop_qty < SHOP_MIN ? `<span class="badge badge-warn" style="font-size:10px">店里不足</span>` : '';
-      const bundleBadge = isBundle ? `<span class="badge badge-bundle" style="font-size:10px">🎁套装</span>` : '';
-      return `<div class="ov-item" style="padding:8px 12px">
-        <div class="ov-header">
-          <span class="ov-name">${it.name} ${shopWarn}${bundleBadge}</span>
-          <span class="ov-nums">家:${it.home_qty} 店:${it.shop_qty} 共${total}</span>
+      let barColor;
+      if(isBundle) barColor = '#9b59b6';
+      else barColor = total < 3 ? 'var(--red)' : total < TOTAL_MIN ? 'var(--amber)' : 'var(--green)';
+      const pct = isBundle ? 100 : Math.min(100, Math.round(total / TOTAL_MIN * 100));
+      const shopWarn = !isBundle && it.shop_qty < SHOP_MIN ? `<span style="font-size:9px;background:var(--amber-bg);color:var(--amber);padding:1px 5px;border-radius:6px;font-weight:600;margin-left:4px">补</span>` : '';
+      const bundleBadge = isBundle ? `<span style="font-size:9px;background:#ede9fe;color:#5b21b6;padding:1px 5px;border-radius:6px;margin-left:4px">套</span>` : '';
+      return `<div style="padding:8px 0;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:13px;color:var(--text)">${it.name}${shopWarn}${bundleBadge}</span>
+          <span style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;flex-shrink:0;margin-left:8px">家${it.home_qty} 店${it.shop_qty}</span>
         </div>
         <div class="progress"><div class="progress-bar" style="width:${pct}%;background:${barColor}"></div></div>
       </div>`;
     }).join('');
-    const catId = 'cat-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
-    // count alerts in this category
-    const catAlerts = catItems.filter(i=>!i.bundle_components&&(i.shop_qty<SHOP_MIN||(i.home_qty+i.shop_qty)<TOTAL_MIN)).length;
-    const alertBadge = catAlerts > 0 ? `<span style="font-size:11px;background:var(--red-bg);color:var(--red);padding:1px 7px;border-radius:10px;font-weight:600">${catAlerts} ⚠</span>` : '';
-    // total value = sum of (price × total_qty) for non-bundle items with price
-    const catValue = catItems
-      .filter(i => !i.bundle_components && i.price > 0)
-      .reduce((s, i) => s + (+(i.price||0)) * (i.home_qty + i.shop_qty), 0);
-    const valueBadge = catValue > 0
-      ? `<span style="font-size:11px;color:var(--green);font-family:'DM Mono',monospace;font-weight:600;margin-left:6px">RM ${catValue.toFixed(2)}</span>`
-      : '';
-    return `<div class="cat-section">
-      <div class="cat-toggle" onclick="toggleCat('${catId}')">
-        <span>${cat} <span style="font-size:11px;color:var(--text3);font-weight:400">(${catItems.length} 种)</span> ${alertBadge}${valueBadge}</span>
+    return `<div style="border-bottom:1px solid var(--border)">
+      <div class="cat-toggle" onclick="toggleCat('${catId}')" style="padding:10px 0">
+        <span style="font-size:13px;font-weight:600">${cat} <span style="font-size:11px;color:var(--text3);font-weight:400">(${catItems.length})</span>
+          ${catAlerts > 0 ? `<span style="font-size:10px;background:var(--red-bg);color:var(--red);padding:1px 6px;border-radius:8px;font-weight:600;margin-left:4px">${catAlerts}⚠</span>` : ''}
+          ${catValue > 0 ? `<span style="font-size:10px;color:var(--green);font-family:'DM Mono',monospace;font-weight:600;margin-left:4px">RM${catValue.toFixed(0)}</span>` : ''}
+        </span>
         <span class="cat-arrow open" id="arr-${catId}">▶</span>
       </div>
       <div class="cat-body" id="${catId}">${rows}</div>
