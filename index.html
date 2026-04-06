@@ -107,6 +107,7 @@
 
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
   .modal-overlay.open { display: flex; }
+  body.modal-open { overflow: hidden; }
   .modal { background: var(--surface); border-radius: var(--radius); padding: 20px; width: 100%; max-width: 360px; }
   .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
   .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
@@ -358,7 +359,7 @@
             </label>
             <div id="pdf-status" style="font-size:12px;color:var(--text2);margin-top:8px;min-height:18px"></div>
             <div id="pdf-results" style="display:none;margin-top:8px">
-              <button class="btn btn-block" onclick="document.getElementById('pdf-modal').classList.add('open')">📋 查看识别结果并确认</button>
+              <button class="btn btn-block" onclick="document.getElementById('pdf-modal').classList.add('open');document.body.classList.add('modal-open')">📋 查看识别结果并确认</button>
             </div>
           </div>
         </div>
@@ -702,7 +703,7 @@
     <p style="font-size:12px;color:var(--text2);margin-bottom:12px">检查匹配是否正确，调整数量，取消不需要的项目</p>
     <div id="pdf-match-list" style="flex:1;overflow-y:auto;margin-bottom:14px"></div>
     <div class="modal-footer" style="margin-top:0">
-      <button class="btn" onclick="document.getElementById('pdf-modal').classList.remove('open')">取消</button>
+      <button class="btn" onclick="document.getElementById('pdf-modal').classList.remove('open');document.body.classList.remove('modal-open')">取消</button>
       <button class="btn btn-block" style="width:auto;margin:0;background:var(--green);border-color:var(--green);color:#fff" onclick="addPdfMatchesToCart()">✅ 确认加入进货清单</button>
     </div>
   </div>
@@ -2204,14 +2205,42 @@ function savePdfRatios() {
 function fuzzyScore(a, b) {
   a = a.toLowerCase().replace(/[^a-z0-9]/g,' ').trim();
   b = b.toLowerCase().replace(/[^a-z0-9]/g,' ').trim();
-  const aWords = a.split(/\s+/).filter(Boolean);
-  const bWords = b.split(/\s+/).filter(Boolean);
+  const aWords = a.split(/\s+/).filter(w => w.length > 1);
+  const bWords = b.split(/\s+/).filter(w => w.length > 1);
   if(!aWords.length || !bWords.length) return 0;
   let matches = 0;
   for(const w of aWords) {
     if(bWords.some(bw => bw.includes(w) || w.includes(bw))) matches++;
   }
   return matches / Math.max(aWords.length, bWords.length);
+}
+
+// Smart match: find best inventory item for a PDF product name
+// Strategy: extract brand/category hint from PDF name, boost items in matching category
+function smartMatch(pdfName, inventoryItems) {
+  const pdfLower = pdfName.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
+  const pdfWords = pdfLower.split(/\s+/).filter(w => w.length > 1);
+
+  let bestItem = null, bestScore = 0;
+
+  for(const it of inventoryItems) {
+    let score = fuzzyScore(pdfName, it.name);
+
+    // Category boost: if PDF name contains a word matching the item's category, boost score
+    if(it.category) {
+      const catLower = it.category.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
+      const catWords = catLower.split(/\s+/).filter(w => w.length > 1);
+      const catMatch = catWords.some(cw => pdfWords.some(pw => pw.includes(cw) || cw.includes(pw)));
+      if(catMatch) score += 0.25;
+    }
+
+    // Exact substring boost: PDF name contains item name or vice versa
+    const itLower = it.name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
+    if(pdfLower.includes(itLower) || itLower.includes(pdfLower)) score += 0.3;
+
+    if(score > bestScore) { bestScore = score; bestItem = it; }
+  }
+  return { bestItem, bestScore };
 }
 
 async function handlePdfUpload(input) {
@@ -2251,6 +2280,8 @@ async function handlePdfUpload(input) {
     }
 
     statusEl.textContent = '⏳ 正在匹配商品...';
+    console.log('PDF full text (first 500 chars):', fullText.slice(0, 500));
+    console.log('PDF normalized (first 500 chars):', fullText.replace(/\s+/g,' ').slice(0, 500));
 
     // Format: "RowNo ItemCode Description Qty.00 UNIT Price Amount"
     const inventoryItems = items.filter(i => !i.bundle_components);
@@ -2303,19 +2334,15 @@ async function handlePdfUpload(input) {
       if(name.length < 3) continue;
       if(/^(no|item|desc|price|qty|total|date|inv|page|your|our|terms|attn|ringgit|authoris)/i.test(name)) continue;
 
-      let bestItem = null, bestScore = 0;
-      for(const it of inventoryItems) {
-        const score = fuzzyScore(name, it.name);
-        if(score > bestScore) { bestScore = score; bestItem = it; }
-      }
-      const confidence = bestScore >= 0.55 ? 'high' : bestScore >= 0.3 ? 'medium' : 'low';
+      const { bestItem, bestScore } = smartMatch(name, inventoryItems);
+      const confidence = bestScore >= 0.7 ? 'high' : bestScore >= 0.4 ? 'medium' : 'low';
       const savedRatio = bestItem && pdfRatios[bestItem.id] !== undefined ? pdfRatios[bestItem.id] : 1;
       results.push({
         pdf_name: name,
         item_code: c.code,
         supplier_qty: Math.round(qty),
         ratio: savedRatio,
-        item_id: bestScore >= 0.2 ? bestItem?.id : null,
+        item_id: bestScore >= 0.3 ? bestItem?.id : null,
         item_name: bestItem?.name || null,
         confidence
       });
@@ -2428,6 +2455,7 @@ function addPdfMatchesToCart() {
   renderRestockCart();
   document.getElementById('pdf-results').style.display = 'none';
   document.getElementById('pdf-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
   document.getElementById('pdf-status').textContent = `✅ 已加入 ${added} 项到进货清单`;
   // Auto-open restock panel
   const body = document.getElementById('body-panel-restock');
