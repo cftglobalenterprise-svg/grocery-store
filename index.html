@@ -350,6 +350,19 @@
                 <button class="btn btn-scan" onclick="openScanModal('restock')">📷 扫</button>
               </div>
             </div>
+            <div style="height:1px;background:var(--border);margin:12px 0"></div>
+            <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">📄 从 Supplier PDF 导入</div>
+            <label style="display:block;padding:10px;border:1px dashed var(--border);border-radius:var(--radius-sm);text-align:center;cursor:pointer;font-size:13px;color:var(--text2);transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+              点击上传 PDF
+              <input type="file" id="pdf-upload" accept=".pdf" style="display:none" onchange="handlePdfUpload(this)">
+            </label>
+            <div id="pdf-status" style="font-size:12px;color:var(--text2);margin-top:8px;min-height:18px"></div>
+            <!-- PDF match results -->
+            <div id="pdf-results" style="display:none;margin-top:10px">
+              <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">AI 识别结果 — 请确认：</div>
+              <div id="pdf-match-list"></div>
+              <button class="btn btn-block" style="margin-top:8px" onclick="addPdfMatchesToCart()">✅ 全部加入进货清单</button>
+            </div>
           </div>
         </div>
 
@@ -2075,6 +2088,155 @@ function toggleCustCat(id) {
     body.style.display = 'none';
     arr.classList.remove('open');
   }
+}
+
+// ── PDF IMPORT ──────────────────────────────────────────────────────
+// pdfRatios: saved conversion ratios per item { itemId: ratio }
+let pdfMatches = [];
+let pdfRatios = JSON.parse(localStorage.getItem('pdfRatios') || '{}');
+
+function savePdfRatios() {
+  localStorage.setItem('pdfRatios', JSON.stringify(pdfRatios));
+}
+
+async function handlePdfUpload(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('pdf-status');
+  const resultsEl = document.getElementById('pdf-results');
+  resultsEl.style.display = 'none';
+  document.getElementById('pdf-match-list').innerHTML = '';
+  pdfMatches = [];
+
+  statusEl.style.color = 'var(--text2)';
+  statusEl.textContent = '⏳ AI 正在读取 PDF，请稍候...';
+
+  try {
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+
+    const itemList = items.filter(i => !i.bundle_components)
+      .map(i => `ID:${i.id} | ${i.name}`)
+      .join('\n');
+
+    const prompt = `You are a stock management assistant. I have a supplier PDF invoice/delivery order.
+
+IMPORTANT CONTEXT: The supplier counts in cartons/boxes, but my system counts individual units. For example, supplier qty=1 carton might equal 4 units in my system. Please extract the supplier's original qty as-is — I will handle the conversion myself.
+
+My inventory items:
+${itemList}
+
+Extract ALL product lines from the PDF. Match each to the closest item in my inventory list. Also try to guess the unit conversion ratio (how many of my units per 1 supplier unit) based on any packaging info in the PDF (e.g. "1x4", "4pcs", "box of 12", etc). If no info, set ratio to 1.
+
+Respond ONLY with a JSON array, no explanation, no markdown:
+[{"pdf_name":"product name from pdf","supplier_qty":number,"ratio":number,"item_id":123,"item_name":"matched name","confidence":"high/medium/low"}]
+
+ratio = how many of MY units per 1 supplier unit. If no packaging info found, set ratio to 1.
+If no match found for item_id, set it to null.`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+          { type: 'text', text: prompt }
+        ]}]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.content.map(c => c.text || '').join('');
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    // Apply saved ratios if available
+    parsed.forEach(m => {
+      if(m.item_id && pdfRatios[m.item_id] !== undefined) {
+        m.ratio = pdfRatios[m.item_id];
+      }
+    });
+
+    pdfMatches = parsed;
+    renderPdfResults(parsed);
+    statusEl.textContent = `✅ 识别完成，找到 ${parsed.length} 个产品`;
+    statusEl.style.color = 'var(--green)';
+
+  } catch(e) {
+    statusEl.textContent = '❌ 读取失败：' + (e.message || '请重试');
+    statusEl.style.color = 'var(--red)';
+    console.error(e);
+  }
+  input.value = '';
+}
+
+function renderPdfResults(matches) {
+  const el = document.getElementById('pdf-match-list');
+  const resultsEl = document.getElementById('pdf-results');
+  if(!matches.length) { resultsEl.style.display = 'none'; return; }
+  resultsEl.style.display = 'block';
+
+  el.innerHTML = matches.map((m, idx) => {
+    const matched = m.item_id && items.find(i => i.id === m.item_id);
+    const confColor = m.confidence === 'high' ? 'var(--green)' : m.confidence === 'medium' ? 'var(--amber)' : 'var(--red)';
+    const ratio = m.ratio || 1;
+    const finalQty = (m.supplier_qty || 1) * ratio;
+    const savedNote = m.item_id && pdfRatios[m.item_id] !== undefined ? ' 💾' : '';
+    return `<div style="padding:10px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:8px;font-size:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-weight:600;color:var(--text);font-size:13px">${m.pdf_name}</span>
+        <span style="color:${confColor};font-size:11px;background:var(--surface);padding:2px 6px;border-radius:4px">${m.confidence}</span>
+      </div>
+      <div style="color:var(--text2);margin-bottom:6px">→ ${matched ? `<b>${matched.name}</b>` : '<span style="color:var(--red)">未匹配到库存商品</span>'}</div>
+      ${matched ? `
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="color:var(--text3)">供应商:</span>
+        <b>${m.supplier_qty}</b>
+        <span style="color:var(--text3)">×</span>
+        <span style="color:var(--text3)">换算比例:</span>
+        <input type="number" min="1" value="${ratio}" style="width:48px;padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center"
+          oninput="updatePdfRatio(${idx}, ${m.item_id}, this.value)">
+        <span style="color:var(--text3)">${savedNote}=</span>
+        <b style="color:var(--green)" id="pdf-final-${idx}">${finalQty} 个</b>
+        <input type="checkbox" checked id="pdf-chk-${idx}" style="accent-color:var(--green);margin-left:4px">
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function updatePdfRatio(idx, itemId, val) {
+  const ratio = Math.max(1, parseInt(val) || 1);
+  pdfMatches[idx].ratio = ratio;
+  if(itemId) {
+    pdfRatios[itemId] = ratio;
+    savePdfRatios();
+  }
+  const finalEl = document.getElementById('pdf-final-' + idx);
+  if(finalEl) finalEl.textContent = ((pdfMatches[idx].supplier_qty || 1) * ratio) + ' 个';
+}
+
+function addPdfMatchesToCart() {
+  let added = 0;
+  pdfMatches.forEach((m, idx) => {
+    if(!m.item_id) return;
+    const chk = document.getElementById('pdf-chk-' + idx);
+    if(chk && !chk.checked) return;
+    const finalQty = (m.supplier_qty || 1) * (m.ratio || 1);
+    const existing = restockCart.find(r => r.itemId === m.item_id);
+    if(existing) existing.qty += finalQty;
+    else restockCart.push({ itemId: m.item_id, qty: finalQty });
+    added++;
+  });
+  renderRestockCart();
+  document.getElementById('pdf-results').style.display = 'none';
+  document.getElementById('pdf-status').textContent = `✅ 已加入 ${added} 项到进货清单`;
+  pdfMatches = [];
 }
 
 // ── COLLAPSIBLE PANELS ─────────────────────────────────────────────
