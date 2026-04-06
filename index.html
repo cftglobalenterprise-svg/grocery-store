@@ -34,6 +34,7 @@
   .tab.active { color: var(--text); border-bottom-color: var(--text); }
 
   .page { display: none; padding: 16px; max-width: 1100px; margin: 0 auto; }
+  #page-stock { padding-bottom: 0; }
   .page.active { display: block; }
 
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
@@ -201,13 +202,29 @@
   .cust-badge-out { font-size:12px; font-weight:600; color:var(--text3); background:var(--surface2); padding:3px 10px; border-radius:20px; white-space:nowrap; }
 
   /* STOCK TWO-COLUMN LAYOUT */
-  .stock-layout { display: flex; gap: 16px; align-items: flex-start; }
-  .stock-left { flex: 0 0 340px; position: sticky; top: 113px; }
-  .stock-right { flex: 1; min-width: 0; }
+  .stock-layout {
+    display: flex; gap: 16px;
+    height: calc(100vh - 116px);  /* full remaining height after topbar + tabs */
+    align-items: stretch;
+  }
+  .stock-left {
+    flex: 0 0 340px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .stock-left::-webkit-scrollbar { width: 4px; }
+  .stock-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .stock-right {
+    flex: 1; min-width: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .stock-right::-webkit-scrollbar { width: 4px; }
+  .stock-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   @media (max-width: 780px) {
-    .stock-layout { flex-direction: column; }
-    .stock-left { flex: none; width: 100%; position: static; }
-    .stock-right { width: 100%; }
+    .stock-layout { flex-direction: column; height: auto; }
+    .stock-left { flex: none; width: 100%; overflow-y: visible; }
+    .stock-right { width: 100%; overflow-y: visible; }
   }
 
   #loading { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 999; }
