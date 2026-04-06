@@ -495,6 +495,52 @@
     </div>
   </div>
   <div id="page-orders" class="page">
+
+    <!-- ORDER SALES DASHBOARD -->
+    <div class="card" id="ord-dashboard">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📊 订单概览</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn" id="ord-btn-today" style="font-size:11px;padding:4px 10px;background:var(--text);color:#fff;border-color:var(--text)" onclick="setOrdPeriod('today')">今天</button>
+          <button class="btn" id="ord-btn-yesterday" style="font-size:11px;padding:4px 10px" onclick="setOrdPeriod('yesterday')">昨天</button>
+          <button class="btn" id="ord-btn-week" style="font-size:11px;padding:4px 10px" onclick="setOrdPeriod('week')">本周</button>
+          <button class="btn" id="ord-btn-month" style="font-size:11px;padding:4px 10px" onclick="setOrdPeriod('month')">本月</button>
+        </div>
+      </div>
+      <!-- Metrics -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+        <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center">
+          <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-revenue">RM 0.00</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">总营业额</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center">
+          <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-count">0</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">完成订单</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center">
+          <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-items">0</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">商品件数</div>
+        </div>
+      </div>
+      <!-- Daily bar chart -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px" id="ord-chart-label">每日营业额</div>
+        <div id="ord-chart" style="display:flex;align-items:flex-end;gap:3px;height:60px"></div>
+        <div id="ord-chart-xlabels" style="display:flex;gap:3px;margin-top:3px"></div>
+      </div>
+      <!-- Top customers + top items -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Top 顾客</div>
+          <div id="ord-top-customers"></div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Top 商品</div>
+          <div id="ord-top-items"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">新增订单</div>
 
@@ -802,6 +848,7 @@ async function loadOrders() {
   renderOrders();
   renderInstoreHistory();
   renderDashboard();
+  renderOrdDashboard();
 }
 
 function subscribeRealtime() {
@@ -821,7 +868,7 @@ function switchTab(t, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('page-'+t).classList.add('active');
-  if(t==='orders') loadOrders();
+  if(t==='orders') { loadOrders(); }
   if(t==='instore') { renderInstoreHistory(); renderDashboard(); }
   if(t==='overview') renderOverview();
 }
@@ -2916,6 +2963,172 @@ function renderDashboard() {
         </div>`;
       }).join('')
     : '<div style="font-size:12px;color:var(--text3)">暂无销售记录</div>';
+}
+
+// ── ORDER DASHBOARD ────────────────────────────────────────────────
+let ordPeriod = 'today';
+
+function setOrdPeriod(period) {
+  ordPeriod = period;
+  ['today','yesterday','week','month'].forEach(p => {
+    const btn = document.getElementById('ord-btn-' + p);
+    if(btn) {
+      btn.style.background = p === period ? 'var(--text)' : '';
+      btn.style.color      = p === period ? '#fff' : '';
+      btn.style.borderColor= p === period ? 'var(--text)' : '';
+    }
+  });
+  renderOrdDashboard();
+}
+
+function getOrdDateRange(period) {
+  const now   = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if(period === 'today') {
+    return { start: today, end: now, barMode: 'hour' };
+  } else if(period === 'yesterday') {
+    const y = new Date(today); y.setDate(y.getDate() - 1);
+    return { start: y, end: today, barMode: 'hour' };
+  } else if(period === 'week') {
+    const day = today.getDay() || 7;
+    const mon = new Date(today); mon.setDate(today.getDate() - (day - 1));
+    return { start: mon, end: now, barMode: 'day' };
+  } else { // month
+    const m1 = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { start: m1, end: now, barMode: 'day' };
+  }
+}
+
+function renderOrdDashboard() {
+  if(!document.getElementById('ord-revenue')) return;
+  const { start, end, barMode } = getOrdDateRange(ordPeriod);
+
+  // Only completed (done) orders
+  const filtered = orders.filter(o => {
+    if(o.status !== 'done') return false;
+    const d = new Date(o.created_at);
+    return d >= start && d <= end;
+  });
+
+  // ── Metrics ──────────────────────────────────────────────────────
+  const revenue   = filtered.reduce((s,o) => s + (+(o.total_price||0)), 0);
+  // Count unique orders (group by customer + minute)
+  const ordSet    = new Set(filtered.map(o => o.id));
+  const totalItems= filtered.reduce((s,o) => s + (+(o.qty||0)), 0);
+
+  document.getElementById('ord-revenue').textContent = 'RM ' + revenue.toFixed(2);
+  document.getElementById('ord-count').textContent   = ordSet.size;
+  document.getElementById('ord-items').textContent   = totalItems;
+
+  // ── Bar chart ────────────────────────────────────────────────────
+  const chartEl  = document.getElementById('ord-chart');
+  const labelEl  = document.getElementById('ord-chart-xlabels');
+  const chartLbl = document.getElementById('ord-chart-label');
+
+  if(barMode === 'hour') {
+    if(chartLbl) chartLbl.textContent = '每小时营业额';
+    const hours = {};
+    filtered.forEach(o => {
+      const h = new Date(o.created_at).getHours();
+      hours[h] = (hours[h] || 0) + (+(o.total_price||0));
+    });
+    const allH = Object.keys(hours).map(Number);
+    const minH = allH.length ? Math.min(...allH) : 8;
+    const maxH = allH.length ? Math.max(...allH) : 20;
+    const showH = Array.from({length: maxH - minH + 1}, (_,i) => minH + i);
+    const maxVal = Math.max(...Object.values(hours), 0.01);
+    if(!showH.length) {
+      chartEl.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px">暂无数据</div>';
+      labelEl.innerHTML = '';
+    } else {
+      chartEl.innerHTML = showH.map(h => {
+        const val = hours[h] || 0;
+        const pct = val > 0 ? Math.max(6, Math.round(val/maxVal*56)) : 2;
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:60px" title="RM ${val.toFixed(2)}">
+          <div style="width:100%;background:${val>0?'var(--blue)':'var(--border)'};border-radius:3px 3px 0 0;height:${pct}px"></div>
+        </div>`;
+      }).join('');
+      labelEl.innerHTML = showH.map(h =>
+        `<div style="flex:1;text-align:center;font-size:9px;color:var(--text3)">${h}</div>`
+      ).join('');
+    }
+  } else {
+    // Daily bars
+    if(chartLbl) chartLbl.textContent = '每日营业额';
+    const days = {};
+    filtered.forEach(o => {
+      const d = new Date(o.created_at);
+      const key = `${d.getMonth()+1}/${d.getDate()}`;
+      days[key] = (days[key] || 0) + (+(o.total_price||0));
+    });
+    const dayKeys = Object.keys(days);
+    const maxVal  = Math.max(...Object.values(days), 0.01);
+    if(!dayKeys.length) {
+      chartEl.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px">暂无数据</div>';
+      labelEl.innerHTML = '';
+    } else {
+      chartEl.innerHTML = dayKeys.map(k => {
+        const val = days[k];
+        const pct = Math.max(6, Math.round(val/maxVal*56));
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:60px" title="${k} RM ${val.toFixed(2)}">
+          <div style="width:100%;background:var(--blue);border-radius:3px 3px 0 0;height:${pct}px"></div>
+        </div>`;
+      }).join('');
+      labelEl.innerHTML = dayKeys.map(k =>
+        `<div style="flex:1;text-align:center;font-size:9px;color:var(--text3)">${k}</div>`
+      ).join('');
+    }
+  }
+
+  // ── Top customers ─────────────────────────────────────────────────
+  const custTotals = {};
+  filtered.forEach(o => {
+    const k = o.customer || '未知';
+    if(!custTotals[k]) custTotals[k] = { orders: new Set(), revenue: 0 };
+    custTotals[k].orders.add(o.id);
+    custTotals[k].revenue += (+(o.total_price||0));
+  });
+  const top5cust = Object.entries(custTotals).sort((a,b) => b[1].revenue - a[1].revenue).slice(0,5);
+  const maxCRev  = top5cust.length ? top5cust[0][1].revenue : 1;
+  document.getElementById('ord-top-customers').innerHTML = top5cust.length
+    ? top5cust.map(([name, d]) => {
+        const pct = Math.round(d.revenue / maxCRev * 100);
+        return `<div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+            <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%">${name}</span>
+            <span style="color:var(--green);font-family:'DM Mono',monospace;font-weight:600">RM ${d.revenue.toFixed(2)}</span>
+          </div>
+          <div style="background:var(--surface2);border-radius:3px;height:4px">
+            <div style="background:var(--amber);height:4px;border-radius:3px;width:${pct}%"></div>
+          </div>
+        </div>`;
+      }).join('')
+    : '<div style="font-size:12px;color:var(--text3)">暂无记录</div>';
+
+  // ── Top items ─────────────────────────────────────────────────────
+  const itemTotals2 = {};
+  filtered.forEach(o => {
+    const k = o.item_name || '未知';
+    if(!itemTotals2[k]) itemTotals2[k] = { qty: 0, revenue: 0 };
+    itemTotals2[k].qty     += (+(o.qty||0));
+    itemTotals2[k].revenue += (+(o.total_price||0));
+  });
+  const top5items = Object.entries(itemTotals2).sort((a,b) => b[1].revenue - a[1].revenue).slice(0,5);
+  const maxIRev   = top5items.length ? top5items[0][1].revenue : 1;
+  document.getElementById('ord-top-items').innerHTML = top5items.length
+    ? top5items.map(([name, d]) => {
+        const pct = Math.round(d.revenue / maxIRev * 100);
+        return `<div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+            <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%">${name}</span>
+            <span style="color:var(--green);font-family:'DM Mono',monospace;font-weight:600">RM ${d.revenue.toFixed(2)}</span>
+          </div>
+          <div style="background:var(--surface2);border-radius:3px;height:4px">
+            <div style="background:var(--green);height:4px;border-radius:3px;width:${pct}%"></div>
+          </div>
+        </div>`;
+      }).join('')
+    : '<div style="font-size:12px;color:var(--text3)">暂无记录</div>';
 }
 
 // ── COLLAPSIBLE PANELS ─────────────────────────────────────────────
