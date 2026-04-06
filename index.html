@@ -608,6 +608,19 @@
       <button class="cust-toggle-all" onclick="custToggleAll()">全选/全取</button>
     </div>
     <div class="cust-cat-chips" id="cust-cat-chips"></div>
+    <!-- Qty mode selector -->
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <span style="font-size:12px;color:var(--text2);font-weight:600;flex-shrink:0">显示数量：</span>
+      <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface2)" id="cust-mode-shop-lbl">
+        <input type="radio" name="cust-qty-mode" value="shop" checked onchange="setCustQtyMode('shop')" style="accent-color:var(--text)"> 店里
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface2)" id="cust-mode-home-lbl">
+        <input type="radio" name="cust-qty-mode" value="home" onchange="setCustQtyMode('home')" style="accent-color:var(--text)"> 家里
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface2)" id="cust-mode-total-lbl">
+        <input type="radio" name="cust-qty-mode" value="total" onchange="setCustQtyMode('total')" style="accent-color:var(--text)"> 总数
+      </label>
+    </div>
   </div>
   <div class="cust-body" id="cust-body"></div>
 </div>
@@ -2064,6 +2077,27 @@ async function confirmRestock() {
 // ── CUSTOMER MODE ───────────────────────────────────────────────────
 // selected cats persisted in memory across opens
 let custSelectedCats = new Set();
+let custQtyMode = 'shop'; // 'shop' | 'home' | 'total'
+
+function setCustQtyMode(mode) {
+  custQtyMode = mode;
+  // Highlight active label
+  ['shop','home','total'].forEach(m => {
+    const lbl = document.getElementById('cust-mode-' + m + '-lbl');
+    if(lbl) {
+      lbl.style.background = m === mode ? 'var(--text)' : 'var(--surface2)';
+      lbl.style.color = m === mode ? '#fff' : '';
+      lbl.style.borderColor = m === mode ? 'var(--text)' : 'var(--border)';
+    }
+  });
+  renderCustomerMode();
+}
+
+function custQty(it) {
+  if(custQtyMode === 'shop')  return it.shop_qty;
+  if(custQtyMode === 'home')  return it.home_qty;
+  return it.home_qty + it.shop_qty;
+}
 
 function openCustomerMode() {
   // Build all available cats
@@ -2078,6 +2112,8 @@ function openCustomerMode() {
       ${cat}
     </div>`;
   }).join('');
+  // Apply active style to current mode button
+  setCustQtyMode(custQtyMode);
   renderCustomerMode();
   document.getElementById('customer-overlay').classList.add('open');
 }
@@ -2091,20 +2127,17 @@ function copyStockToWhatsApp() {
     const catItems = items
       .filter(i => (i.category || '未分类') === cat && !i.bundle_components)
       .sort((a,b) => {
-        const aIn = (a.home_qty + a.shop_qty) > 0;
-        const bIn = (b.home_qty + b.shop_qty) > 0;
-        if(aIn !== bIn) return aIn ? -1 : 1;
+        if((custQty(a)>0) !== (custQty(b)>0)) return custQty(a) > 0 ? -1 : 1;
         return a.name.localeCompare(b.name);
       });
     if(!catItems.length) return;
 
-    const inStock = catItems.filter(i => (i.home_qty + i.shop_qty) > 0);
+    const inStock = catItems.filter(i => custQty(i) > 0);
     if(!inStock.length) return;
 
     text += '*' + cat + '*\n';
     inStock.forEach(it => {
-      const total = it.home_qty + it.shop_qty;
-      text += '• ' + it.name + ' — ' + total + ' 个\n';
+      text += '• ' + it.name + ' - ' + custQty(it) + '\n';
     });
     text += '\n';
   });
@@ -2170,22 +2203,18 @@ function renderCustomerMode() {
     const catItems = items
       .filter(i => (i.category || '未分类') === cat && !i.bundle_components)
       .sort((a,b) => {
-        // in-stock first, then by name
-        const aStock = a.home_qty + a.shop_qty;
-        const bStock = b.home_qty + b.shop_qty;
-        if((aStock>0) !== (bStock>0)) return aStock > 0 ? -1 : 1;
+        if((custQty(a)>0) !== (custQty(b)>0)) return custQty(a) > 0 ? -1 : 1;
         return a.name.localeCompare(b.name);
       });
     if(!catItems.length) return '';
 
-    const inCount = catItems.filter(i => (i.home_qty + i.shop_qty) > 0).length;
+    const inCount = catItems.filter(i => custQty(i) > 0).length;
     const catId = 'cust-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
     const rows = catItems.map(it => {
-      const total = it.home_qty + it.shop_qty;
-      const inStock = total > 0;
-      // Show actual qty
+      const qty = custQty(it);
+      const inStock = qty > 0;
       const qtyLabel = inStock
-        ? `<span class="cust-badge-in">✓ 剩 ${total} 个</span>`
+        ? `<span class="cust-badge-in">✓ ${qty}</span>`
         : `<span class="cust-badge-out">✗ 无货</span>`;
       return `<div class="cust-item${inStock ? '' : ' out'}">
         <span class="cust-item-name">${it.name}</span>
@@ -2480,13 +2509,47 @@ function renderPdfResults(matches) {
       </div>
 
       <!-- Item selector (filtered by category) -->
-      <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+      <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
         <span style="font-size:11px;color:var(--text3);flex-shrink:0;min-width:52px">商品</span>
-        <select id="pdf-sel-${idx}" style="flex:1;padding:5px 8px;font-size:12px;font-weight:600;border:1px solid ${matched?'var(--border)':'var(--amber)'};border-radius:6px;background:var(--bg);color:var(--text)"
+        <select id="pdf-sel-${idx}" style="flex:1;padding:5px 8px;font-size:12px;font-weight:600;border:1px solid ${matched?'var(--green)':'var(--amber)'};border-radius:6px;background:var(--bg);color:var(--text)"
           onchange="onPdfItemChange(${idx}, this.value)">
-          <option value="">${matched ? '' : '-- 选择商品 --'}</option>
+          <option value="">${matchedCat ? '-- 选择商品 --' : '← 先选 Category'}</option>
           ${itemOptions}
         </select>
+      </div>
+
+      <!-- New item button — hidden when already matched -->
+      <div id="pdf-new-wrap-${idx}" style="${matched ? 'display:none' : ''}margin-bottom:8px">
+        <button class="btn" style="width:100%;font-size:11px;padding:5px;border-style:dashed;color:var(--text2)" onclick="openPdfNewItem(${idx})">＋ 找不到？新建商品并匹配</button>
+      </div>
+      <!-- Inline new-item form (hidden by default) -->
+      <div id="pdf-new-form-${idx}" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;border:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px">新建商品</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;color:var(--text3);min-width:52px;flex-shrink:0">名称</span>
+            <input type="text" id="pdf-new-name-${idx}" value="${m.pdf_name}" style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;color:var(--text3);min-width:52px;flex-shrink:0">Category</span>
+            <select id="pdf-new-cat-${idx}" style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+              ${cats.map(c=>`<option value="${c}">${c}</option>`).join('')}
+            </select>
+            <input type="text" id="pdf-new-cat-custom-${idx}" placeholder="或输入新 category" style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;color:var(--text3);min-width:52px;flex-shrink:0">单价 RM</span>
+            <input type="number" id="pdf-new-price-${idx}" min="0" step="0.01" value="0" style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;color:var(--text3);min-width:52px;flex-shrink:0">Barcode</span>
+            <input type="text" id="pdf-new-barcode-${idx}" placeholder="可留空" style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button class="btn" style="flex:1;font-size:12px" onclick="closePdfNewItem(${idx})">取消</button>
+          <button class="btn btn-success" style="flex:1;font-size:12px;font-weight:600" onclick="confirmPdfNewItem(${idx})">✅ 建立并匹配</button>
+        </div>
       </div>
 
       <!-- Qty + ratio row -->
@@ -2538,17 +2601,18 @@ function onPdfItemChange(idx, val) {
   const row = document.getElementById('pdf-row-' + idx);
   if(row) row.style.borderColor = itemId ? 'var(--border)' : 'var(--amber)';
 
+  // Hide "新建" button once an item is selected; show it again if deselected
+  const newWrap = document.getElementById('pdf-new-wrap-' + idx);
+  if(newWrap) newWrap.style.display = itemId ? 'none' : 'block';
+
   const chk = document.getElementById('pdf-chk-' + idx);
   if(chk) chk.checked = !!itemId;
 
   // Update stats bar
-  const matched = pdfMatches.filter(m => m.item_id).length;
+  const autoC     = pdfMatches.filter(m => m.auto_matched).length;
   const needManual = pdfMatches.filter(m => !m.item_id).length;
   const statsEl = document.getElementById('pdf-modal-stats');
-  if(statsEl) {
-    const autoC = pdfMatches.filter(m => m.auto_matched).length;
-    statsEl.innerHTML = `共 <b>${pdfMatches.length}</b> 个 · 🤖 自动识别 <b style="color:var(--green)">${autoC}</b> 个 · ✋ 需手动匹配 <b style="color:var(--amber)">${needManual}</b> 个`;
-  }
+  if(statsEl) statsEl.innerHTML = `共 <b>${pdfMatches.length}</b> 个 · 🤖 自动识别 <b style="color:var(--green)">${autoC}</b> 个 · ✋ 需手动匹配 <b style="color:${needManual?'var(--amber)':'var(--green)'}">${needManual}</b> 个`;
 }
 
 function onPdfRatioChange(idx, val) {
@@ -2561,6 +2625,99 @@ function onPdfRatioChange(idx, val) {
   }
   const finalEl = document.getElementById('pdf-final-' + idx);
   if(finalEl) finalEl.textContent = (pdfMatches[idx].supplier_qty || 1) * ratio;
+}
+
+function openPdfNewItem(idx) {
+  document.getElementById('pdf-new-form-' + idx).style.display = 'block';
+  document.getElementById('pdf-new-wrap-' + idx).style.display = 'none';
+  // Pre-fill category from the category dropdown if one is selected
+  const catSel = document.getElementById('pdf-cat-' + idx);
+  const newCatSel = document.getElementById('pdf-new-cat-' + idx);
+  if(catSel && catSel.value && newCatSel) newCatSel.value = catSel.value;
+  // Focus name input
+  const nameInp = document.getElementById('pdf-new-name-' + idx);
+  if(nameInp) setTimeout(() => nameInp.focus(), 50);
+}
+
+function closePdfNewItem(idx) {
+  document.getElementById('pdf-new-form-' + idx).style.display = 'none';
+  document.getElementById('pdf-new-wrap-' + idx).style.display = 'block';
+}
+
+async function confirmPdfNewItem(idx) {
+  const nameInp   = document.getElementById('pdf-new-name-' + idx);
+  const catSel    = document.getElementById('pdf-new-cat-' + idx);
+  const catCustom = document.getElementById('pdf-new-cat-custom-' + idx);
+  const priceInp  = document.getElementById('pdf-new-price-' + idx);
+  const barcodeInp= document.getElementById('pdf-new-barcode-' + idx);
+
+  const name    = (nameInp?.value || '').trim();
+  const cat     = (catCustom?.value.trim()) || (catSel?.value) || '未分类';
+  const price   = parseFloat(priceInp?.value) || 0;
+  const barcode = (barcodeInp?.value || '').trim();
+
+  if(!name) { nameInp.focus(); nameInp.style.borderColor='var(--red)'; return; }
+
+  // Disable button while saving
+  const btn = document.querySelector(`#pdf-new-form-${idx} .btn-success`);
+  if(btn) { btn.disabled = true; btn.textContent = '保存中...'; }
+
+  const { data, error } = await sb.from('items').insert([{
+    name, category: cat, price, barcode: barcode || null,
+    home_qty: 0, shop_qty: 0, threshold: 10
+  }]).select().single();
+
+  if(error) {
+    if(btn) { btn.disabled = false; btn.textContent = '✅ 建立并匹配'; }
+    alert('创建失败：' + error.message); return;
+  }
+
+  // Reload items so the new item appears in memory
+  await loadItems();
+
+  // Match this PDF row to the new item
+  pdfMatches[idx].item_id = data.id;
+  pdfMatches[idx].auto_matched = false;
+
+  // Save mapping
+  recordPdfMapping(pdfMatches[idx].item_code, pdfMatches[idx].pdf_name, data.id, pdfMatches[idx].ratio || 1);
+
+  // Update UI: hide form, update status badge + item selector
+  closePdfNewItem(idx);
+  const row = document.getElementById('pdf-row-' + idx);
+  if(row) {
+    row.style.borderColor = 'var(--green)';
+    // Swap status badge
+    const badgeEl = row.querySelector('span[style*="border-radius:10px"]');
+    if(badgeEl) {
+      badgeEl.textContent = '✓ 新建';
+      badgeEl.style.color = 'var(--green)';
+      badgeEl.style.background = 'var(--green-bg)';
+    }
+    // Update cat + item dropdowns to reflect new item
+    const catSel2 = document.getElementById('pdf-cat-' + idx);
+    if(catSel2) {
+      // Add new cat option if it didn't exist
+      if(![...catSel2.options].some(o => o.value === cat)) {
+        catSel2.innerHTML += `<option value="${cat}">${cat}</option>`;
+      }
+      catSel2.value = cat;
+    }
+    const itemSel = document.getElementById('pdf-sel-' + idx);
+    if(itemSel) {
+      itemSel.innerHTML += `<option value="${data.id}" selected>${data.name}</option>`;
+      itemSel.value = data.id;
+      itemSel.style.borderColor = 'var(--green)';
+    }
+  }
+  const chk = document.getElementById('pdf-chk-' + idx);
+  if(chk) chk.checked = true;
+
+  // Update stats bar
+  const needManual = pdfMatches.filter(m => !m.item_id).length;
+  const autoC = pdfMatches.filter(m => m.auto_matched).length;
+  const statsEl = document.getElementById('pdf-modal-stats');
+  if(statsEl) statsEl.innerHTML = `共 <b>${pdfMatches.length}</b> 个 · 🤖 自动识别 <b style="color:var(--green)">${autoC}</b> 个 · ✋ 需手动匹配 <b style="color:var(--amber)">${needManual}</b> 个`;
 }
 
 function showPdfRawText() {
