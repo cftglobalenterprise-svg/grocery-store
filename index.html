@@ -300,20 +300,9 @@
         <!-- RESTOCK CARD -->
         <div class="card" style="margin-top:12px">
           <div class="card-title">📦 进货 / 补库存</div>
-          <div class="form-row">
-            <label>搜索商品</label>
-            <input type="text" id="restock-search" placeholder="输入商品名搜索..." oninput="renderRestockSearch()" style="flex:1">
-          </div>
-          <div id="restock-search-results"></div>
-          <div class="form-row">
-            <label>或扫 Barcode</label>
-            <div class="barcode-input-wrap">
-              <input type="text" id="restock-barcode" placeholder="扫描 barcode" oninput="onRestockBarcodeTyped(this.value)">
-              <button class="btn btn-scan" onclick="openScanModal('restock')">📷 扫</button>
-            </div>
-          </div>
-          <!-- Restock cart -->
-          <div id="restock-cart-wrap" style="display:none;margin-top:10px">
+
+          <!-- Restock cart — shown at TOP so you see it immediately after scanning -->
+          <div id="restock-cart-wrap" style="display:none;margin-bottom:14px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
               <span style="font-size:13px;font-weight:600;color:var(--text2)">📋 待进货清单</span>
               <span style="font-size:12px;color:var(--text3)" id="restock-cart-count">0 项</span>
@@ -328,6 +317,20 @@
             </div>
             <button class="btn btn-block" style="background:var(--green);border-color:var(--green);color:#fff" onclick="confirmRestock()">✅ 确认全部进货</button>
             <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearRestock()">🗑 清空清单</button>
+            <div style="height:1px;background:var(--border);margin:14px 0"></div>
+          </div>
+
+          <div class="form-row">
+            <label>搜索商品</label>
+            <input type="text" id="restock-search" placeholder="输入商品名搜索..." oninput="renderRestockSearch()" style="flex:1">
+          </div>
+          <div id="restock-search-results"></div>
+          <div class="form-row">
+            <label>或扫 Barcode</label>
+            <div class="barcode-input-wrap">
+              <input type="text" id="restock-barcode" placeholder="扫描 barcode" oninput="onRestockBarcodeTyped(this.value)">
+              <button class="btn btn-scan" onclick="openScanModal('restock')">📷 扫</button>
+            </div>
           </div>
         </div>
       </div><!-- end stock-left -->
@@ -1810,6 +1813,9 @@ function addToRestockCart(id) {
     restockCart.push({ itemId: id, qty: 1 });
   }
   renderRestockCart();
+  // Scroll cart into view so user sees it immediately after scanning
+  const wrap = document.getElementById('restock-cart-wrap');
+  if(wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function removeFromRestockCart(id) {
