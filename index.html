@@ -1608,19 +1608,45 @@ function renderOrders() {
     const db = g.orders[0].deduct_from==='home' ? '<span class="badge badge-home">扣家里</span>' : '<span class="badge badge-shop">扣店里</span>';
     const itemLines = g.orders.map(o => {
       const price = o.total_price ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600">RM ${(+o.total_price).toFixed(2)}</span>` : '';
-      return `<li>• ${o.item_name} × ${o.qty}${price}</li>`;
+      return `<li style="display:flex;align-items:center;gap:6px;padding:3px 0">
+        <span style="flex:1">• ${o.item_name} ×
+          <input type="number" min="1" value="${o.qty}" style="width:42px;padding:1px 4px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace"
+            onchange="updateOrderItemQty(${o.id},'${gKey}',this.value)">
+          ${price}
+        </span>
+        <button onclick="removeOrderItem(${o.id},'${gKey}')" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="删除此商品">✕</button>
+      </li>`;
     }).join('');
     const groupTotal = g.orders.reduce((s,o) => s + (+(o.total_price||0)), 0);
-    const totalLine = groupTotal > 0 ? `<li style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;font-weight:600">合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${groupTotal.toFixed(2)}</span></li>` : '';
+    const totalLine = groupTotal > 0 ? `<li style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;font-weight:600" id="pg-total-${gKey}">合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${groupTotal.toFixed(2)}</span></li>` : `<li id="pg-total-${gKey}"></li>`;
     const ids = g.orders.map(o=>o.id).join(',');
     return `<div class="order-row" id="${gKey}" style="align-items:flex-start">
       <label style="display:flex;align-items:flex-start;padding-top:2px;cursor:pointer;flex-shrink:0">
         <input type="checkbox" data-gkey="${gKey}" style="width:16px;height:16px;accent-color:var(--green);margin-top:1px;cursor:pointer">
       </label>
       <div class="order-info" style="flex:1">
-        <div class="order-name">${g.customer}</div>
-        <div class="order-detail">${lb} ${db} <span>${g.dt}</span></div>
-        <ul class="order-items-list">${itemLines}${totalLine}</ul>
+        <!-- Customer name: click to edit -->
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <span id="pg-name-${gKey}" class="order-name" style="cursor:pointer;border-bottom:1px dashed var(--border)" title="点击编辑" onclick="editPendingField('${gKey}','name')">${g.customer}</span>
+          <button onclick="editPendingField('${gKey}','name')" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;padding:0;line-height:1" title="编辑顾客">✏️</button>
+        </div>
+        <!-- Location: click to edit -->
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span id="pg-loc-${gKey}" style="cursor:pointer;border-bottom:1px dashed var(--border);font-size:13px;color:var(--text2)" title="点击编辑地址" onclick="editPendingField('${gKey}','location')">${g.location}</span>
+          <button onclick="editPendingField('${gKey}','location')" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;padding:0;line-height:1" title="编辑地址">✏️</button>
+          ${db} <span style="font-size:12px;color:var(--text3)">${g.dt}</span>
+        </div>
+        <!-- Items list -->
+        <ul class="order-items-list" id="pg-items-${gKey}" style="margin-top:6px">${itemLines}${totalLine}</ul>
+        <!-- Add item -->
+        <div style="margin-top:6px">
+          <button onclick="openAddItemToPending('${gKey}')" style="background:none;border:1px dashed var(--border);border-radius:6px;padding:3px 10px;font-size:11px;color:var(--text3);cursor:pointer;width:100%;text-align:left">＋ 加商品</button>
+          <div id="pg-add-${gKey}" style="display:none;margin-top:6px;background:var(--surface2);border-radius:8px;padding:8px">
+            <input type="text" placeholder="搜索商品名..." oninput="searchAddToPending('${gKey}',this.value)"
+              style="width:100%;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);margin-bottom:6px">
+            <div id="pg-add-results-${gKey}"></div>
+          </div>
+        </div>
       </div>
       <div class="order-actions">
         <button class="btn btn-success" style="font-size:12px;padding:5px 8px" onclick="collectGroup('${ids}')">已取货付款</button>
@@ -1639,6 +1665,184 @@ function renderOrders() {
       </div>
     </div>`;
   }).join('') : '<div class="empty">暂无历史记录</div>';
+}
+
+function editPendingField(gKey, field) {
+  const g = window._pendingGroups[gKey];
+  if(!g) return;
+
+  const isName = field === 'name';
+  const spanId = isName ? `pg-name-${gKey}` : `pg-loc-${gKey}`;
+  const span = document.getElementById(spanId);
+  if(!span || span.querySelector('input')) return; // already editing
+
+  const current = isName ? g.customer : g.location;
+  const origHtml = span.innerHTML;
+
+  // Replace span content with input
+  span.innerHTML = '';
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = current;
+  inp.style.cssText = 'width:100%;padding:3px 7px;font-size:13px;border:1px solid var(--text);border-radius:6px;font-family:inherit;background:var(--bg);color:var(--text);font-weight:' + (isName ? '600' : '400');
+  span.appendChild(inp);
+  inp.focus();
+  inp.select();
+
+  async function save() {
+    const newVal = inp.value.trim();
+    if(!newVal) { span.innerHTML = origHtml; return; }
+
+    // Update in DB for all orders in this group
+    setSync('busy', '更新中...');
+    const updateField = isName ? 'customer' : 'location';
+    for(const o of g.orders) {
+      await sb.from('orders').update({ [updateField]: newVal }).eq('id', o.id);
+      o[updateField] = newVal; // update local copy
+    }
+    if(isName) g.customer = newVal;
+    else g.location = newVal;
+
+    // Update the span text
+    span.textContent = newVal;
+    span.style.cssText = 'cursor:pointer;border-bottom:1px dashed var(--border);' + (isName ? 'font-size:15px;font-weight:600' : 'font-size:13px;color:var(--text2)');
+    span.onclick = () => editPendingField(gKey, field);
+
+    // Also update _pendingGroups for copy function
+    window._pendingGroups[gKey] = g;
+    setSync('ok', '已更新 · ' + timeNow());
+  }
+
+  inp.addEventListener('blur', save);
+  inp.addEventListener('keydown', e => {
+    if(e.key === 'Enter') { inp.blur(); }
+    if(e.key === 'Escape') { span.innerHTML = origHtml; }
+  });
+}
+
+// ── PENDING ORDER ITEM EDITING ──────────────────────────────────────
+function refreshPendingTotal(gKey) {
+  const g = window._pendingGroups[gKey];
+  if(!g) return;
+  const total = g.orders.reduce((s,o) => s + (+(o.total_price||0)), 0);
+  const el = document.getElementById('pg-total-' + gKey);
+  if(el) el.innerHTML = total > 0
+    ? `合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${total.toFixed(2)}</span>`
+    : '';
+}
+
+async function updateOrderItemQty(orderId, gKey, val) {
+  const qty = Math.max(1, parseInt(val) || 1);
+  const g = window._pendingGroups[gKey];
+  if(!g) return;
+  const o = g.orders.find(x => x.id === orderId);
+  if(!o) return;
+  const item = items.find(i => i.id === o.item_id);
+  const newTotal = item ? (+(item.price||0)) * qty : 0;
+  await sb.from('orders').update({ qty, total_price: newTotal }).eq('id', orderId);
+  o.qty = qty;
+  o.total_price = newTotal;
+  // Update price display
+  const li = document.querySelector(`#pg-items-${gKey} li input[onchange*="${orderId}"]`)?.closest('li');
+  if(li) {
+    const priceSpan = li.querySelector('span > span');
+    if(priceSpan && newTotal > 0) priceSpan.textContent = `RM ${newTotal.toFixed(2)}`;
+  }
+  refreshPendingTotal(gKey);
+}
+
+async function removeOrderItem(orderId, gKey) {
+  if(!confirm('删除这个商品？')) return;
+  const g = window._pendingGroups[gKey];
+  if(!g) return;
+  // Restore stock
+  const o = g.orders.find(x => x.id === orderId);
+  if(o) {
+    const item = items.find(i => i.id === o.item_id);
+    if(item) {
+      const field = o.deduct_from === 'shop' ? 'shop_qty' : 'home_qty';
+      await sb.from('items').update({ [field]: item[field] + o.qty }).eq('id', item.id);
+    }
+  }
+  await sb.from('orders').delete().eq('id', orderId);
+  g.orders = g.orders.filter(x => x.id !== orderId);
+  window._pendingGroups[gKey] = g;
+  // Remove the li from DOM
+  const li = document.querySelector(`#pg-items-${gKey} li input[onchange*="${orderId}"]`)?.closest('li');
+  if(li) li.remove();
+  refreshPendingTotal(gKey);
+  await loadItems();
+}
+
+function openAddItemToPending(gKey) {
+  const wrap = document.getElementById('pg-add-' + gKey);
+  if(!wrap) return;
+  wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+  if(wrap.style.display === 'block') {
+    wrap.querySelector('input').focus();
+  }
+}
+
+function searchAddToPending(gKey, query) {
+  const el = document.getElementById('pg-add-results-' + gKey);
+  if(!el) return;
+  query = query.trim().toLowerCase();
+  if(!query) { el.innerHTML = ''; return; }
+  const filtered = items.filter(i => !i.bundle_components && i.name.toLowerCase().includes(query)).slice(0,6);
+  if(!filtered.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3)">没有找到</div>'; return; }
+  el.innerHTML = filtered.map(it =>
+    `<div onclick="addItemToPending('${gKey}',${it.id})" style="padding:6px 8px;cursor:pointer;border-radius:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+      <span>${it.name}</span>
+      <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">${it.price ? 'RM '+((+it.price).toFixed(2)) : ''}</span>
+    </div>`
+  ).join('');
+}
+
+async function addItemToPending(gKey, itemId) {
+  const g = window._pendingGroups[gKey];
+  if(!g) return;
+  const item = items.find(i => i.id === itemId);
+  if(!item) return;
+
+  const deduct = g.orders[0]?.deduct_from || 'home';
+  const avail = deduct === 'shop' ? item.shop_qty : item.home_qty;
+  if(avail < 1) { alert(`库存不足！${item.name} 只剩 ${avail} 个`); return; }
+
+  const total_price = +(item.price||0);
+  const { data, error } = await sb.from('orders').insert({
+    customer: g.customer, item_id: item.id, item_name: item.name,
+    qty: 1, location: g.location, deduct_from: deduct,
+    status: 'pending', total_price
+  }).select().single();
+  if(error) { alert('加入失败'); return; }
+
+  // Deduct stock
+  const field = deduct === 'shop' ? 'shop_qty' : 'home_qty';
+  await sb.from('items').update({ [field]: item[field] - 1 }).eq('id', item.id);
+
+  g.orders.push(data);
+  window._pendingGroups[gKey] = g;
+
+  // Add li to DOM
+  const ul = document.getElementById('pg-items-' + gKey);
+  const totalLi = document.getElementById('pg-total-' + gKey);
+  const li = document.createElement('li');
+  li.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0';
+  li.innerHTML = `<span style="flex:1">• ${item.name} ×
+    <input type="number" min="1" value="1" style="width:42px;padding:1px 4px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace"
+      onchange="updateOrderItemQty(${data.id},'${gKey}',this.value)">
+    <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600">${total_price > 0 ? 'RM '+total_price.toFixed(2) : ''}</span>
+  </span>
+  <button onclick="removeOrderItem(${data.id},'${gKey}')" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">✕</button>`;
+  ul.insertBefore(li, totalLi);
+
+  refreshPendingTotal(gKey);
+
+  // Close search
+  const wrap = document.getElementById('pg-add-' + gKey);
+  if(wrap) { wrap.style.display = 'none'; wrap.querySelector('input').value = ''; }
+  document.getElementById('pg-add-results-' + gKey).innerHTML = '';
+  await loadItems();
 }
 
 function buildSelectedOrdersText() {
