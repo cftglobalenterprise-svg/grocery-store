@@ -711,9 +711,12 @@
       <button class="btn" style="font-size:11px;padding:4px 10px" onclick="pdfCheckHighConf()">只选高置信度</button>
     </div>
     <div id="pdf-match-list" style="flex:1;overflow-y:auto;margin-bottom:14px"></div>
-    <div class="modal-footer" style="margin-top:0">
-      <button class="btn" onclick="document.getElementById('pdf-modal').classList.remove('open');document.body.classList.remove('modal-open')">取消</button>
-      <button class="btn btn-block" style="width:auto;margin:0;background:var(--green);border-color:var(--green);color:#fff" onclick="addPdfMatchesToCart()">✅ 确认加入进货清单</button>
+    <div class="modal-footer" style="margin-top:0;justify-content:space-between">
+      <button class="btn btn-danger" style="font-size:11px;padding:5px 10px" onclick="if(confirm('清除所有已保存的匹配记录？')){ pdfMappings={byCode:{},byName:{},ratios:{}}; savePdfMappings(); alert('已清除'); }">🗑 重置映射</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="document.getElementById('pdf-modal').classList.remove('open');document.body.classList.remove('modal-open')">取消</button>
+        <button class="btn btn-block" style="width:auto;margin:0;background:var(--green);border-color:var(--green);color:#fff" onclick="addPdfMatchesToCart()">✅ 确认加入进货清单</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2217,54 +2220,28 @@ function toggleCustCat(id) {
 }
 
 // ── PDF IMPORT ──────────────────────────────────────────────────────
-// pdfRatios: saved conversion ratios per item { itemId: ratio }
+// Saved mappings: { byCode: { itemCode: itemId }, byName: { pdfName: itemId }, ratios: { itemId: ratio } }
 let pdfMatches = [];
-let pdfRatios = JSON.parse(localStorage.getItem('pdfRatios') || '{}');
+let pdfMappings = JSON.parse(localStorage.getItem('pdfMappings') || '{"byCode":{},"byName":{},"ratios":{}}');
 
-function savePdfRatios() {
-  localStorage.setItem('pdfRatios', JSON.stringify(pdfRatios));
+function savePdfMappings() {
+  localStorage.setItem('pdfMappings', JSON.stringify(pdfMappings));
 }
 
-// Fuzzy match: score how similar two strings are (0-1)
-function fuzzyScore(a, b) {
-  a = a.toLowerCase().replace(/[^a-z0-9]/g,' ').trim();
-  b = b.toLowerCase().replace(/[^a-z0-9]/g,' ').trim();
-  const aWords = a.split(/\s+/).filter(w => w.length > 1);
-  const bWords = b.split(/\s+/).filter(w => w.length > 1);
-  if(!aWords.length || !bWords.length) return 0;
-  let matches = 0;
-  for(const w of aWords) {
-    if(bWords.some(bw => bw.includes(w) || w.includes(bw))) matches++;
-  }
-  return matches / Math.max(aWords.length, bWords.length);
+// Record a confirmed match for future auto-matching
+function recordPdfMapping(itemCode, pdfName, itemId, ratio) {
+  if(itemCode) pdfMappings.byCode[itemCode] = itemId;
+  if(pdfName)  pdfMappings.byName[pdfName.toLowerCase().trim()] = itemId;
+  if(itemId && ratio) pdfMappings.ratios[itemId] = ratio;
+  savePdfMappings();
 }
 
-// Smart match: find best inventory item for a PDF product name
-// Strategy: extract brand/category hint from PDF name, boost items in matching category
-function smartMatch(pdfName, inventoryItems) {
-  const pdfLower = pdfName.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
-  const pdfWords = pdfLower.split(/\s+/).filter(w => w.length > 1);
-
-  let bestItem = null, bestScore = 0;
-
-  for(const it of inventoryItems) {
-    let score = fuzzyScore(pdfName, it.name);
-
-    // Category boost: if PDF name contains a word matching the item's category, boost score
-    if(it.category) {
-      const catLower = it.category.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
-      const catWords = catLower.split(/\s+/).filter(w => w.length > 1);
-      const catMatch = catWords.some(cw => pdfWords.some(pw => pw.includes(cw) || cw.includes(pw)));
-      if(catMatch) score += 0.25;
-    }
-
-    // Exact substring boost: PDF name contains item name or vice versa
-    const itLower = it.name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
-    if(pdfLower.includes(itLower) || itLower.includes(pdfLower)) score += 0.3;
-
-    if(score > bestScore) { bestScore = score; bestItem = it; }
-  }
-  return { bestItem, bestScore };
+// Look up saved mapping for a parsed row
+function lookupSavedMapping(itemCode, pdfName) {
+  if(itemCode && pdfMappings.byCode[itemCode]) return pdfMappings.byCode[itemCode];
+  const key = (pdfName || '').toLowerCase().trim();
+  if(key && pdfMappings.byName[key]) return pdfMappings.byName[key];
+  return null;
 }
 
 // PDF debug state
@@ -2285,7 +2262,6 @@ async function handlePdfUpload(input) {
   statusEl.textContent = '⏳ 正在读取 PDF...';
 
   try {
-    // Load PDF.js
     if(!window.pdfjsLib) {
       await new Promise((res, rej) => {
         const s = document.createElement('script');
@@ -2296,11 +2272,9 @@ async function handlePdfUpload(input) {
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
     }
 
-    // Read PDF as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-    // Extract all text — preserve per-item structure using position-aware extraction
     let fullText = '';
     for(let p = 1; p <= pdf.numPages; p++) {
       const page = await pdf.getPage(p);
@@ -2311,142 +2285,98 @@ async function handlePdfUpload(input) {
     pdfRawText = fullText;
     statusEl.textContent = '⏳ 正在解析商品行...';
 
-    const inventoryItems = items.filter(i => !i.bundle_components);
     const normalized = fullText.replace(/\s+/g, ' ').trim();
     const results = [];
     const skipped = [];
 
-    // ── Strategy: find all (rowNum, itemCode) anchors ──────────────────
-    // Format per line: PRICE  NAME  QTY.QQ UNIT  AMOUNT  ROWNUM  ITEMCODE
-    // ItemCode patterns observed: ABC123, ABC1234, ABCDE123, AB12345, etc.
-    // Expanded regex to catch more formats:
-    // - 2-7 uppercase letters followed by 2+ digits (no minimum letter count restriction)
-    // - also catches codes like "HH1234", "SPCO123", "BISCM001"
+    // ── Find all (rowNum, itemCode) anchors ─────────────────────────────
     const codeRegex = /\b(\d{1,3})\s+([A-Z]{1,8}\d{2,}[A-Z0-9]*|[A-Z]{2,}\d+[A-Z0-9]*)\b/g;
     const allCodes = [];
     let cm;
     while((cm = codeRegex.exec(normalized)) !== null) {
-      const matchStr = cm[0];
       const before = normalized.slice(Math.max(0, cm.index - 80), cm.index);
-      const after = normalized.slice(cm.index + matchStr.length, cm.index + matchStr.length + 30);
-
-      // Skip if this looks like a header row
       if(/Description|Item\s*Code|No[\.\s]Item|Invoice|Delivery|Tax|Page|Date/i.test(before)) continue;
-      // Skip if itemcode is a common word (false positive)
       if(/^(UNIT|PAGE|DATE|TOTAL|TERMS|ATTN|SOLD|GOODS|FROM|INTO|WITH|HAVE|BEEN|WILL|THIS|THAT)$/i.test(cm[2])) continue;
-      // Row number should be sequential (1-200), skip if too large
-      const rowNum = parseInt(cm[1]);
-      if(rowNum > 200) continue;
-
-      allCodes.push({
-        index: cm.index,
-        end: cm.index + matchStr.length,
-        row: rowNum,
-        code: cm[2]
-      });
+      if(parseInt(cm[1]) > 200) continue;
+      allCodes.push({ index: cm.index, end: cm.index + cm[0].length, row: parseInt(cm[1]), code: cm[2] });
     }
 
-    pdfDebugLog.push(`找到 ${allCodes.length} 个候选 anchors（行号+品号）`);
-    console.log('[PDF] All candidate anchors:', allCodes);
+    pdfDebugLog.push(`找到 ${allCodes.length} 个候选 anchors`);
 
-    // Deduplicate by code — keep first occurrence
+    // Deduplicate by code
     const seenCodes = {};
-    for(const c of allCodes) {
-      if(!seenCodes[c.code]) seenCodes[c.code] = c;
-    }
+    for(const c of allCodes) { if(!seenCodes[c.code]) seenCodes[c.code] = c; }
     const sortedCodes = Object.values(seenCodes).sort((a, b) => a.index - b.index);
     pdfDebugLog.push(`去重后 ${sortedCodes.length} 个唯一品号`);
-    console.log('[PDF] Unique sorted codes:', sortedCodes);
 
-    // ── Parse each segment between anchors ──────────────────────────────
+    // ── Parse each segment ──────────────────────────────────────────────
     for(let i = 0; i < sortedCodes.length; i++) {
       const c = sortedCodes[i];
       const prevEnd = i > 0 ? sortedCodes[i-1].end : 0;
       const segment = normalized.slice(prevEnd, c.index).trim();
 
       if(!segment || segment.length < 3) {
-        skipped.push({ code: c.code, reason: '段落太短', segment });
-        continue;
+        skipped.push({ code: c.code, reason: '段落太短', segment }); continue;
       }
 
-      // Try multiple qty patterns:
-      // Pattern A: "NUM.NN UNIT" (standard)
-      // Pattern B: "NUM UNIT" (integer qty)
-      // Pattern C: "NUM.NN CTN" or "NUM.NN PKT" (alternate unit words)
       let name = null, qty = null;
 
+      // Pattern A: "NUM UNIT_WORD" present
       const qmA = segment.match(/(\d+(?:\.\d+)?)\s+(?:UNIT|CTN|PKT|BOX|PCS|KG|BTL|TIN|CAN|BAG|SET|PAX|DOS|BKT|GDG|BTG|SLV|PK)\b/i);
       if(qmA) {
         qty = parseFloat(qmA[1]);
         const beforeQty = segment.slice(0, segment.lastIndexOf(qmA[0])).trim();
-        // Remove leading unit price (first decimal number)
         name = beforeQty.replace(/^\s*\d+(?:\.\d+)?\s+/, '').trim();
-        // Remove trailing amount
         name = name.replace(/\s+\d+(?:\.\d+)?\s*$/, '').trim();
       } else {
-        // No unit keyword found — try to extract name anyway for display
-        // Segment: "PRICE NAME QTY AMOUNT" — pick middle portion
+        // Pattern B: PRICE NAME QTY AMOUNT (all decimals)
         const parts = segment.match(/^(\d+(?:\.\d+)?)\s+(.+?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)$/);
         if(parts) {
           qty = parseFloat(parts[3]);
           name = parts[2].trim();
         } else {
-          skipped.push({ code: c.code, reason: '无法识别数量/单位格式', segment: segment.slice(0, 80) });
-          continue;
+          skipped.push({ code: c.code, reason: '无法识别数量/单位格式', segment: segment.slice(0, 80) }); continue;
         }
       }
 
-      // Clean up name
       name = name.replace(/\s+/g, ' ').trim();
-
-      // Skip header/footer noise
       if(name.length < 2) { skipped.push({ code: c.code, reason: '商品名太短', segment: segment.slice(0,60) }); continue; }
       if(/^(no|item|desc|price|qty|total|date|inv|page|your|our|terms|attn|ringgit|authoris|goods|sold|delivery|subtotal|discount|gst|sst|tax|amount|unit\s*price)/i.test(name)) {
         skipped.push({ code: c.code, reason: '疑似表头', segment: name }); continue;
       }
-      // Skip if name is entirely numbers/symbols
       if(/^[\d\s\.\,\-\/\(\)]+$/.test(name)) { skipped.push({ code: c.code, reason: '名称全是数字', segment: name }); continue; }
 
-      const { bestItem, bestScore } = smartMatch(name, inventoryItems);
-      const confidence = bestScore >= 0.7 ? 'high' : bestScore >= 0.4 ? 'medium' : 'low';
-      const savedRatio = bestItem && pdfRatios[bestItem.id] !== undefined ? pdfRatios[bestItem.id] : 1;
+      // ── Auto-match from saved mappings ─────────────────────────────────
+      const savedItemId = lookupSavedMapping(c.code, name);
+      const savedRatio  = savedItemId && pdfMappings.ratios[savedItemId] ? pdfMappings.ratios[savedItemId] : 1;
 
       results.push({
-        pdf_name: name,
-        item_code: c.code,
+        pdf_name:     name,
+        item_code:    c.code,
         supplier_qty: qty ? Math.round(qty) : 1,
-        ratio: savedRatio,
-        item_id: bestScore >= 0.3 ? bestItem?.id : null,
-        item_name: bestItem?.name || null,
-        confidence
+        ratio:        savedRatio,
+        item_id:      savedItemId || null,   // null = needs manual match
+        auto_matched: !!savedItemId
       });
     }
 
     pdfDebugLog.push(`成功解析 ${results.length} 个产品，跳过 ${skipped.length} 个`);
+    pdfDebugLog._skipped = skipped;
+    pdfDebugLog._normalized = normalized;
     console.log('[PDF] Results:', results);
     console.log('[PDF] Skipped:', skipped);
 
-    if(!results.length) {
-      // Show debug info to help diagnose
-      const debugInfo = `PDF 里没有找到商品。\n原始文本前300字：\n${normalized.slice(0,300)}\nAnchor数：${allCodes.length}`;
-      throw new Error(debugInfo);
-    }
+    if(!results.length) throw new Error(`PDF 里没有找到商品。\nAnchor数：${allCodes.length}\n原始文本：${normalized.slice(0,200)}`);
 
     pdfMatches = results;
     renderPdfResults(results);
 
-    const highConf = results.filter(r => r.confidence === 'high').length;
-    const medConf = results.filter(r => r.confidence === 'medium').length;
-    const matched = results.filter(r => r.item_id).length;
+    const autoCount  = results.filter(r => r.auto_matched).length;
+    const needManual = results.filter(r => !r.item_id).length;
 
-    statusEl.innerHTML = `✅ 识别 <b>${results.length}</b> 个产品 · 已匹配 <b>${matched}</b> 个 · 跳过 ${skipped.length} 行
-      <br><span style="font-size:11px;color:var(--text3)">高置信度 ${highConf} · 中 ${medConf} · 低 ${results.length - highConf - medConf}</span>
-      ${skipped.length > 0 ? `<br><a href="#" onclick="showPdfDebug();return false" style="font-size:11px;color:var(--blue)">查看跳过的行 (${skipped.length})</a>` : ''}`;
+    statusEl.innerHTML = `✅ 扫到 <b>${results.length}</b> 个产品 · 自动识别 <b style="color:var(--green)">${autoCount}</b> 个 · 需手动匹配 <b style="color:${needManual?'var(--amber)':'var(--green)'}">${needManual}</b> 个
+      ${skipped.length ? `<br><a href="#" onclick="showPdfDebug();return false" style="font-size:11px;color:var(--blue)">查看跳过的行 (${skipped.length})</a>` : ''}`;
     statusEl.style.color = 'var(--green)';
-
-    // Store skipped for debug view
-    pdfDebugLog._skipped = skipped;
-    pdfDebugLog._normalized = normalized;
 
   } catch(e) {
     statusEl.textContent = '❌ 读取失败：' + (e.message || '请重试');
@@ -2494,54 +2424,143 @@ function renderPdfResults(matches) {
   const countEl = document.getElementById('pdf-modal-count');
   if(countEl) countEl.textContent = matches.length + ' 个产品';
 
-  // Populate stats bar in modal
   const statsEl = document.getElementById('pdf-modal-stats');
   if(statsEl) {
-    const highC = matches.filter(m => m.confidence === 'high').length;
-    const medC = matches.filter(m => m.confidence === 'medium').length;
-    const lowC = matches.filter(m => m.confidence === 'low').length;
-    const matchedC = matches.filter(m => m.item_id).length;
+    const autoC   = matches.filter(m => m.auto_matched).length;
+    const manualC = matches.filter(m => !m.item_id).length;
     statsEl.style.display = 'block';
-    statsEl.innerHTML = `共 <b>${matches.length}</b> 行 · 已匹配 <b style="color:var(--green)">${matchedC}</b> 个 · 未匹配 <b style="color:var(--amber)">${matches.length - matchedC}</b> 个
-      &nbsp;|&nbsp; 🟢 高 ${highC} · 🟡 中 ${medC} · 🔴 低 ${lowC}`;
+    statsEl.innerHTML = `共 <b>${matches.length}</b> 个 · 🤖 自动识别 <b style="color:var(--green)">${autoC}</b> 个 · ✋ 需手动匹配 <b style="color:var(--amber)">${manualC}</b> 个`;
   }
 
-  const inventoryItems = items.filter(i => !i.bundle_components);
+  // Build category → items map
+  const cats = [...new Set(items.filter(i=>!i.bundle_components).map(i => i.category || '未分类'))].sort();
+
   el.innerHTML = matches.map((m, idx) => {
-    const matched = m.item_id && items.find(i => i.id === m.item_id);
-    const confColor = m.confidence === 'high' ? 'var(--green)' : m.confidence === 'medium' ? 'var(--amber)' : 'var(--red)';
-    const confBg = m.confidence === 'high' ? 'var(--green-bg)' : m.confidence === 'medium' ? 'var(--amber-bg)' : 'var(--red-bg)';
-    const ratio = m.ratio || 1;
+    const matched = m.item_id ? items.find(i => i.id === m.item_id) : null;
+    const ratio    = m.ratio || 1;
     const finalQty = (m.supplier_qty || 1) * ratio;
-    const savedNote = m.item_id && pdfRatios[m.item_id] !== undefined ? '💾' : '';
-    return `<div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface)">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-        <span style="font-size:12px;color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.item_code ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);margin-right:4px">${m.item_code}</span>` : ''}${m.pdf_name}</span>
-        <span style="font-size:10px;font-weight:600;color:${confColor};background:${confBg};padding:2px 6px;border-radius:10px;flex-shrink:0;margin-left:8px">${m.confidence}</span>
+
+    // Auto-matched badge vs needs-match indicator
+    const statusBadge = m.auto_matched
+      ? `<span style="font-size:10px;font-weight:600;color:var(--green);background:var(--green-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">🤖 自动</span>`
+      : (matched
+          ? `<span style="font-size:10px;font-weight:600;color:var(--blue);background:var(--blue-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">✓ 已匹配</span>`
+          : `<span style="font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">待匹配</span>`);
+
+    // Category dropdown - pre-select based on matched item
+    const matchedCat = matched ? (matched.category || '未分类') : '';
+    const catOptions = cats.map(c =>
+      `<option value="${c}" ${c === matchedCat ? 'selected' : ''}>${c}</option>`
+    ).join('');
+
+    // Item dropdown for pre-selected category
+    const catItems = items.filter(i => !i.bundle_components && (i.category || '未分类') === (matchedCat || cats[0]));
+    const itemOptions = catItems.map(i =>
+      `<option value="${i.id}" ${matched && i.id === matched.id ? 'selected' : ''}>${i.name}</option>`
+    ).join('');
+
+    return `<div id="pdf-row-${idx}" style="padding:10px 12px;border:1px solid ${matched?'var(--border)':'var(--amber)'};border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface)">
+      <!-- Header: code + name + status -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+        <div style="flex:1;min-width:0">
+          ${m.item_code ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);display:block;margin-bottom:2px">${m.item_code}</span>` : ''}
+          <span style="font-size:13px;font-weight:600;color:var(--text);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.pdf_name}">${m.pdf_name}</span>
+        </div>
+        ${statusBadge}
       </div>
-      <!-- Match selector: shows matched name or dropdown for manual selection -->
-      <div style="margin-bottom:8px">
-        <select id="pdf-sel-${idx}" style="width:100%;padding:6px 8px;font-size:13px;font-weight:600;border:1px solid ${matched ? 'var(--border)' : 'var(--amber)'};border-radius:var(--radius-sm);background:var(--bg);color:var(--text)"
-          onchange="onPdfSelChange(${idx}, this.value)">
-          <option value="">${matched ? '' : '⚠ 请手动选择匹配商品'}</option>
-          ${matched ? `<option value="${matched.id}" selected>→ ${matched.name}</option>` : ''}
-          ${inventoryItems.filter(i => !matched || i.id !== matched.id).map(i =>
-            `<option value="${i.id}">${i.name}</option>`
-          ).join('')}
+
+      <!-- Category selector -->
+      <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+        <span style="font-size:11px;color:var(--text3);flex-shrink:0;min-width:52px">Category</span>
+        <select id="pdf-cat-${idx}" style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"
+          onchange="onPdfCatChange(${idx}, this.value)">
+          <option value="">-- 选 Category --</option>
+          ${catOptions}
         </select>
       </div>
+
+      <!-- Item selector (filtered by category) -->
+      <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+        <span style="font-size:11px;color:var(--text3);flex-shrink:0;min-width:52px">商品</span>
+        <select id="pdf-sel-${idx}" style="flex:1;padding:5px 8px;font-size:12px;font-weight:600;border:1px solid ${matched?'var(--border)':'var(--amber)'};border-radius:6px;background:var(--bg);color:var(--text)"
+          onchange="onPdfItemChange(${idx}, this.value)">
+          <option value="">${matched ? '' : '-- 选择商品 --'}</option>
+          ${itemOptions}
+        </select>
+      </div>
+
+      <!-- Qty + ratio row -->
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:12px;color:var(--text3)">供应商 ${m.supplier_qty} ×</span>
-        <input type="number" min="1" value="${ratio}" title="换算比例 (1供应商单位=几个)" style="width:52px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-weight:600"
-          oninput="updatePdfRatio(${idx}, ${m.item_id||null}, this.value)">
-        <span style="font-size:11px;color:var(--text3)">${savedNote}</span>
-        <span style="font-size:13px;color:var(--text3)">=</span>
-        <b style="color:var(--green);font-size:14px;font-family:'DM Mono',monospace" id="pdf-final-${idx}">${finalQty}</b>
-        <span style="font-size:12px;color:var(--text3)">个</span>
-        <input type="checkbox" ${matched ? 'checked' : ''} id="pdf-chk-${idx}" style="accent-color:var(--green);width:16px;height:16px;margin-left:auto;cursor:pointer">
+        <span style="font-size:12px;color:var(--text3)">供应商数量 <b style="font-family:'DM Mono',monospace">${m.supplier_qty}</b> ×</span>
+        <input type="number" min="1" value="${ratio}" title="换算比例 (1供应商单位=多少个)" style="width:50px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-weight:600"
+          oninput="onPdfRatioChange(${idx}, this.value)">
+        <span style="font-size:12px;color:var(--text3)">= <b id="pdf-final-${idx}" style="color:var(--green);font-family:'DM Mono',monospace">${finalQty}</b> 个</span>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);margin-left:auto;cursor:pointer">
+          <input type="checkbox" id="pdf-chk-${idx}" ${matched ? 'checked' : ''} style="accent-color:var(--green);width:15px;height:15px">
+          纳入进货
+        </label>
       </div>
     </div>`;
   }).join('');
+}
+
+// Called when user picks a category — reload item dropdown for that row
+function onPdfCatChange(idx, cat) {
+  const catItems = items.filter(i => !i.bundle_components && (i.category || '未分类') === cat);
+  const sel = document.getElementById('pdf-sel-' + idx);
+  if(!sel) return;
+  sel.innerHTML = `<option value="">-- 选择商品 --</option>` +
+    catItems.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+  sel.style.borderColor = 'var(--amber)';
+  pdfMatches[idx].item_id = null;
+  pdfMatches[idx].auto_matched = false;
+  const chk = document.getElementById('pdf-chk-' + idx);
+  if(chk) chk.checked = false;
+}
+
+// Called when user picks an item
+function onPdfItemChange(idx, val) {
+  const itemId = val ? parseInt(val) : null;
+  pdfMatches[idx].item_id = itemId;
+  pdfMatches[idx].auto_matched = false;
+
+  // Apply saved ratio if any
+  if(itemId && pdfMappings.ratios[itemId]) {
+    pdfMatches[idx].ratio = pdfMappings.ratios[itemId];
+    const ratioInp = document.querySelector(`#pdf-row-${idx} input[type=number]`);
+    if(ratioInp) ratioInp.value = pdfMappings.ratios[itemId];
+    const finalEl = document.getElementById('pdf-final-' + idx);
+    if(finalEl) finalEl.textContent = (pdfMatches[idx].supplier_qty || 1) * pdfMappings.ratios[itemId];
+  }
+
+  const sel = document.getElementById('pdf-sel-' + idx);
+  if(sel) sel.style.borderColor = itemId ? 'var(--green)' : 'var(--amber)';
+  const row = document.getElementById('pdf-row-' + idx);
+  if(row) row.style.borderColor = itemId ? 'var(--border)' : 'var(--amber)';
+
+  const chk = document.getElementById('pdf-chk-' + idx);
+  if(chk) chk.checked = !!itemId;
+
+  // Update stats bar
+  const matched = pdfMatches.filter(m => m.item_id).length;
+  const needManual = pdfMatches.filter(m => !m.item_id).length;
+  const statsEl = document.getElementById('pdf-modal-stats');
+  if(statsEl) {
+    const autoC = pdfMatches.filter(m => m.auto_matched).length;
+    statsEl.innerHTML = `共 <b>${pdfMatches.length}</b> 个 · 🤖 自动识别 <b style="color:var(--green)">${autoC}</b> 个 · ✋ 需手动匹配 <b style="color:var(--amber)">${needManual}</b> 个`;
+  }
+}
+
+function onPdfRatioChange(idx, val) {
+  const ratio = Math.max(1, parseInt(val) || 1);
+  pdfMatches[idx].ratio = ratio;
+  const itemId = pdfMatches[idx].item_id;
+  if(itemId) {
+    pdfMappings.ratios[itemId] = ratio;
+    savePdfMappings();
+  }
+  const finalEl = document.getElementById('pdf-final-' + idx);
+  if(finalEl) finalEl.textContent = (pdfMatches[idx].supplier_qty || 1) * ratio;
 }
 
 function showPdfRawText() {
@@ -2555,13 +2574,33 @@ function showPdfRawText() {
       <b>🔍 PDF 原始文本（前 2000 字）</b>
       <button class="btn" style="font-size:12px" onclick="this.closest('[style*=fixed]').remove()">✕</button>
     </div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:4px">
-      ${pdfDebugLog.map ? pdfDebugLog.map(l=>`• ${l}`).join('<br>') : ''}
+    <div style="font-size:11px;color:var(--text3)">
+      ${Array.isArray(pdfDebugLog) ? pdfDebugLog.map(l=>`• ${l}`).join('<br>') : ''}
     </div>
     <pre style="flex:1;overflow:auto;font-size:10px;background:var(--surface2);padding:12px;border-radius:6px;white-space:pre-wrap;word-break:break-all;color:var(--text);max-height:400px">${text.replace(/</g,'&lt;')}</pre>
     <button class="btn" onclick="navigator.clipboard.writeText(pdfDebugLog._normalized||'').then(()=>alert('已复制完整文本'))">📋 复制完整文本</button>
   </div>`;
   document.body.appendChild(overlay);
+}
+
+function showPdfDebug() {
+  const skipped = pdfDebugLog._skipped || [];
+  let html = `<div style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px" onclick="this.remove()">
+    <div style="background:var(--surface);border-radius:var(--radius);padding:20px;max-width:600px;width:100%;max-height:80vh;display:flex;flex-direction:column;gap:10px" onclick="event.stopPropagation()">
+      <div style="display:flex;justify-content:space-between">
+        <b>跳过的 ${skipped.length} 行</b>
+        <button class="btn" style="font-size:12px" onclick="this.closest('[onclick]').remove()">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto">
+        ${skipped.map(s=>`<div style="font-size:11px;padding:6px 8px;background:var(--surface2);border-radius:6px;margin-bottom:4px">
+          <span style="font-family:'DM Mono',monospace;color:var(--blue)">${s.code}</span>
+          <span style="color:var(--red);margin:0 8px">${s.reason}</span>
+          <div style="color:var(--text3);margin-top:2px">${s.segment}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
 }
 
 function pdfCheckAll(checked) {
@@ -2572,60 +2611,40 @@ function pdfCheckAll(checked) {
 }
 
 function pdfCheckHighConf() {
+  // "高置信度" in new model = auto_matched
   pdfMatches.forEach((m, idx) => {
     const chk = document.getElementById('pdf-chk-' + idx);
-    if(chk) chk.checked = m.confidence === 'high' && !!m.item_id;
+    if(chk) chk.checked = m.auto_matched;
   });
-}
-
-function onPdfSelChange(idx, val) {
-  const itemId = val ? parseInt(val) : null;
-  pdfMatches[idx].item_id = itemId;
-  // Auto-apply saved ratio if exists
-  if(itemId && pdfRatios[itemId] !== undefined) {
-    pdfMatches[idx].ratio = pdfRatios[itemId];
-    const inp = document.querySelector(`#pdf-modal [oninput*="updatePdfRatio(${idx},"]`);
-    if(inp) inp.value = pdfRatios[itemId];
-  }
-  const finalEl = document.getElementById('pdf-final-' + idx);
-  if(finalEl) finalEl.textContent = (pdfMatches[idx].supplier_qty || 1) * (pdfMatches[idx].ratio || 1);
-  // Auto-check if item selected
-  const chk = document.getElementById('pdf-chk-' + idx);
-  if(chk) chk.checked = !!itemId;
-}
-
-function updatePdfRatio(idx, itemId, val) {
-  const ratio = Math.max(1, parseInt(val) || 1);
-  pdfMatches[idx].ratio = ratio;
-  if(itemId) {
-    pdfRatios[itemId] = ratio;
-    savePdfRatios();
-  }
-  const finalEl = document.getElementById('pdf-final-' + idx);
-  if(finalEl) finalEl.textContent = ((pdfMatches[idx].supplier_qty || 1) * ratio) + ' 个';
 }
 
 function addPdfMatchesToCart() {
   let added = 0;
   pdfMatches.forEach((m, idx) => {
-    // Read current dropdown selection (user may have changed it)
+    // Read current item selection
     const sel = document.getElementById('pdf-sel-' + idx);
     if(sel && sel.value) m.item_id = parseInt(sel.value);
     if(!m.item_id) return;
     const chk = document.getElementById('pdf-chk-' + idx);
     if(chk && !chk.checked) return;
+
     const finalQty = (m.supplier_qty || 1) * (m.ratio || 1);
+
+    // ── Save mapping for next time ──────────────────────────────────
+    recordPdfMapping(m.item_code, m.pdf_name, m.item_id, m.ratio || 1);
+
+    // Add to restock cart
     const existing = restockCart.find(r => r.itemId === m.item_id);
     if(existing) existing.qty += finalQty;
     else restockCart.push({ itemId: m.item_id, qty: finalQty });
     added++;
   });
+
   renderRestockCart();
   document.getElementById('pdf-results').style.display = 'none';
   document.getElementById('pdf-modal').classList.remove('open');
   document.body.classList.remove('modal-open');
   document.getElementById('pdf-status').textContent = `✅ 已加入 ${added} 项到进货清单`;
-  // Auto-open restock panel
   const body = document.getElementById('body-panel-restock');
   if(body && body.style.display === 'none') togglePanel('panel-restock');
   pdfMatches = [];
