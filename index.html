@@ -18,9 +18,10 @@
     --radius: 12px; --radius-sm: 8px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+  #app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 50; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 50; flex-shrink: 0; }
   .topbar-title { font-size: 16px; font-weight: 600; flex: 1; }
   .sync-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
   .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #4caf50; transition: background 0.3s; }
@@ -28,19 +29,19 @@
   .sync-dot.err { background: #f44336; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-  .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; position: sticky; top: 57px; z-index: 40; overflow-x: auto; }
+  .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; position: sticky; top: 57px; z-index: 40; overflow-x: auto; flex-shrink: 0; }
   .tabs::-webkit-scrollbar { display: none; }
   .tab { padding: 14px 18px; font-size: 14px; font-weight: 500; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
   .tab.active { color: var(--text); border-bottom-color: var(--text); }
 
-  .page { display: none; padding: 16px; max-width: 1100px; margin: 0 auto; }
-  #page-stock { padding-bottom: 0; }
+  .page { display: none; padding: 16px; max-width: 1100px; margin: 0 auto; overflow-y: auto; flex: 1; min-height: 0; }
   .page.active { display: block; }
+  #page-stock.active { display: flex; flex-direction: column; padding-bottom: 0; overflow-y: hidden; }
 
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
   .card-title { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
 
-  .metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 12px; }
+  .metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 12px; flex-shrink: 0; }
   .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
   .metric-val { font-size: 22px; font-weight: 600; color: var(--text); font-family: 'DM Mono', monospace; }
   .metric-lbl { font-size: 11px; color: var(--text3); margin-top: 2px; }
@@ -204,7 +205,8 @@
   /* STOCK TWO-COLUMN LAYOUT */
   .stock-layout {
     display: flex; gap: 16px;
-    height: calc(100vh - 116px);  /* full remaining height after topbar + tabs */
+    flex: 1;
+    min-height: 0;
     align-items: stretch;
   }
   .stock-left {
@@ -284,7 +286,7 @@
     </div>
 
     <!-- CATEGORY MANAGEMENT BUTTON -->
-    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;flex-shrink:0">
       <button class="btn" style="font-size:13px;padding:8px 16px" onclick="openCatModal()">🏷 管理 Categories</button>
     </div>
 
