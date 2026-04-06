@@ -2204,14 +2204,16 @@ async function handlePdfUpload(input) {
     statusEl.textContent = '⏳ 正在匹配商品...';
 
     // Format: "RowNo ItemCode Description Qty.00 UNIT Price Amount"
-    // e.g. "1 OEK5000 OFFGRID ENGAGE KIT - MANSORY BLACK 2.00 UNIT 76.00 152.00"
     const inventoryItems = items.filter(i => !i.bundle_components);
     const results = [];
 
-    // Match invoice line pattern: rownum + itemcode + name + qty.00 UNIT
-    const linePattern = /\b(\d{1,3})\s+([A-Z]{2,}\d+[A-Z0-9]*)\s+(.+?)\s+(\d+\.\d+)\s+UNIT/g;
+    // Normalize whitespace (collapse newlines/multiple spaces)
+    const normalized = fullText.replace(/\s+/g, ' ');
+
+    // Match: rownum itemcode description qty.xx UNIT (price and amount optional)
+    const linePattern = /\b(\d{1,3})\s+([A-Z]{2,}\d+[A-Z0-9]*)\s+(.+?)\s+(\d+\.\d+)\s+UNIT\b/g;
     let m;
-    while((m = linePattern.exec(fullText)) !== null) {
+    while((m = linePattern.exec(normalized)) !== null) {
       const code = m[2];
       const name = m[3].trim();
       const qty  = parseFloat(m[4]) || 1;
@@ -2234,6 +2236,35 @@ async function handlePdfUpload(input) {
         item_name: bestItem?.name || null,
         confidence
       });
+    }
+
+    // Also catch lines with UNIT but no price (e.g. last item in PDF)
+    const nopricePattern = /\b(\d{1,3})\s+([A-Z]{2,}\d+[A-Z0-9]*)\s+(.+?)\s+(\d+\.\d+)\s+UNIT(?!\s+\d)/g;
+    const foundCodes = new Set(results.map(r => r.item_code));
+    let m2;
+    while((m2 = nopricePattern.exec(normalized)) !== null) {
+      const code = m2[2];
+      if(foundCodes.has(code)) continue;
+      const name = m2[3].trim();
+      const qty  = parseFloat(m2[4]) || 1;
+      if(name.length < 3) continue;
+      let bestItem = null, bestScore = 0;
+      for(const it of inventoryItems) {
+        const score = fuzzyScore(name, it.name);
+        if(score > bestScore) { bestScore = score; bestItem = it; }
+      }
+      const confidence = bestScore >= 0.55 ? 'high' : bestScore >= 0.3 ? 'medium' : 'low';
+      const savedRatio = bestItem && pdfRatios[bestItem.id] !== undefined ? pdfRatios[bestItem.id] : 1;
+      results.push({
+        pdf_name: name,
+        item_code: code,
+        supplier_qty: Math.round(qty),
+        ratio: savedRatio,
+        item_id: bestScore >= 0.2 ? bestItem?.id : null,
+        item_name: bestItem?.name || null,
+        confidence
+      });
+      foundCodes.add(code);
     }
 
     if(!results.length) throw new Error('PDF 里没有找到商品，格式可能不符');
