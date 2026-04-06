@@ -2594,7 +2594,14 @@ function togglePdfFilter() {
   _pdfFilterPending = !_pdfFilterPending;
   const lnk = document.getElementById('pdf-filter-toggle');
   if(lnk) lnk.textContent = _pdfFilterPending ? '显示全部 ▴' : '只看待匹配 ▾';
-  _renderPdfRows(pdfMatches);
+
+  // Show/hide rows in place — don't re-render (would lose filled selections)
+  pdfMatches.forEach((m, idx) => {
+    const row = document.getElementById('pdf-row-' + idx);
+    if(!row) return;
+    const isPending = !m.item_id && !m.already_added;
+    row.style.display = (_pdfFilterPending && !isPending) ? 'none' : '';
+  });
 }
 
 function _renderPdfRows(matches) {
@@ -2610,8 +2617,8 @@ function _renderPdfRows(matches) {
     const alreadyAdded = m.already_added;
     const isPending = !m.item_id && !alreadyAdded;
 
-    // Filter: if only-pending mode, hide non-pending rows
-    if(_pdfFilterPending && !isPending) return '';
+    // Filter: if only-pending mode, hide non-pending rows (keep in DOM so state is preserved)
+    const hideRow = _pdfFilterPending && !isPending;
 
     const statusBadge = alreadyAdded
       ? `<span style="font-size:10px;font-weight:600;color:var(--text3);background:var(--surface2);padding:2px 7px;border-radius:10px;flex-shrink:0">✓ 已加入</span>`
@@ -2636,7 +2643,7 @@ function _renderPdfRows(matches) {
     ).join('');
     const has2 = !!m.item_id2;
 
-    return `<div id="pdf-row-${idx}" style="padding:10px 12px;border:1px solid ${matched?'var(--border)':'var(--amber)'};border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface);transition:opacity 0.2s;opacity:${alreadyAdded?'0.4':'1'}">
+    return `<div id="pdf-row-${idx}" style="padding:10px 12px;border:1px solid ${matched?'var(--border)':'var(--amber)'};border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface);transition:opacity 0.2s;opacity:${alreadyAdded?'0.4':'1'};${hideRow?'display:none':''}">
       <!-- Header -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
@@ -2734,10 +2741,11 @@ function _renderPdfRows(matches) {
 
 function pdfCheckAll(checked) {
   pdfMatches.forEach((_, idx) => {
+    const row = document.getElementById('pdf-row-' + idx);
+    if(row && row.style.display === 'none') return; // skip hidden rows
     const chk = document.getElementById('pdf-chk-' + idx);
     if(chk) chk.checked = checked;
-    const row = document.getElementById('pdf-row-' + idx);
-    if(row) row.style.opacity = checked ? '1' : '0.35';
+    if(row) row.style.opacity = checked ? (pdfMatches[idx].already_added ? '0.4' : '1') : '0.35';
   });
   updatePdfStats();
 }
@@ -2987,6 +2995,10 @@ function onPdfItem2Change(idx, val) {
 function addPdfMatchesToCart() {
   let added = 0;
   pdfMatches.forEach((m, idx) => {
+    // Skip hidden rows (filtered out in pending-only mode)
+    const row = document.getElementById('pdf-row-' + idx);
+    if(row && row.style.display === 'none') return;
+
     const chk = document.getElementById('pdf-chk-' + idx);
     if(chk && !chk.checked) return;
 
