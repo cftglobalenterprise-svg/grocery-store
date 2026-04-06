@@ -2138,6 +2138,20 @@ function savePdfRatios() {
   localStorage.setItem('pdfRatios', JSON.stringify(pdfRatios));
 }
 
+// Fuzzy match: score how similar two strings are (0-1)
+function fuzzyScore(a, b) {
+  a = a.toLowerCase().replace(/[^a-z0-9]/g,' ').trim();
+  b = b.toLowerCase().replace(/[^a-z0-9]/g,' ').trim();
+  const aWords = a.split(/\s+/).filter(Boolean);
+  const bWords = b.split(/\s+/).filter(Boolean);
+  if(!aWords.length || !bWords.length) return 0;
+  let matches = 0;
+  for(const w of aWords) {
+    if(bWords.some(bw => bw.includes(w) || w.includes(bw))) matches++;
+  }
+  return matches / Math.max(aWords.length, bWords.length);
+}
+
 async function handlePdfUpload(input) {
   const file = input.files[0];
   if(!file) return;
@@ -2148,68 +2162,78 @@ async function handlePdfUpload(input) {
   pdfMatches = [];
 
   statusEl.style.color = 'var(--text2)';
-  statusEl.textContent = '⏳ Gemini 正在读取 PDF，请稍候...';
+  statusEl.textContent = '⏳ 正在读取 PDF...';
 
   try {
-    const base64 = await new Promise((res, rej) => {
-      const reader = new FileReader();
-      reader.onload = () => res(reader.result.split(',')[1]);
-      reader.onerror = rej;
-      reader.readAsDataURL(file);
-    });
+    // Load PDF.js
+    if(!window.pdfjsLib) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    }
 
-    const itemList = items.filter(i => !i.bundle_components)
-      .map(i => `ID:${i.id} | ${i.name}`)
-      .join('\n');
+    // Read PDF as ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-    const prompt = `You are a stock management assistant. I have a supplier PDF invoice/delivery order.
+    // Extract all text
+    let fullText = '';
+    for(let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      fullText += tc.items.map(i => i.str).join(' ') + '\n';
+    }
 
-IMPORTANT CONTEXT: The supplier counts in cartons/boxes, but my system counts individual units. For example, supplier qty=1 carton might equal 4 units in my system. Please extract the supplier's original qty as-is — I will handle the conversion myself.
+    statusEl.textContent = '⏳ 正在匹配商品...';
 
-My inventory items:
-${itemList}
+    // Parse lines — look for product name + qty pattern
+    const lines = fullText.split(/\n/).map(l => l.trim()).filter(Boolean);
+    const results = [];
+    const inventoryItems = items.filter(i => !i.bundle_components);
 
-Extract ALL product lines from the PDF. Match each to the closest item in my inventory list. Also try to guess the unit conversion ratio (how many of my units per 1 supplier unit) based on any packaging info in the PDF (e.g. "1x4", "4pcs", "box of 12", etc). If no info, set ratio to 1.
+    for(const line of lines) {
+      // Skip lines that look like headers/totals/dates
+      if(/^(no|item|description|qty|total|subtotal|date|invoice|delivery|page|\d{1,2}[\/\-]\d{1,2})/i.test(line)) continue;
+      if(line.length < 3) continue;
 
-Respond ONLY with a JSON array, no explanation, no markdown:
-[{"pdf_name":"product name from pdf","supplier_qty":number,"ratio":number,"item_id":123,"item_name":"matched name","confidence":"high/medium/low"}]
+      // Try to extract qty from end of line (number at end)
+      const qtyMatch = line.match(/(\d+)\s*(?:box|pcs|carton|ctn|unit|pkt|pack)?\s*$/i);
+      const supplierQty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+      const productName = qtyMatch ? line.slice(0, qtyMatch.index).trim() : line;
 
-ratio = how many of MY units per 1 supplier unit. If no packaging info found, set ratio to 1.
-If no match found for item_id, set it to null.`;
+      if(productName.length < 3) continue;
 
-    const GEMINI_KEY = 'AIzaSyD21UtSBhKISMO0RZssdFYpJeWD0cg1Rx4';
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { inline_data: { mime_type: 'application/pdf', data: base64 } },
-              { text: prompt }
-            ]
-          }]
-        })
+      // Find best matching inventory item
+      let bestItem = null, bestScore = 0;
+      for(const it of inventoryItems) {
+        const score = fuzzyScore(productName, it.name);
+        if(score > bestScore) { bestScore = score; bestItem = it; }
       }
-    );
 
-    const data = await response.json();
-    if(data.error) throw new Error('Gemini error: ' + data.error.message);
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const clean = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
-
-    // Apply saved ratios if available
-    parsed.forEach(m => {
-      if(m.item_id && pdfRatios[m.item_id] !== undefined) {
-        m.ratio = pdfRatios[m.item_id];
+      // Only include if reasonable match (>20%) or unmatched
+      if(bestScore > 0.15 || supplierQty > 0) {
+        const confidence = bestScore >= 0.6 ? 'high' : bestScore >= 0.3 ? 'medium' : 'low';
+        const savedRatio = bestItem && pdfRatios[bestItem.id] !== undefined ? pdfRatios[bestItem.id] : 1;
+        results.push({
+          pdf_name: productName,
+          supplier_qty: supplierQty,
+          ratio: savedRatio,
+          item_id: bestScore > 0.15 ? bestItem?.id : null,
+          item_name: bestItem?.name || null,
+          confidence
+        });
       }
-    });
+    }
 
-    pdfMatches = parsed;
-    renderPdfResults(parsed);
-    statusEl.textContent = `✅ 识别完成，找到 ${parsed.length} 个产品`;
+    if(!results.length) throw new Error('PDF 里没有找到商品，请检查 PDF 格式');
+
+    pdfMatches = results;
+    renderPdfResults(results);
+    statusEl.textContent = `✅ 识别完成，找到 ${results.length} 行`;
     statusEl.style.color = 'var(--green)';
 
   } catch(e) {
