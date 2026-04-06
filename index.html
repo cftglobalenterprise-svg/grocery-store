@@ -335,6 +335,33 @@
             </div>
           </div>
         </div>
+        <!-- TRANSFER CARD -->
+        <div class="card" style="margin-top:12px">
+          <div class="card-title">🔄 转移库存（家里 → 店里）</div>
+          <div class="form-row">
+            <label>搜索商品</label>
+            <input type="text" id="transfer-search" placeholder="输入商品名搜索..." oninput="renderTransferSearch()" style="flex:1;min-width:0">
+          </div>
+          <div id="transfer-search-results"></div>
+          <div class="form-row">
+            <label>或扫 Barcode</label>
+            <div class="barcode-input-wrap">
+              <input type="text" id="transfer-barcode" placeholder="扫描 barcode" oninput="onTransferBarcodeTyped(this.value)">
+              <button class="btn btn-scan" onclick="openScanModal('transfer')">📷 扫</button>
+            </div>
+          </div>
+          <div id="transfer-selected" style="display:none">
+            <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:10px;font-size:13px;font-weight:600;color:var(--text)" id="transfer-item-name">—</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:10px" id="transfer-item-stock"></div>
+            <div class="form-row">
+              <label>转移数量</label>
+              <input type="number" id="transfer-qty" min="1" value="1" style="flex:1">
+            </div>
+            <button class="btn btn-block" style="background:var(--blue);border-color:var(--blue);color:#fff" onclick="confirmTransfer()">🔄 确认转移</button>
+            <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearTransfer()">取消</button>
+          </div>
+        </div>
+
       </div><!-- end stock-left -->
 
       <div class="stock-right">
@@ -1714,6 +1741,25 @@ function onBarcodeDetected(code) {
     statusEl.className = 'scan-status found';
     setTimeout(() => closeScanModal(), 800);
 
+  } else if(scanTarget === 'transfer') {
+    const found = items.find(i => i.barcode && i.barcode === code && !i.bundle_components);
+    if(found) {
+      selectTransferItem(found.id);
+      statusEl.textContent = '✅ 已找到：' + found.name;
+      statusEl.className = 'scan-status found';
+      setTimeout(() => closeScanModal(), 800);
+    } else {
+      statusEl.textContent = '❌ 未找到商品（' + code + '）';
+      statusEl.className = 'scan-status error';
+      setTimeout(() => {
+        if(document.getElementById('scan-modal').classList.contains('open')) {
+          statusEl.textContent = '📡 重新扫描...';
+          statusEl.className = 'scan-status';
+          startScanner();
+        }
+      }, 2000);
+    }
+
   } else if(scanTarget === 'restock') {
     const found = items.find(i => i.barcode && i.barcode === code);
     if(found) {
@@ -1999,6 +2045,80 @@ function toggleCustCat(id) {
     body.style.display = 'none';
     arr.classList.remove('open');
   }
+}
+
+// ── TRANSFER STOCK ─────────────────────────────────────────────────
+let transferItemId = null;
+
+function renderTransferSearch() {
+  const query = document.getElementById('transfer-search').value.trim().toLowerCase();
+  const el = document.getElementById('transfer-search-results');
+  if(!query) { el.innerHTML = ''; return; }
+  const filtered = items.filter(i => !i.bundle_components && i.name.toLowerCase().includes(query)).slice(0, 8);
+  if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:8px">没有找到商品</div>'; return; }
+  el.innerHTML = '<div class="search-results">' + filtered.map(it => `
+    <div class="search-result-item" onclick="selectTransferItem(${it.id});document.getElementById('transfer-search').value='';document.getElementById('transfer-search-results').innerHTML=''">
+      <div>
+        <div class="search-result-name">${it.name}</div>
+        <div class="search-result-meta">家里:${it.home_qty} → 店里:${it.shop_qty}</div>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+function onTransferBarcodeTyped(val) {
+  val = val.trim();
+  if(!val) return;
+  const found = items.find(i => i.barcode && i.barcode === val && !i.bundle_components);
+  if(found) {
+    selectTransferItem(found.id);
+    document.getElementById('transfer-barcode').value = '';
+  }
+}
+
+function selectTransferItem(id) {
+  const it = items.find(i => i.id === id);
+  if(!it) return;
+  transferItemId = id;
+  document.getElementById('transfer-item-name').textContent = '📦 ' + it.name;
+  document.getElementById('transfer-item-stock').textContent = '家里：' + it.home_qty + ' 个　→　店里：' + it.shop_qty + ' 个';
+  document.getElementById('transfer-qty').value = 1;
+  document.getElementById('transfer-qty').max = it.home_qty;
+  document.getElementById('transfer-selected').style.display = 'block';
+  document.getElementById('transfer-search').value = '';
+  document.getElementById('transfer-search-results').innerHTML = '';
+  document.getElementById('transfer-barcode').value = '';
+  document.getElementById('transfer-qty').focus();
+}
+
+function clearTransfer() {
+  transferItemId = null;
+  document.getElementById('transfer-selected').style.display = 'none';
+  document.getElementById('transfer-item-name').textContent = '—';
+  document.getElementById('transfer-item-stock').textContent = '';
+  document.getElementById('transfer-search').value = '';
+  document.getElementById('transfer-search-results').innerHTML = '';
+  document.getElementById('transfer-barcode').value = '';
+}
+
+async function confirmTransfer() {
+  if(!transferItemId) return;
+  const qty = parseInt(document.getElementById('transfer-qty').value) || 0;
+  if(qty <= 0) { alert('请输入有效数量'); return; }
+  const it = items.find(i => i.id === transferItemId);
+  if(!it) return;
+  if(it.home_qty < qty) {
+    alert('家里库存不足！家里只剩 ' + it.home_qty + ' 个，无法转移 ' + qty + ' 个');
+    return;
+  }
+  setSync('busy', '转移中...');
+  const { error } = await sb.from('items').update({
+    home_qty: it.home_qty - qty,
+    shop_qty: it.shop_qty + qty
+  }).eq('id', transferItemId);
+  if(error) { alert('转移失败：' + error.message); setSync('err','失败'); return; }
+  setSync('ok', `已转移：${it.name} ×${qty} 家里→店里 · ${timeNow()}`);
+  clearTransfer();
+  await loadItems();
 }
 
 // ── INDEPENDENT COLUMN SCROLL ───────────────────────────────────────
