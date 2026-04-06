@@ -357,11 +357,8 @@
               <input type="file" id="pdf-upload" accept=".pdf" style="display:none" onchange="handlePdfUpload(this)">
             </label>
             <div id="pdf-status" style="font-size:12px;color:var(--text2);margin-top:8px;min-height:18px"></div>
-            <!-- PDF match results -->
-            <div id="pdf-results" style="display:none;margin-top:10px">
-              <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">AI 识别结果 — 请确认：</div>
-              <div id="pdf-match-list"></div>
-              <button class="btn btn-block" style="margin-top:8px" onclick="addPdfMatchesToCart()">✅ 全部加入进货清单</button>
+            <div id="pdf-results" style="display:none;margin-top:8px">
+              <button class="btn btn-block" onclick="document.getElementById('pdf-modal').classList.add('open')">📋 查看识别结果并确认</button>
             </div>
           </div>
         </div>
@@ -688,6 +685,22 @@
     <div class="modal-footer">
       <button class="btn" onclick="closeAdj()">取消</button>
       <button class="btn btn-block" style="width:auto;margin:0" onclick="saveAdj()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF CONFIRM MODAL -->
+<div class="modal-overlay" id="pdf-modal">
+  <div class="modal" style="max-width:520px;max-height:80vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h3 style="margin:0">📄 PDF 识别结果</h3>
+      <span style="font-size:12px;color:var(--text3)" id="pdf-modal-count"></span>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px">检查匹配是否正确，调整数量，取消不需要的项目</p>
+    <div id="pdf-match-list" style="flex:1;overflow-y:auto;margin-bottom:14px"></div>
+    <div class="modal-footer" style="margin-top:0">
+      <button class="btn" onclick="document.getElementById('pdf-modal').classList.remove('open')">取消</button>
+      <button class="btn btn-block" style="width:auto;margin:0;background:var(--green);border-color:var(--green);color:#fff" onclick="addPdfMatchesToCart()">✅ 确认加入进货清单</button>
     </div>
   </div>
 </div>
@@ -2190,39 +2203,69 @@ async function handlePdfUpload(input) {
 
     statusEl.textContent = '⏳ 正在匹配商品...';
 
-    // Parse lines — look for product name + qty pattern
-    const lines = fullText.split(/\n/).map(l => l.trim()).filter(Boolean);
-    const results = [];
+    // This supplier PDF format: "QTY UNIT ITEM_CODE PRICE NAME"
+    // Pattern: number followed by UNIT, then item code, then price, then name
+    // e.g. "2.00 UNIT 152.00 1 OEK5000 76.00 OFFGRID ENGAGE KIT – MANSORY BLACK"
+    // Better approach: find all occurrences of "X.00 UNIT" pattern
     const inventoryItems = items.filter(i => !i.bundle_components);
+    const results = [];
+    const seen = new Set();
 
-    for(const line of lines) {
-      // Skip lines that look like headers/totals/dates
-      if(/^(no|item|description|qty|total|subtotal|date|invoice|delivery|page|\d{1,2}[\/\-]\d{1,2})/i.test(line)) continue;
-      if(line.length < 3) continue;
+    // Strategy 1: Match pattern "NAME X.00 UNIT" or "X UNIT price CODE"
+    // Look for item codes + quantities in the raw text
+    // Pattern: digits, then UNIT, preceded by product name
+    const unitPattern = /([A-Z][A-Z0-9 \-–\/&'.()]+?)\s+(\d+(?:\.\d+)?)\s*(?:UNIT|UNITS|PCS|BOX|CTN|KG)/gi;
+    let m;
+    while((m = unitPattern.exec(fullText)) !== null) {
+      const rawName = m[1].trim();
+      const qty = parseFloat(m[2]) || 1;
+      // Skip if too short or looks like a header
+      if(rawName.length < 5) continue;
+      if(/^(no|item|desc|qty|total|date|inv|page|ref|terms|attn|fax|tel)/i.test(rawName)) continue;
+      const key = rawName.toLowerCase();
+      if(seen.has(key)) continue;
+      seen.add(key);
 
-      // Try to extract qty from end of line (number at end)
-      const qtyMatch = line.match(/(\d+)\s*(?:box|pcs|carton|ctn|unit|pkt|pack)?\s*$/i);
-      const supplierQty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
-      const productName = qtyMatch ? line.slice(0, qtyMatch.index).trim() : line;
-
-      if(productName.length < 3) continue;
-
-      // Find best matching inventory item
+      // Find best match
       let bestItem = null, bestScore = 0;
       for(const it of inventoryItems) {
-        const score = fuzzyScore(productName, it.name);
+        const score = fuzzyScore(rawName, it.name);
         if(score > bestScore) { bestScore = score; bestItem = it; }
       }
+      const confidence = bestScore >= 0.55 ? 'high' : bestScore >= 0.25 ? 'medium' : 'low';
+      const savedRatio = bestItem && pdfRatios[bestItem.id] !== undefined ? pdfRatios[bestItem.id] : 1;
+      results.push({
+        pdf_name: rawName,
+        supplier_qty: Math.round(qty),
+        ratio: savedRatio,
+        item_id: bestScore >= 0.2 ? bestItem?.id : null,
+        item_name: bestItem?.name || null,
+        confidence
+      });
+    }
 
-      // Only include if reasonable match (>20%) or unmatched
-      if(bestScore > 0.15 || supplierQty > 0) {
-        const confidence = bestScore >= 0.6 ? 'high' : bestScore >= 0.3 ? 'medium' : 'low';
+    // Strategy 2: If strategy 1 found nothing, try line-by-line with qty at end
+    if(!results.length) {
+      const lines = fullText.split(/\n/).map(l=>l.trim()).filter(l=>l.length>4);
+      for(const line of lines) {
+        if(/^(no|item|desc|qty|total|subtotal|date|invoice|delivery|page|attn|fax|tel|ref)/i.test(line)) continue;
+        const qm = line.match(/(\d+(?:\.\d+)?)\s*(?:unit|pcs|box|ctn)?\s*$/i);
+        const qty = qm ? parseFloat(qm[1]) : 1;
+        const name = qm ? line.slice(0,qm.index).trim() : line;
+        if(name.length < 4) continue;
+        let bestItem = null, bestScore = 0;
+        for(const it of inventoryItems) {
+          const s = fuzzyScore(name, it.name);
+          if(s > bestScore) { bestScore = s; bestItem = it; }
+        }
+        if(bestScore < 0.1 && qty === 1) continue;
+        const confidence = bestScore >= 0.55 ? 'high' : bestScore >= 0.25 ? 'medium' : 'low';
         const savedRatio = bestItem && pdfRatios[bestItem.id] !== undefined ? pdfRatios[bestItem.id] : 1;
         results.push({
-          pdf_name: productName,
-          supplier_qty: supplierQty,
+          pdf_name: name,
+          supplier_qty: Math.round(qty),
           ratio: savedRatio,
-          item_id: bestScore > 0.15 ? bestItem?.id : null,
+          item_id: bestScore >= 0.2 ? bestItem?.id : null,
           item_name: bestItem?.name || null,
           confidence
         });
@@ -2250,30 +2293,36 @@ function renderPdfResults(matches) {
   if(!matches.length) { resultsEl.style.display = 'none'; return; }
   resultsEl.style.display = 'block';
 
+  const countEl = document.getElementById('pdf-modal-count');
+  if(countEl) countEl.textContent = matches.length + ' 个产品';
+
   el.innerHTML = matches.map((m, idx) => {
     const matched = m.item_id && items.find(i => i.id === m.item_id);
     const confColor = m.confidence === 'high' ? 'var(--green)' : m.confidence === 'medium' ? 'var(--amber)' : 'var(--red)';
+    const confBg = m.confidence === 'high' ? 'var(--green-bg)' : m.confidence === 'medium' ? 'var(--amber-bg)' : 'var(--red-bg)';
     const ratio = m.ratio || 1;
     const finalQty = (m.supplier_qty || 1) * ratio;
-    const savedNote = m.item_id && pdfRatios[m.item_id] !== undefined ? ' 💾' : '';
-    return `<div style="padding:10px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:8px;font-size:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-weight:600;color:var(--text);font-size:13px">${m.pdf_name}</span>
-        <span style="color:${confColor};font-size:11px;background:var(--surface);padding:2px 6px;border-radius:4px">${m.confidence}</span>
+    const savedNote = m.item_id && pdfRatios[m.item_id] !== undefined ? '💾' : '';
+    return `<div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <span style="font-size:12px;color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.pdf_name}</span>
+        <span style="font-size:10px;font-weight:600;color:${confColor};background:${confBg};padding:2px 6px;border-radius:10px;flex-shrink:0;margin-left:8px">${m.confidence}</span>
       </div>
-      <div style="color:var(--text2);margin-bottom:6px">→ ${matched ? `<b>${matched.name}</b>` : '<span style="color:var(--red)">未匹配到库存商品</span>'}</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">
+        ${matched ? `→ ${matched.name}` : '<span style="color:var(--red);font-size:12px">❌ 未匹配到库存商品</span>'}
+      </div>
       ${matched ? `
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span style="color:var(--text3)">供应商:</span>
-        <b>${m.supplier_qty}</b>
-        <span style="color:var(--text3)">×</span>
-        <span style="color:var(--text3)">换算比例:</span>
-        <input type="number" min="1" value="${ratio}" style="width:48px;padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center"
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--text3)">供应商 ${m.supplier_qty} ×</span>
+        <input type="number" min="1" value="${ratio}" title="换算比例" style="width:52px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-weight:600"
           oninput="updatePdfRatio(${idx}, ${m.item_id}, this.value)">
-        <span style="color:var(--text3)">${savedNote}=</span>
-        <b style="color:var(--green)" id="pdf-final-${idx}">${finalQty} 个</b>
-        <input type="checkbox" checked id="pdf-chk-${idx}" style="accent-color:var(--green);margin-left:4px">
-      </div>` : ''}
+        <span style="font-size:11px;color:var(--text3)">${savedNote}</span>
+        <span style="font-size:13px;color:var(--text3)">=</span>
+        <b style="color:var(--green);font-size:14px;font-family:'DM Mono',monospace" id="pdf-final-${idx}">${finalQty}</b>
+        <span style="font-size:12px;color:var(--text3)">个</span>
+        <input type="checkbox" checked id="pdf-chk-${idx}" style="accent-color:var(--green);width:16px;height:16px;margin-left:auto;cursor:pointer">
+      </div>` : `
+      <div style="font-size:11px;color:var(--text3)">此项将被跳过</div>`}
     </div>`;
   }).join('');
 }
@@ -2303,7 +2352,11 @@ function addPdfMatchesToCart() {
   });
   renderRestockCart();
   document.getElementById('pdf-results').style.display = 'none';
+  document.getElementById('pdf-modal').classList.remove('open');
   document.getElementById('pdf-status').textContent = `✅ 已加入 ${added} 项到进货清单`;
+  // Auto-open restock panel
+  const body = document.getElementById('body-panel-restock');
+  if(body && body.style.display === 'none') togglePanel('panel-restock');
   pdfMatches = [];
 }
 
