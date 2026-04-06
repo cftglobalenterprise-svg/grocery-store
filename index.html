@@ -2122,7 +2122,7 @@ function copyStockToWhatsApp() {
   const activeCats = [...custSelectedCats].sort();
   if(!activeCats.length) { alert('请先选择要展示的 Category'); return; }
 
-  let text = '🛒 *今日货品*' + '\n\n';
+  let text = '🛒 *STOCK DEKAT KEDAI*' + '\n\n';
   activeCats.forEach(cat => {
     const catItems = items
       .filter(i => (i.category || '未分类') === cat && !i.bundle_components)
