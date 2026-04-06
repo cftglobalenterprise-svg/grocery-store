@@ -763,12 +763,7 @@
       </div>
     </div>
     <div id="pdf-modal-stats" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--text2)"></div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">检查匹配是否正确，调整换算比例，取消不需要的项目</p>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="pdfCheckAll(true)">全选</button>
-      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="pdfCheckAll(false)">全不选</button>
-      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="pdfCheckHighConf()">只选高置信度</button>
-    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">检查匹配是否正确，调整换算比例。已匹配的全部自动加入进货清单。</p>
     <div id="pdf-match-list" style="flex:1;overflow-y:auto;margin-bottom:14px"></div>
     <div class="modal-footer" style="margin-top:0;justify-content:space-between">
       <button class="btn btn-danger" style="font-size:11px;padding:5px 10px" onclick="if(confirm('清除所有已保存的匹配记录？')){ pdfMappings={byCode:{},byName:{},ratios:{}}; savePdfMappings(); alert('已清除'); }">🗑 重置映射</button>
@@ -2668,10 +2663,6 @@ function renderPdfResults(matches) {
         <input type="number" min="1" value="${ratio}" title="换算比例 (1供应商单位=多少个)" style="width:50px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-weight:600"
           oninput="onPdfRatioChange(${idx}, this.value)">
         <span style="font-size:12px;color:var(--text3)">= <b id="pdf-final-${idx}" style="color:var(--green);font-family:'DM Mono',monospace">${m.supplier_qty != null ? finalQty : '?'}</b> 个</span>
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);margin-left:auto;cursor:pointer">
-          <input type="checkbox" id="pdf-chk-${idx}" ${matched ? 'checked' : ''} style="accent-color:var(--green);width:15px;height:15px">
-          纳入进货
-        </label>
       </div>
     </div>`;
   }).join('');
@@ -2714,9 +2705,6 @@ function onPdfItemChange(idx, val) {
   // Hide "新建" button once an item is selected; show it again if deselected
   const newWrap = document.getElementById('pdf-new-wrap-' + idx);
   if(newWrap) newWrap.style.display = itemId ? 'none' : 'block';
-
-  const chk = document.getElementById('pdf-chk-' + idx);
-  if(chk) chk.checked = !!itemId;
 
   // Update stats bar
   const autoC     = pdfMatches.filter(m => m.auto_matched).length;
@@ -2821,8 +2809,8 @@ async function confirmPdfNewItem(idx) {
       itemSel.style.borderColor = 'var(--green)';
     }
   }
-  const chk = document.getElementById('pdf-chk-' + idx);
-  if(chk) chk.checked = true;
+  const chk2 = document.getElementById('pdf-chk-' + idx);
+  if(chk2) chk2.checked = true;
 
   // Update stats bar
   const needManual = pdfMatches.filter(m => !m.item_id).length;
@@ -2892,13 +2880,11 @@ function addPdfMatchesToCart() {
     // Read current item selection
     const sel = document.getElementById('pdf-sel-' + idx);
     if(sel && sel.value) m.item_id = parseInt(sel.value);
-    if(!m.item_id) return;
-    const chk = document.getElementById('pdf-chk-' + idx);
-    if(chk && !chk.checked) return;
+    if(!m.item_id) return; // not matched = skip
 
     const finalQty = (m.supplier_qty != null ? m.supplier_qty : 1) * (m.ratio || 1);
 
-    // ── Save mapping for next time ──────────────────────────────────
+    // Save mapping for next time
     recordPdfMapping(m.item_code, m.pdf_name, m.item_id, m.ratio || 1);
 
     // Add to restock cart
