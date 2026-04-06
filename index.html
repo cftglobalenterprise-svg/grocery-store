@@ -211,11 +211,17 @@
   }
   .stock-left {
     flex: 0 0 340px;
+    min-width: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     padding-right: 4px;
   }
   .stock-left::-webkit-scrollbar { width: 4px; }
   .stock-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .stock-left .card { overflow: hidden; }
+  .stock-left .form-row { flex-wrap: nowrap; min-width: 0; }
+  .stock-left .barcode-input-wrap { min-width: 0; flex: 1; }
+  .stock-left .barcode-input-wrap input { min-width: 0; width: 0; }
   .stock-right {
     flex: 1; min-width: 0;
     overflow-y: auto;
