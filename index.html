@@ -2134,6 +2134,9 @@ function clearRestock() {
   document.getElementById('restock-search').value = '';
   document.getElementById('restock-search-results').innerHTML = '';
   document.getElementById('restock-barcode').value = '';
+  // Also clear pending PDF codes since cart is empty
+  pdfPendingCodes.clear();
+  savePdfPendingCodes();
 }
 
 async function confirmRestock() {
@@ -2333,8 +2336,16 @@ function toggleCustCat(id) {
 let pdfMatches = [];
 let pdfMappings = JSON.parse(localStorage.getItem('pdfMappings') || '{"byCode":{},"byName":{},"ratios":{}}');
 
+// ItemCodes already added to restock cart (but not yet confirmed/stocked in)
+// Persisted so re-uploading PDF auto-unchecks them
+let pdfPendingCodes = new Set(JSON.parse(localStorage.getItem('pdfPendingCodes') || '[]'));
+
 function savePdfMappings() {
   localStorage.setItem('pdfMappings', JSON.stringify(pdfMappings));
+}
+
+function savePdfPendingCodes() {
+  localStorage.setItem('pdfPendingCodes', JSON.stringify([...pdfPendingCodes]));
 }
 
 // Record a confirmed match for future auto-matching
@@ -2494,7 +2505,8 @@ async function handlePdfUpload(input) {
         supplier_qty: qty != null ? Math.round(qty) : null,
         ratio:        savedRatio,
         item_id:      savedItemId || null,
-        auto_matched: !!savedItemId
+        auto_matched: !!savedItemId,
+        already_added: pdfPendingCodes.has(c.code)  // already in cart from previous session
       });
     }
 
@@ -2577,13 +2589,16 @@ function renderPdfResults(matches) {
     const matched = m.item_id ? items.find(i => i.id === m.item_id) : null;
     const ratio    = m.ratio || 1;
     const finalQty = (m.supplier_qty || 1) * ratio;
+    const alreadyAdded = m.already_added;
 
     // Auto-matched badge vs needs-match indicator
-    const statusBadge = m.auto_matched
-      ? `<span style="font-size:10px;font-weight:600;color:var(--green);background:var(--green-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">🤖 自动</span>`
-      : (matched
-          ? `<span style="font-size:10px;font-weight:600;color:var(--blue);background:var(--blue-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">✓ 已匹配</span>`
-          : `<span style="font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">待匹配</span>`);
+    const statusBadge = alreadyAdded
+      ? `<span style="font-size:10px;font-weight:600;color:var(--text3);background:var(--surface2);padding:2px 7px;border-radius:10px;flex-shrink:0">✓ 已加入</span>`
+      : m.auto_matched
+        ? `<span style="font-size:10px;font-weight:600;color:var(--green);background:var(--green-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">🤖 自动</span>`
+        : (matched
+            ? `<span style="font-size:10px;font-weight:600;color:var(--blue);background:var(--blue-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">✓ 已匹配</span>`
+            : `<span style="font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">待匹配</span>`);
 
     // Category dropdown - pre-select based on matched item
     const matchedCat = matched ? (matched.category || '未分类') : '';
@@ -2597,7 +2612,7 @@ function renderPdfResults(matches) {
       `<option value="${i.id}" ${matched && i.id === matched.id ? 'selected' : ''}>${i.name}</option>`
     ).join('');
 
-    return `<div id="pdf-row-${idx}" style="padding:10px 12px;border:1px solid ${matched?'var(--border)':'var(--amber)'};border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface);transition:opacity 0.2s">
+    return `<div id="pdf-row-${idx}" style="padding:10px 12px;border:1px solid ${matched?'var(--border)':'var(--amber)'};border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface);transition:opacity 0.2s;opacity:${alreadyAdded?'0.4':'1'}">
       <!-- Header: code + name + status + include toggle -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
@@ -2606,8 +2621,8 @@ function renderPdfResults(matches) {
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           ${statusBadge}
-          <label title="纳入本次进货" style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:11px;color:var(--text3);user-select:none">
-            <input type="checkbox" id="pdf-chk-${idx}" checked
+          <label title="${alreadyAdded ? '已加入进货清单（重新勾选可再次加入）' : '纳入本次进货'}" style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:11px;color:var(--text3);user-select:none">
+            <input type="checkbox" id="pdf-chk-${idx}" ${alreadyAdded ? '' : 'checked'}
               style="width:15px;height:15px;accent-color:var(--green);cursor:pointer"
               onchange="onPdfChkChange(${idx}, this.checked)">
           </label>
@@ -2928,6 +2943,9 @@ function addPdfMatchesToCart() {
 
     // Save mapping for next time
     recordPdfMapping(m.item_code, m.pdf_name, m.item_id, m.ratio || 1);
+
+    // Mark this ItemCode as "pending" so re-upload knows it's already in cart
+    if(m.item_code) { pdfPendingCodes.add(m.item_code); savePdfPendingCodes(); }
 
     // Add to restock cart
     const existing = restockCart.find(r => r.itemId === m.item_id);
