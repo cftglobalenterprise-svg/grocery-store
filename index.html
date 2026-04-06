@@ -624,9 +624,9 @@
           <span style="font-size:14px;font-weight:600">🏪 补店里</span>
           <span id="ov-shop-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600"></span>
         </div>
-        <span id="ov-arr-shop" style="font-size:13px;color:var(--text3);transition:transform 0.2s">▼</span>
+        <span id="ov-arr-shop" style="font-size:13px;color:var(--text3);transition:transform 0.2s;transform:rotate(-90deg)">▼</span>
       </div>
-      <div id="ov-sec-shop-body" style="border-top:1px solid var(--border);max-height:340px;overflow-y:auto">
+      <div id="ov-sec-shop-body" style="display:none;border-top:1px solid var(--border);max-height:340px;overflow-y:auto">
         <div id="warn-shop" style="padding:0 16px"></div>
       </div>
     </div>
@@ -638,9 +638,9 @@
           <span style="font-size:14px;font-weight:600">📋 需订货</span>
           <span id="ov-order-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600"></span>
         </div>
-        <span id="ov-arr-order" style="font-size:13px;color:var(--text3);transition:transform 0.2s">▼</span>
+        <span id="ov-arr-order" style="font-size:13px;color:var(--text3);transition:transform 0.2s;transform:rotate(-90deg)">▼</span>
       </div>
-      <div id="ov-sec-order-body" style="border-top:1px solid var(--border);max-height:340px;overflow-y:auto">
+      <div id="ov-sec-order-body" style="display:none;border-top:1px solid var(--border);max-height:340px;overflow-y:auto">
         <div id="warn-order" style="padding:0 16px"></div>
       </div>
     </div>
@@ -649,9 +649,9 @@
     <div class="card" style="padding:0;overflow:hidden">
       <div onclick="toggleOvSection('inv')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none">
         <span style="font-size:14px;font-weight:600">📦 全部库存</span>
-        <span id="ov-arr-inv" style="font-size:13px;color:var(--text3);transition:transform 0.2s">▼</span>
+        <span id="ov-arr-inv" style="font-size:13px;color:var(--text3);transition:transform 0.2s;transform:rotate(-90deg)">▼</span>
       </div>
-      <div id="ov-sec-inv-body" style="border-top:1px solid var(--border)">
+      <div id="ov-sec-inv-body" style="display:none;border-top:1px solid var(--border)">
         <div id="ov-list" style="padding:0 16px 8px"></div>
       </div>
     </div>
@@ -1717,7 +1717,7 @@ function toggleOvSection(sec) {
   if(!body) return;
   const open = body.style.display !== 'none';
   body.style.display = open ? 'none' : '';
-  if(arr) arr.style.transform = open ? 'rotate(-90deg)' : '';
+  if(arr) arr.style.transform = open ? 'rotate(-90deg)' : 'rotate(0deg)';
 }
 
 function renderOverview() {
@@ -1769,9 +1769,9 @@ function renderOverview() {
       return `<div style="border-bottom:1px solid var(--border)">
         <div onclick="toggleCat('${catId}')" style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;cursor:pointer;user-select:none">
           <span style="font-size:12px;font-weight:600;color:var(--text2)">${cat} <span style="font-weight:400;color:var(--text3)">(${catItems.length})</span></span>
-          <span class="cat-arrow open" id="arr-${catId}" style="font-size:10px;color:var(--text3)">▶</span>
+          <span class="cat-arrow" id="arr-${catId}" style="font-size:10px;color:var(--text3)">▶</span>
         </div>
-        <div id="${catId}">${catItems.map(rowFn).join('')}</div>
+        <div id="${catId}" style="display:none">${catItems.map(rowFn).join('')}</div>
       </div>`;
     }).join('');
   }
@@ -1850,9 +1850,9 @@ function renderOverview() {
           ${catAlerts > 0 ? `<span style="font-size:10px;background:var(--red-bg);color:var(--red);padding:1px 6px;border-radius:8px;font-weight:600;margin-left:4px">${catAlerts}⚠</span>` : ''}
           ${catValue > 0 ? `<span style="font-size:10px;color:var(--green);font-family:'DM Mono',monospace;font-weight:600;margin-left:4px">RM${catValue.toFixed(0)}</span>` : ''}
         </span>
-        <span class="cat-arrow open" id="arr-${catId}">▶</span>
+        <span class="cat-arrow" id="arr-${catId}">▶</span>
       </div>
-      <div class="cat-body" id="${catId}">${rows}</div>
+      <div class="cat-body" id="${catId}" style="display:none">${rows}</div>
     </div>`;
   }).join('');
 }
