@@ -19,7 +19,7 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
-  #app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  #app { height: 100vh; display: flex; flex-direction: column; }
 
   .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 50; flex-shrink: 0; }
   .topbar-title { font-size: 16px; font-weight: 600; flex: 1; }
@@ -29,14 +29,17 @@
   .sync-dot.err { background: #f44336; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-  .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; position: sticky; top: 57px; z-index: 40; overflow-x: auto; flex-shrink: 0; }
+  .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; z-index: 40; overflow-x: auto; flex-shrink: 0; }
   .tabs::-webkit-scrollbar { display: none; }
   .tab { padding: 14px 18px; font-size: 14px; font-weight: 500; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
   .tab.active { color: var(--text); border-bottom-color: var(--text); }
 
-  .page { display: none; padding: 16px; max-width: 1100px; margin: 0 auto; overflow-y: auto; flex: 1; min-height: 0; }
-  .page.active { display: block; }
-  #page-stock.active { display: flex; flex-direction: column; padding-bottom: 0; overflow-y: hidden; }
+  /* All pages hidden by default */
+  .page { display: none; }
+  /* Non-stock pages: normal scroll */
+  .page.active { display: block; padding: 16px; max-width: 1100px; margin: 0 auto; overflow-y: auto; flex: 1; min-height: 0; }
+  /* Stock page: two-column independent scroll */
+  #page-stock.active { display: flex; flex-direction: column; padding: 16px; padding-bottom: 0; max-width: 1100px; margin: 0 auto; overflow: hidden; flex: 1; min-height: 0; }
 
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
   .card-title { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
@@ -203,36 +206,19 @@
   .cust-badge-out { font-size:12px; font-weight:600; color:var(--text3); background:var(--surface2); padding:3px 10px; border-radius:20px; white-space:nowrap; }
 
   /* STOCK TWO-COLUMN LAYOUT */
-  .stock-layout {
-    display: flex; gap: 16px;
-    flex: 1;
-    min-height: 0;
-    align-items: stretch;
-  }
-  .stock-left {
-    flex: 0 0 340px;
-    min-width: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding-right: 4px;
-  }
-  .stock-left::-webkit-scrollbar { width: 4px; }
-  .stock-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-  .stock-left .card { overflow: hidden; }
-  .stock-left .form-row { flex-wrap: nowrap; min-width: 0; }
-  .stock-left .barcode-input-wrap { min-width: 0; flex: 1; }
-  .stock-left .barcode-input-wrap input { min-width: 0; width: 0; }
-  .stock-right {
-    flex: 1; min-width: 0;
-    overflow-y: auto;
-    padding-right: 4px;
-  }
-  .stock-right::-webkit-scrollbar { width: 4px; }
-  .stock-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .stock-layout { display: flex; gap: 16px; flex: 1; min-height: 0; align-items: stretch; }
+  .stock-left { flex: 0 0 320px; min-width: 0; overflow-y: auto; overflow-x: hidden; }
+  .stock-left::-webkit-scrollbar { width: 3px; }
+  .stock-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .stock-left .barcode-input-wrap { min-width: 0; }
+  .stock-left .barcode-input-wrap input { min-width: 0; flex: 1; width: 0; }
+  .stock-right { flex: 1; min-width: 0; overflow-y: auto; }
+  .stock-right::-webkit-scrollbar { width: 3px; }
+  .stock-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   @media (max-width: 780px) {
-    .stock-layout { flex-direction: column; height: auto; }
-    .stock-left { flex: none; width: 100%; overflow-y: visible; }
-    .stock-right { width: 100%; overflow-y: visible; }
+    .stock-layout { flex-direction: column; flex: none; }
+    .stock-left { flex: none; width: 100%; overflow-y: visible; overflow-x: visible; }
+    .stock-right { flex: none; width: 100%; overflow-y: visible; }
   }
 
   #loading { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 999; }
