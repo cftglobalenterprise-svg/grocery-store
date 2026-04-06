@@ -312,21 +312,22 @@
               <button class="btn btn-scan" onclick="openScanModal('restock')">📷 扫</button>
             </div>
           </div>
-          <div id="restock-selected" style="display:none">
-            <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:10px;font-size:13px;font-weight:600;color:var(--text)" id="restock-item-name">—</div>
-            <div class="form-row">
+          <!-- Restock cart -->
+          <div id="restock-cart-wrap" style="display:none;margin-top:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <span style="font-size:13px;font-weight:600;color:var(--text2)">📋 待进货清单</span>
+              <span style="font-size:12px;color:var(--text3)" id="restock-cart-count">0 项</span>
+            </div>
+            <div id="restock-cart-list"></div>
+            <div class="form-row" style="margin-top:10px">
               <label>补货到</label>
               <select id="restock-location">
                 <option value="home">家里</option>
                 <option value="shop">店里</option>
               </select>
             </div>
-            <div class="form-row">
-              <label>数量</label>
-              <input type="number" id="restock-qty" min="1" value="1">
-            </div>
-            <button class="btn btn-block" style="background:var(--green);border-color:var(--green)" onclick="confirmRestock()">✅ 确认进货</button>
-            <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearRestock()">取消</button>
+            <button class="btn btn-block" style="background:var(--green);border-color:var(--green);color:#fff" onclick="confirmRestock()">✅ 确认全部进货</button>
+            <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearRestock()">🗑 清空清单</button>
           </div>
         </div>
       </div><!-- end stock-left -->
@@ -1577,7 +1578,16 @@ function renderOverview() {
 
   // ── Full inventory list by category ────────────────────────────
   const cats = [...new Set(items.map(i=>i.category||'未分类'))].sort();
-  document.getElementById('ov-list').innerHTML = cats.map(cat => {
+  // grand total
+  const grandTotal = items.filter(i=>!i.bundle_components&&i.price>0)
+    .reduce((s,i)=>s+(+(i.price||0))*(i.home_qty+i.shop_qty),0);
+  const grandTotalHtml = grandTotal > 0
+    ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:12px">
+        <span style="font-size:13px;font-weight:600;color:var(--text2)">📦 全部库存总价值</span>
+        <span style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)">RM ${grandTotal.toFixed(2)}</span>
+       </div>` : '';
+
+  document.getElementById('ov-list').innerHTML = grandTotalHtml + cats.map(cat => {
     const catItems = items.filter(i=>(i.category||'未分类')===cat);
     const rows = catItems.map(it => {
       const total = it.home_qty + it.shop_qty;
@@ -1604,9 +1614,16 @@ function renderOverview() {
     // count alerts in this category
     const catAlerts = catItems.filter(i=>!i.bundle_components&&(i.shop_qty<SHOP_MIN||(i.home_qty+i.shop_qty)<TOTAL_MIN)).length;
     const alertBadge = catAlerts > 0 ? `<span style="font-size:11px;background:var(--red-bg);color:var(--red);padding:1px 7px;border-radius:10px;font-weight:600">${catAlerts} ⚠</span>` : '';
+    // total value = sum of (price × total_qty) for non-bundle items with price
+    const catValue = catItems
+      .filter(i => !i.bundle_components && i.price > 0)
+      .reduce((s, i) => s + (+(i.price||0)) * (i.home_qty + i.shop_qty), 0);
+    const valueBadge = catValue > 0
+      ? `<span style="font-size:11px;color:var(--green);font-family:'DM Mono',monospace;font-weight:600;margin-left:6px">RM ${catValue.toFixed(2)}</span>`
+      : '';
     return `<div class="cat-section">
       <div class="cat-toggle" onclick="toggleCat('${catId}')">
-        <span>${cat} <span style="font-size:11px;color:var(--text3);font-weight:400">(${catItems.length} 种)</span> ${alertBadge}</span>
+        <span>${cat} <span style="font-size:11px;color:var(--text3);font-weight:400">(${catItems.length} 种)</span> ${alertBadge}${valueBadge}</span>
         <span class="cat-arrow open" id="arr-${catId}">▶</span>
       </div>
       <div class="cat-body" id="${catId}">${rows}</div>
@@ -1694,10 +1711,16 @@ function onBarcodeDetected(code) {
   } else if(scanTarget === 'restock') {
     const found = items.find(i => i.barcode && i.barcode === code);
     if(found) {
-      statusEl.textContent = '✅ 已找到：' + found.name;
+      addToRestockCart(found.id);
+      statusEl.textContent = '✅ 已加入：' + found.name + ' （可继续扫下一个）';
       statusEl.className = 'scan-status found';
-      selectRestockItem(found.id);
-      setTimeout(() => closeScanModal(), 800);
+      setTimeout(() => {
+        if(document.getElementById('scan-modal').classList.contains('open')) {
+          statusEl.textContent = '📡 继续扫描下一个...';
+          statusEl.className = 'scan-status';
+          startScanner();
+        }
+      }, 1200);
     } else {
       statusEl.textContent = '❌ 未找到商品（' + code + '）';
       statusEl.className = 'scan-status error';
@@ -1748,7 +1771,8 @@ document.getElementById('scan-modal').addEventListener('click', function(e) {
 });
 
 // ── RESTOCK ────────────────────────────────────────────────────────
-let restockItemId = null;
+// restockCart: [{ itemId, qty }]
+let restockCart = [];
 
 function renderRestockSearch() {
   const query = document.getElementById('restock-search').value.trim().toLowerCase();
@@ -1757,11 +1781,12 @@ function renderRestockSearch() {
   const filtered = items.filter(i => i.name.toLowerCase().includes(query)).slice(0, 8);
   if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:8px">没有找到商品</div>'; return; }
   el.innerHTML = '<div class="search-results">' + filtered.map(it => {
-    const stock = `家里:${it.home_qty} 店里:${it.shop_qty}`;
-    return `<div class="search-result-item" onclick="selectRestockItem(${it.id})">
+    const inCart = restockCart.find(r => r.itemId === it.id);
+    const tag = inCart ? `<span style="font-size:11px;color:var(--green);font-weight:600">已加 ${inCart.qty} 个</span>` : '';
+    return `<div class="search-result-item" onclick="addToRestockCart(${it.id});document.getElementById('restock-search').value='';document.getElementById('restock-search-results').innerHTML=''">
       <div>
-        <div class="search-result-name">${it.name}</div>
-        <div class="search-result-meta">${stock}</div>
+        <div class="search-result-name">${it.name} ${tag}</div>
+        <div class="search-result-meta">家里:${it.home_qty} 店里:${it.shop_qty}</div>
       </div>
     </div>`;
   }).join('') + '</div>';
@@ -1772,47 +1797,82 @@ function onRestockBarcodeTyped(val) {
   if(!val) return;
   const found = items.find(i => i.barcode && i.barcode === val);
   if(found) {
-    selectRestockItem(found.id);
+    addToRestockCart(found.id);
     document.getElementById('restock-barcode').value = '';
   }
 }
 
-function selectRestockItem(id) {
-  const it = items.find(i => i.id === id);
-  if(!it) return;
-  restockItemId = id;
-  document.getElementById('restock-item-name').textContent = '📦 ' + it.name + '  (家里:' + it.home_qty + '  店里:' + it.shop_qty + ')';
-  document.getElementById('restock-qty').value = 1;
-  document.getElementById('restock-selected').style.display = 'block';
-  document.getElementById('restock-search').value = '';
-  document.getElementById('restock-search-results').innerHTML = '';
-  document.getElementById('restock-barcode').value = '';
-  document.getElementById('restock-qty').focus();
+function addToRestockCart(id) {
+  const existing = restockCart.find(r => r.itemId === id);
+  if(existing) {
+    existing.qty += 1;
+  } else {
+    restockCart.push({ itemId: id, qty: 1 });
+  }
+  renderRestockCart();
+}
+
+function removeFromRestockCart(id) {
+  restockCart = restockCart.filter(r => r.itemId !== id);
+  renderRestockCart();
+}
+
+function updateRestockQty(id, val) {
+  const entry = restockCart.find(r => r.itemId === id);
+  if(entry) entry.qty = Math.max(1, parseInt(val) || 1);
+  renderRestockCart();
+}
+
+function renderRestockCart() {
+  const wrap = document.getElementById('restock-cart-wrap');
+  const listEl = document.getElementById('restock-cart-list');
+  const countEl = document.getElementById('restock-cart-count');
+  if(!restockCart.length) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+  countEl.textContent = restockCart.length + ' 项';
+  listEl.innerHTML = restockCart.map(r => {
+    const it = items.find(i => i.id === r.itemId);
+    if(!it) return '';
+    return `<div class="cart-item">
+      <div class="cart-item-name">${it.name}<br>
+        <small style="color:var(--text3);font-weight:400">现有 家里:${it.home_qty} 店里:${it.shop_qty}</small>
+      </div>
+      <div class="cart-qty-wrap">
+        <label>数量</label>
+        <input type="number" min="1" value="${r.qty}"
+          oninput="updateRestockQty(${it.id}, this.value)"
+          onchange="updateRestockQty(${it.id}, this.value)">
+      </div>
+      <button class="cart-remove" onclick="removeFromRestockCart(${it.id})">✕</button>
+    </div>`;
+  }).join('');
 }
 
 function clearRestock() {
-  restockItemId = null;
-  document.getElementById('restock-selected').style.display = 'none';
-  document.getElementById('restock-item-name').textContent = '—';
+  restockCart = [];
+  renderRestockCart();
   document.getElementById('restock-search').value = '';
   document.getElementById('restock-search-results').innerHTML = '';
   document.getElementById('restock-barcode').value = '';
 }
 
 async function confirmRestock() {
-  if(!restockItemId) return;
-  const qty = parseInt(document.getElementById('restock-qty').value) || 0;
-  if(qty <= 0) { alert('请输入有效数量'); return; }
+  if(!restockCart.length) return;
   const loc = document.getElementById('restock-location').value;
-  const it = items.find(i => i.id === restockItemId);
-  if(!it) return;
-  const newQty = loc === 'home' ? it.home_qty + qty : it.shop_qty + qty;
-  const update = loc === 'home' ? { home_qty: newQty } : { shop_qty: newQty };
-  setSync('busy', '进货中...');
-  const { error } = await sb.from('items').update(update).eq('id', restockItemId);
-  if(error) { alert('进货失败：' + error.message); setSync('err','失败'); return; }
   const locName = loc === 'home' ? '家里' : '店里';
-  setSync('ok', `已进货：${it.name} +${qty} → ${locName} · ${timeNow()}`);
+  setSync('busy', '进货中...');
+  for(const r of restockCart) {
+    const it = items.find(i => i.id === r.itemId);
+    if(!it) continue;
+    const newQty = loc === 'home' ? it.home_qty + r.qty : it.shop_qty + r.qty;
+    const update = loc === 'home' ? { home_qty: newQty } : { shop_qty: newQty };
+    const { error } = await sb.from('items').update(update).eq('id', it.id);
+    if(error) { alert('进货失败：' + it.name); setSync('err','失败'); return; }
+  }
+  setSync('ok', `已进货 ${restockCart.length} 项 → ${locName} · ${timeNow()}`);
   clearRestock();
   await loadItems();
 }
