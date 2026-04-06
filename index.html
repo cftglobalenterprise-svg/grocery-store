@@ -2436,22 +2436,21 @@ async function handlePdfUpload(input) {
       const prevEnd = i > 0 ? sortedCodes[i-1].end : 0;
       let segment = normalized.slice(prevEnd, c.index).trim();
 
-      // Strip invoice header noise from the very first segment
-      // (anything before the first real product line that contains invoice/address info)
-      if(i === 0) {
-        // Remove everything up to and including the last long uppercase run (address/header)
-        // Strategy: find last occurrence of known header keywords and cut there
-        const headerCut = segment.search(/(?:INVOICE|DELIVERY|BRINCHANG|CAMERON|HIGHLAND|KUALA LUMPUR|ATTENTION|ATTN|YOUR REF|OUR REF|TERMS|PAYMENT|GOODS)\s/i);
-        if(headerCut !== -1) {
-          // Cut from after the last header line
-          const afterHeader = segment.slice(headerCut);
-          // Find the end of that header line (next newline equivalent — look for price pattern)
-          const priceStart = afterHeader.search(/\d+\.\d{2}\s+/);
-          if(priceStart !== -1) {
-            segment = afterHeader.slice(priceStart).trim();
-          } else {
-            segment = ''; // entire first segment was header
-          }
+      // Strip invoice/page header noise from ANY segment (can appear on every page)
+      // Pattern: find the LAST occurrence of a header keyword, then find the price that starts the actual product line after it
+      const headerPattern = /(?:INV[-\s]?\d+|INVOICE\s+\d+|BRINCHANG|CAMERON\s+HIGH|DELIVERY\s+ORDER|YOUR\s+REF|OUR\s+REF|ATTENTION|TERMS\s*:|PAYMENT\s*:|Page\s+\d+\s+of\s+\d+)/gi;
+      let lastHeaderMatch = null;
+      let hm;
+      while((hm = headerPattern.exec(segment)) !== null) { lastHeaderMatch = hm; }
+      if(lastHeaderMatch) {
+        const afterHeader = segment.slice(lastHeaderMatch.index + lastHeaderMatch[0].length);
+        // The real product content starts at the first unit price (a number like "12.00" or "8.50")
+        const priceStart = afterHeader.search(/\d+\.\d{2}\s+/);
+        if(priceStart !== -1) {
+          segment = afterHeader.slice(priceStart).trim();
+        } else {
+          // No price found after header = entire segment was header noise, skip
+          continue;
         }
       }
 
