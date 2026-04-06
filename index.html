@@ -695,12 +695,21 @@
 
 <!-- PDF CONFIRM MODAL -->
 <div class="modal-overlay" id="pdf-modal">
-  <div class="modal" style="max-width:520px;max-height:80vh;display:flex;flex-direction:column">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  <div class="modal" style="max-width:520px;max-height:85vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="margin:0">📄 PDF 识别结果</h3>
-      <span style="font-size:12px;color:var(--text3)" id="pdf-modal-count"></span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn" style="font-size:11px;padding:4px 10px;color:var(--blue)" onclick="showPdfRawText()">🔍 原始文本</button>
+        <span style="font-size:12px;color:var(--text3)" id="pdf-modal-count"></span>
+      </div>
     </div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:12px">检查匹配是否正确，调整数量，取消不需要的项目</p>
+    <div id="pdf-modal-stats" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--text2)"></div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">检查匹配是否正确，调整换算比例，取消不需要的项目</p>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="pdfCheckAll(true)">全选</button>
+      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="pdfCheckAll(false)">全不选</button>
+      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="pdfCheckHighConf()">只选高置信度</button>
+    </div>
     <div id="pdf-match-list" style="flex:1;overflow-y:auto;margin-bottom:14px"></div>
     <div class="modal-footer" style="margin-top:0">
       <button class="btn" onclick="document.getElementById('pdf-modal').classList.remove('open');document.body.classList.remove('modal-open')">取消</button>
@@ -2258,6 +2267,10 @@ function smartMatch(pdfName, inventoryItems) {
   return { bestItem, bestScore };
 }
 
+// PDF debug state
+let pdfDebugLog = [];
+let pdfRawText = '';
+
 async function handlePdfUpload(input) {
   const file = input.files[0];
   if(!file) return;
@@ -2266,6 +2279,7 @@ async function handlePdfUpload(input) {
   resultsEl.style.display = 'none';
   document.getElementById('pdf-match-list').innerHTML = '';
   pdfMatches = [];
+  pdfDebugLog = [];
 
   statusEl.style.color = 'var(--text2)';
   statusEl.textContent = '⏳ 正在读取 PDF...';
@@ -2286,7 +2300,7 @@ async function handlePdfUpload(input) {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-    // Extract all text
+    // Extract all text — preserve per-item structure using position-aware extraction
     let fullText = '';
     for(let p = 1; p <= pdf.numPages; p++) {
       const page = await pdf.getPage(p);
@@ -2294,68 +2308,113 @@ async function handlePdfUpload(input) {
       fullText += tc.items.map(i => i.str).join(' ') + '\n';
     }
 
-    statusEl.textContent = '⏳ 正在匹配商品...';
-    console.log('PDF full text (first 500 chars):', fullText.slice(0, 500));
-    console.log('PDF normalized (first 500 chars):', fullText.replace(/\s+/g,' ').slice(0, 500));
+    pdfRawText = fullText;
+    statusEl.textContent = '⏳ 正在解析商品行...';
 
-    // PDF.js actual output format: "PRICE NAME QTY.QQ UNIT AMOUNT ROWNUM ITEMCODE PRICE NAME..."
-    // i.e. item code comes AFTER its product line, at start of next entry
     const inventoryItems = items.filter(i => !i.bundle_components);
-    const results = [];
-
     const normalized = fullText.replace(/\s+/g, ' ').trim();
+    const results = [];
+    const skipped = [];
 
-    // Find all (rownum, itemcode) positions — these mark the START of the NEXT product's prefix
-    const codeRegex = /\b(\d{1,3})\s+([A-Z]{2,6}\d{3,}[A-Z0-9]*)\b/g;
+    // ── Strategy: find all (rowNum, itemCode) anchors ──────────────────
+    // Format per line: PRICE  NAME  QTY.QQ UNIT  AMOUNT  ROWNUM  ITEMCODE
+    // ItemCode patterns observed: ABC123, ABC1234, ABCDE123, AB12345, etc.
+    // Expanded regex to catch more formats:
+    // - 2-7 uppercase letters followed by 2+ digits (no minimum letter count restriction)
+    // - also catches codes like "HH1234", "SPCO123", "BISCM001"
+    const codeRegex = /\b(\d{1,3})\s+([A-Z]{1,8}\d{2,}[A-Z0-9]*|[A-Z]{2,}\d+[A-Z0-9]*)\b/g;
     const allCodes = [];
     let cm;
     while((cm = codeRegex.exec(normalized)) !== null) {
-      const before = normalized.slice(Math.max(0, cm.index-60), cm.index);
-      if(/Description|Item Code|No Item/i.test(before)) continue;
-      allCodes.push({ index: cm.index, end: cm.index + cm[0].length, row: parseInt(cm[1]), code: cm[2] });
+      const matchStr = cm[0];
+      const before = normalized.slice(Math.max(0, cm.index - 80), cm.index);
+      const after = normalized.slice(cm.index + matchStr.length, cm.index + matchStr.length + 30);
+
+      // Skip if this looks like a header row
+      if(/Description|Item\s*Code|No[\.\s]Item|Invoice|Delivery|Tax|Page|Date/i.test(before)) continue;
+      // Skip if itemcode is a common word (false positive)
+      if(/^(UNIT|PAGE|DATE|TOTAL|TERMS|ATTN|SOLD|GOODS|FROM|INTO|WITH|HAVE|BEEN|WILL|THIS|THAT)$/i.test(cm[2])) continue;
+      // Row number should be sequential (1-200), skip if too large
+      const rowNum = parseInt(cm[1]);
+      if(rowNum > 200) continue;
+
+      allCodes.push({
+        index: cm.index,
+        end: cm.index + matchStr.length,
+        row: rowNum,
+        code: cm[2]
+      });
     }
 
-    // Deduplicate by code - keep first occurrence
+    pdfDebugLog.push(`找到 ${allCodes.length} 个候选 anchors（行号+品号）`);
+    console.log('[PDF] All candidate anchors:', allCodes);
+
+    // Deduplicate by code — keep first occurrence
     const seenCodes = {};
     for(const c of allCodes) {
       if(!seenCodes[c.code]) seenCodes[c.code] = c;
     }
     const sortedCodes = Object.values(seenCodes).sort((a, b) => a.index - b.index);
+    pdfDebugLog.push(`去重后 ${sortedCodes.length} 个唯一品号`);
+    console.log('[PDF] Unique sorted codes:', sortedCodes);
 
-    // Each product's text is BEFORE its rownum+code, after the previous code's end
+    // ── Parse each segment between anchors ──────────────────────────────
     for(let i = 0; i < sortedCodes.length; i++) {
       const c = sortedCodes[i];
-      // Segment: from end of previous code to start of this rownum
       const prevEnd = i > 0 ? sortedCodes[i-1].end : 0;
       const segment = normalized.slice(prevEnd, c.index).trim();
 
-      if(!segment || segment.length < 3) continue;
-
-      // Extract qty UNIT from segment: "PRICE NAME QTY.QQ UNIT AMOUNT"
-      const qm = segment.match(/(\d+\.\d+)\s+UNIT\b/);
-      let name, qty;
-      if(qm) {
-        qty = parseFloat(qm[1]);
-        // Name is between first price and qty
-        const beforeQty = segment.slice(0, segment.lastIndexOf(qm[0])).trim();
-        name = beforeQty.replace(/^\d+\.\d+\s+/, '').trim(); // remove leading price
-      } else {
-        // No UNIT in this segment - skip (header or noise)
+      if(!segment || segment.length < 3) {
+        skipped.push({ code: c.code, reason: '段落太短', segment });
         continue;
       }
 
-      // Remove trailing amount number
-      name = name.replace(/\s+\d+\.\d+$/, '').trim();
-      if(name.length < 3) continue;
-      if(/^(no|item|desc|price|qty|total|date|inv|page|your|our|terms|attn|ringgit|authoris|goods|sold)/i.test(name)) continue;
+      // Try multiple qty patterns:
+      // Pattern A: "NUM.NN UNIT" (standard)
+      // Pattern B: "NUM UNIT" (integer qty)
+      // Pattern C: "NUM.NN CTN" or "NUM.NN PKT" (alternate unit words)
+      let name = null, qty = null;
+
+      const qmA = segment.match(/(\d+(?:\.\d+)?)\s+(?:UNIT|CTN|PKT|BOX|PCS|KG|BTL|TIN|CAN|BAG|SET|PAX|DOS|BKT|GDG|BTG|SLV|PK)\b/i);
+      if(qmA) {
+        qty = parseFloat(qmA[1]);
+        const beforeQty = segment.slice(0, segment.lastIndexOf(qmA[0])).trim();
+        // Remove leading unit price (first decimal number)
+        name = beforeQty.replace(/^\s*\d+(?:\.\d+)?\s+/, '').trim();
+        // Remove trailing amount
+        name = name.replace(/\s+\d+(?:\.\d+)?\s*$/, '').trim();
+      } else {
+        // No unit keyword found — try to extract name anyway for display
+        // Segment: "PRICE NAME QTY AMOUNT" — pick middle portion
+        const parts = segment.match(/^(\d+(?:\.\d+)?)\s+(.+?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)$/);
+        if(parts) {
+          qty = parseFloat(parts[3]);
+          name = parts[2].trim();
+        } else {
+          skipped.push({ code: c.code, reason: '无法识别数量/单位格式', segment: segment.slice(0, 80) });
+          continue;
+        }
+      }
+
+      // Clean up name
+      name = name.replace(/\s+/g, ' ').trim();
+
+      // Skip header/footer noise
+      if(name.length < 2) { skipped.push({ code: c.code, reason: '商品名太短', segment: segment.slice(0,60) }); continue; }
+      if(/^(no|item|desc|price|qty|total|date|inv|page|your|our|terms|attn|ringgit|authoris|goods|sold|delivery|subtotal|discount|gst|sst|tax|amount|unit\s*price)/i.test(name)) {
+        skipped.push({ code: c.code, reason: '疑似表头', segment: name }); continue;
+      }
+      // Skip if name is entirely numbers/symbols
+      if(/^[\d\s\.\,\-\/\(\)]+$/.test(name)) { skipped.push({ code: c.code, reason: '名称全是数字', segment: name }); continue; }
 
       const { bestItem, bestScore } = smartMatch(name, inventoryItems);
       const confidence = bestScore >= 0.7 ? 'high' : bestScore >= 0.4 ? 'medium' : 'low';
       const savedRatio = bestItem && pdfRatios[bestItem.id] !== undefined ? pdfRatios[bestItem.id] : 1;
+
       results.push({
         pdf_name: name,
         item_code: c.code,
-        supplier_qty: Math.round(qty),
+        supplier_qty: qty ? Math.round(qty) : 1,
         ratio: savedRatio,
         item_id: bestScore >= 0.3 ? bestItem?.id : null,
         item_name: bestItem?.name || null,
@@ -2363,12 +2422,31 @@ async function handlePdfUpload(input) {
       });
     }
 
-    if(!results.length) throw new Error('PDF 里没有找到商品，格式可能不符');
+    pdfDebugLog.push(`成功解析 ${results.length} 个产品，跳过 ${skipped.length} 个`);
+    console.log('[PDF] Results:', results);
+    console.log('[PDF] Skipped:', skipped);
+
+    if(!results.length) {
+      // Show debug info to help diagnose
+      const debugInfo = `PDF 里没有找到商品。\n原始文本前300字：\n${normalized.slice(0,300)}\nAnchor数：${allCodes.length}`;
+      throw new Error(debugInfo);
+    }
 
     pdfMatches = results;
     renderPdfResults(results);
-    statusEl.textContent = `✅ 识别完成，找到 ${results.length} 行`;
+
+    const highConf = results.filter(r => r.confidence === 'high').length;
+    const medConf = results.filter(r => r.confidence === 'medium').length;
+    const matched = results.filter(r => r.item_id).length;
+
+    statusEl.innerHTML = `✅ 识别 <b>${results.length}</b> 个产品 · 已匹配 <b>${matched}</b> 个 · 跳过 ${skipped.length} 行
+      <br><span style="font-size:11px;color:var(--text3)">高置信度 ${highConf} · 中 ${medConf} · 低 ${results.length - highConf - medConf}</span>
+      ${skipped.length > 0 ? `<br><a href="#" onclick="showPdfDebug();return false" style="font-size:11px;color:var(--blue)">查看跳过的行 (${skipped.length})</a>` : ''}`;
     statusEl.style.color = 'var(--green)';
+
+    // Store skipped for debug view
+    pdfDebugLog._skipped = skipped;
+    pdfDebugLog._normalized = normalized;
 
   } catch(e) {
     statusEl.textContent = '❌ 读取失败：' + (e.message || '请重试');
@@ -2376,6 +2454,35 @@ async function handlePdfUpload(input) {
     console.error('PDF Error:', e);
   }
   input.value = '';
+}
+
+function showPdfDebug() {
+  const skipped = pdfDebugLog._skipped || [];
+  const normalized = pdfDebugLog._normalized || '';
+
+  let html = `<div style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px" onclick="this.remove()">
+    <div style="background:var(--surface);border-radius:var(--radius);padding:20px;max-width:640px;width:100%;max-height:80vh;display:flex;flex-direction:column;gap:12px" onclick="event.stopPropagation()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <b style="font-size:15px">🔍 PDF 解析诊断</b>
+        <button class="btn" style="font-size:12px" onclick="this.closest('[onclick]').remove()">✕ 关闭</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2)">
+        ${pdfDebugLog.map(l=>`<div>• ${l}</div>`).join('')}
+      </div>
+      <div style="flex:1;overflow-y:auto">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">跳过的 ${skipped.length} 行：</div>
+        ${skipped.map(s=>`<div style="font-size:11px;padding:6px 8px;background:var(--surface2);border-radius:6px;margin-bottom:4px">
+          <span style="font-family:'DM Mono',monospace;color:var(--blue)">${s.code}</span>
+          <span style="color:var(--red);margin-left:8px">${s.reason}</span>
+          <div style="color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.segment}</div>
+        </div>`).join('')}
+        <div style="font-size:12px;font-weight:600;color:var(--text2);margin:12px 0 8px">原始文本（前 600 字）：</div>
+        <pre style="font-size:10px;color:var(--text3);background:var(--surface2);padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;max-height:200px;overflow-y:auto">${normalized.slice(0,600).replace(/</g,'&lt;')}</pre>
+      </div>
+    </div>
+  </div>`;
+
+  document.body.insertAdjacentHTML('beforeend', html);
 }
 
 function renderPdfResults(matches) {
@@ -2386,6 +2493,18 @@ function renderPdfResults(matches) {
 
   const countEl = document.getElementById('pdf-modal-count');
   if(countEl) countEl.textContent = matches.length + ' 个产品';
+
+  // Populate stats bar in modal
+  const statsEl = document.getElementById('pdf-modal-stats');
+  if(statsEl) {
+    const highC = matches.filter(m => m.confidence === 'high').length;
+    const medC = matches.filter(m => m.confidence === 'medium').length;
+    const lowC = matches.filter(m => m.confidence === 'low').length;
+    const matchedC = matches.filter(m => m.item_id).length;
+    statsEl.style.display = 'block';
+    statsEl.innerHTML = `共 <b>${matches.length}</b> 行 · 已匹配 <b style="color:var(--green)">${matchedC}</b> 个 · 未匹配 <b style="color:var(--amber)">${matches.length - matchedC}</b> 个
+      &nbsp;|&nbsp; 🟢 高 ${highC} · 🟡 中 ${medC} · 🔴 低 ${lowC}`;
+  }
 
   const inventoryItems = items.filter(i => !i.bundle_components);
   el.innerHTML = matches.map((m, idx) => {
@@ -2423,6 +2542,40 @@ function renderPdfResults(matches) {
       </div>
     </div>`;
   }).join('');
+}
+
+function showPdfRawText() {
+  const text = (pdfDebugLog._normalized || pdfRawText || '').slice(0, 2000);
+  if(!text) { alert('请先上传 PDF'); return; }
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = () => overlay.remove();
+  overlay.innerHTML = `<div style="background:var(--surface);border-radius:var(--radius);padding:20px;max-width:640px;width:100%;max-height:80vh;display:flex;flex-direction:column;gap:10px" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b>🔍 PDF 原始文本（前 2000 字）</b>
+      <button class="btn" style="font-size:12px" onclick="this.closest('[style*=fixed]').remove()">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:4px">
+      ${pdfDebugLog.map ? pdfDebugLog.map(l=>`• ${l}`).join('<br>') : ''}
+    </div>
+    <pre style="flex:1;overflow:auto;font-size:10px;background:var(--surface2);padding:12px;border-radius:6px;white-space:pre-wrap;word-break:break-all;color:var(--text);max-height:400px">${text.replace(/</g,'&lt;')}</pre>
+    <button class="btn" onclick="navigator.clipboard.writeText(pdfDebugLog._normalized||'').then(()=>alert('已复制完整文本'))">📋 复制完整文本</button>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+function pdfCheckAll(checked) {
+  pdfMatches.forEach((_,idx) => {
+    const chk = document.getElementById('pdf-chk-' + idx);
+    if(chk) chk.checked = checked;
+  });
+}
+
+function pdfCheckHighConf() {
+  pdfMatches.forEach((m, idx) => {
+    const chk = document.getElementById('pdf-chk-' + idx);
+    if(chk) chk.checked = m.confidence === 'high' && !!m.item_id;
+  });
 }
 
 function onPdfSelChange(idx, val) {
