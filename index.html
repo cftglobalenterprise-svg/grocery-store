@@ -763,7 +763,11 @@
       </div>
     </div>
     <div id="pdf-modal-stats" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--text2)"></div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">检查匹配是否正确，调整换算比例。已匹配的全部自动加入进货清单。</p>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px">检查匹配是否正确，调整换算比例。已匹配的全部自动加入进货清单。</p>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="pdfCheckAll(true)">全选</button>
+      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="pdfCheckAll(false)">全不选</button>
+    </div>
     <div id="pdf-match-list" style="flex:1;overflow-y:auto;margin-bottom:14px"></div>
     <div class="modal-footer" style="margin-top:0;justify-content:space-between">
       <button class="btn btn-danger" style="font-size:11px;padding:5px 10px" onclick="if(confirm('清除所有已保存的匹配记录？')){ pdfMappings={byCode:{},byName:{},ratios:{}}; savePdfMappings(); alert('已清除'); }">🗑 重置映射</button>
@@ -2593,14 +2597,21 @@ function renderPdfResults(matches) {
       `<option value="${i.id}" ${matched && i.id === matched.id ? 'selected' : ''}>${i.name}</option>`
     ).join('');
 
-    return `<div id="pdf-row-${idx}" style="padding:10px 12px;border:1px solid ${matched?'var(--border)':'var(--amber)'};border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface)">
-      <!-- Header: code + name + status -->
+    return `<div id="pdf-row-${idx}" style="padding:10px 12px;border:1px solid ${matched?'var(--border)':'var(--amber)'};border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface);transition:opacity 0.2s">
+      <!-- Header: code + name + status + include toggle -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
           ${m.item_code ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);display:block;margin-bottom:2px">${m.item_code}</span>` : ''}
           <span style="font-size:13px;font-weight:600;color:var(--text);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.pdf_name}">${m.pdf_name}</span>
         </div>
-        ${statusBadge}
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          ${statusBadge}
+          <label title="纳入本次进货" style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:11px;color:var(--text3);user-select:none">
+            <input type="checkbox" id="pdf-chk-${idx}" checked
+              style="width:15px;height:15px;accent-color:var(--green);cursor:pointer"
+              onchange="onPdfChkChange(${idx}, this.checked)">
+          </label>
+        </div>
       </div>
 
       <!-- Category selector -->
@@ -2666,6 +2677,35 @@ function renderPdfResults(matches) {
       </div>
     </div>`;
   }).join('');
+}
+
+function pdfCheckAll(checked) {
+  pdfMatches.forEach((_, idx) => {
+    const chk = document.getElementById('pdf-chk-' + idx);
+    if(chk) chk.checked = checked;
+    const row = document.getElementById('pdf-row-' + idx);
+    if(row) row.style.opacity = checked ? '1' : '0.35';
+  });
+  updatePdfStats();
+}
+
+// Called when user toggles the include checkbox
+function onPdfChkChange(idx, checked) {
+  const row = document.getElementById('pdf-row-' + idx);
+  if(row) row.style.opacity = checked ? '1' : '0.35';
+  updatePdfStats();
+}
+
+function updatePdfStats() {
+  const statsEl = document.getElementById('pdf-modal-stats');
+  if(!statsEl) return;
+  const autoC    = pdfMatches.filter(m => m.auto_matched).length;
+  const checkedC = pdfMatches.filter((_, idx) => {
+    const chk = document.getElementById('pdf-chk-' + idx);
+    return chk ? chk.checked : true;
+  }).length;
+  const needManual = pdfMatches.filter(m => !m.item_id).length;
+  statsEl.innerHTML = `共 <b>${pdfMatches.length}</b> 个 · 🤖 自动识别 <b style="color:var(--green)">${autoC}</b> 个 · ✋ 需手动匹配 <b style="color:var(--amber)">${needManual}</b> 个· 本次加入 <b style="color:var(--blue)">${checkedC}</b> 个`;
 }
 
 // Called when user picks a category — reload item dropdown for that row
@@ -2877,7 +2917,9 @@ function pdfCheckHighConf() {
 function addPdfMatchesToCart() {
   let added = 0;
   pdfMatches.forEach((m, idx) => {
-    // Read current item selection
+    const chk = document.getElementById('pdf-chk-' + idx);
+    if(chk && !chk.checked) return; // user excluded this row
+
     const sel = document.getElementById('pdf-sel-' + idx);
     if(sel && sel.value) m.item_id = parseInt(sel.value);
     if(!m.item_id) return; // not matched = skip
