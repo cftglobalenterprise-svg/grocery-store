@@ -2574,23 +2574,45 @@ function renderPdfResults(matches) {
   if(countEl) countEl.textContent = matches.length + ' 个产品';
 
   const statsEl = document.getElementById('pdf-modal-stats');
+  const autoC   = matches.filter(m => m.auto_matched).length;
+  const manualC = matches.filter(m => !m.item_id && !m.already_added).length;
   if(statsEl) {
-    const autoC   = matches.filter(m => m.auto_matched).length;
-    const manualC = matches.filter(m => !m.item_id).length;
     statsEl.style.display = 'block';
-    statsEl.innerHTML = `共 <b>${matches.length}</b> 个 · 🤖 自动识别 <b style="color:var(--green)">${autoC}</b> 个 · ✋ 需手动匹配 <b style="color:var(--amber)">${manualC}</b> 个`;
+    statsEl.innerHTML = `共 <b>${matches.length}</b> 个 · 🤖 自动 <b style="color:var(--green)">${autoC}</b> · ✋ 待匹配 <b style="color:var(--amber)">${manualC}</b>
+      &nbsp;·&nbsp;
+      <a href="#" id="pdf-filter-toggle" onclick="togglePdfFilter();return false" style="color:var(--blue);font-weight:600">
+        只看待匹配 ▾
+      </a>`;
   }
 
-  // Build category → items map
+  _renderPdfRows(matches);
+}
+
+let _pdfFilterPending = false;
+
+function togglePdfFilter() {
+  _pdfFilterPending = !_pdfFilterPending;
+  const lnk = document.getElementById('pdf-filter-toggle');
+  if(lnk) lnk.textContent = _pdfFilterPending ? '显示全部 ▴' : '只看待匹配 ▾';
+  _renderPdfRows(pdfMatches);
+}
+
+function _renderPdfRows(matches) {
+  const el = document.getElementById('pdf-match-list');
   const cats = [...new Set(items.filter(i=>!i.bundle_components).map(i => i.category || '未分类'))].sort();
+  const allItems = items.filter(i => !i.bundle_components);
 
   el.innerHTML = matches.map((m, idx) => {
     const matched = m.item_id ? items.find(i => i.id === m.item_id) : null;
+    const matched2 = m.item_id2 ? items.find(i => i.id === m.item_id2) : null;
     const ratio    = m.ratio || 1;
-    const finalQty = (m.supplier_qty || 1) * ratio;
+    const finalQty = (m.supplier_qty != null ? m.supplier_qty : 1) * ratio;
     const alreadyAdded = m.already_added;
+    const isPending = !m.item_id && !alreadyAdded;
 
-    // Auto-matched badge vs needs-match indicator
+    // Filter: if only-pending mode, hide non-pending rows
+    if(_pdfFilterPending && !isPending) return '';
+
     const statusBadge = alreadyAdded
       ? `<span style="font-size:10px;font-weight:600;color:var(--text3);background:var(--surface2);padding:2px 7px;border-radius:10px;flex-shrink:0">✓ 已加入</span>`
       : m.auto_matched
@@ -2599,20 +2621,23 @@ function renderPdfResults(matches) {
             ? `<span style="font-size:10px;font-weight:600;color:var(--blue);background:var(--blue-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">✓ 已匹配</span>`
             : `<span style="font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-bg);padding:2px 7px;border-radius:10px;flex-shrink:0">待匹配</span>`);
 
-    // Category dropdown - pre-select based on matched item
     const matchedCat = matched ? (matched.category || '未分类') : '';
     const catOptions = cats.map(c =>
       `<option value="${c}" ${c === matchedCat ? 'selected' : ''}>${c}</option>`
     ).join('');
-
-    // Item dropdown for pre-selected category
     const catItems = items.filter(i => !i.bundle_components && (i.category || '未分类') === (matchedCat || cats[0]));
     const itemOptions = catItems.map(i =>
       `<option value="${i.id}" ${matched && i.id === matched.id ? 'selected' : ''}>${i.name}</option>`
     ).join('');
 
+    // Second item (battery/cartridge partner) — all items flat list
+    const allItemOptions = allItems.map(i =>
+      `<option value="${i.id}" ${matched2 && i.id === matched2.id ? 'selected' : ''}>${i.category ? '['+i.category+'] ' : ''}${i.name}</option>`
+    ).join('');
+    const has2 = !!m.item_id2;
+
     return `<div id="pdf-row-${idx}" style="padding:10px 12px;border:1px solid ${matched?'var(--border)':'var(--amber)'};border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface);transition:opacity 0.2s;opacity:${alreadyAdded?'0.4':'1'}">
-      <!-- Header: code + name + status + include toggle -->
+      <!-- Header -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
           ${m.item_code ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);display:block;margin-bottom:2px">${m.item_code}</span>` : ''}
@@ -2620,7 +2645,7 @@ function renderPdfResults(matches) {
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           ${statusBadge}
-          <label title="${alreadyAdded ? '已加入进货清单（重新勾选可再次加入）' : '纳入本次进货'}" style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:11px;color:var(--text3);user-select:none">
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;user-select:none">
             <input type="checkbox" id="pdf-chk-${idx}" ${alreadyAdded ? '' : 'checked'}
               style="width:15px;height:15px;accent-color:var(--green);cursor:pointer"
               onchange="onPdfChkChange(${idx}, this.checked)">
@@ -2628,7 +2653,7 @@ function renderPdfResults(matches) {
         </div>
       </div>
 
-      <!-- Category selector -->
+      <!-- Item 1: Category + Item -->
       <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
         <span style="font-size:11px;color:var(--text3);flex-shrink:0;min-width:52px">Category</span>
         <select id="pdf-cat-${idx}" style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"
@@ -2637,10 +2662,8 @@ function renderPdfResults(matches) {
           ${catOptions}
         </select>
       </div>
-
-      <!-- Item selector (filtered by category) -->
       <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
-        <span style="font-size:11px;color:var(--text3);flex-shrink:0;min-width:52px">商品</span>
+        <span style="font-size:11px;color:var(--text3);flex-shrink:0;min-width:52px">商品 1</span>
         <select id="pdf-sel-${idx}" style="flex:1;padding:5px 8px;font-size:12px;font-weight:600;border:1px solid ${matched?'var(--green)':'var(--amber)'};border-radius:6px;background:var(--bg);color:var(--text)"
           onchange="onPdfItemChange(${idx}, this.value)">
           <option value="">${matchedCat ? '-- 选择商品 --' : '← 先选 Category'}</option>
@@ -2648,11 +2671,27 @@ function renderPdfResults(matches) {
         </select>
       </div>
 
-      <!-- New item button — hidden when already matched -->
+      <!-- Item 2: optional second item (e.g. battery partner) -->
+      <div id="pdf-item2-wrap-${idx}" style="${has2 ? '' : 'display:none;'}margin-bottom:6px">
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="font-size:11px;color:var(--text3);flex-shrink:0;min-width:52px">商品 2</span>
+          <select id="pdf-sel2-${idx}" style="flex:1;padding:5px 8px;font-size:12px;font-weight:600;border:1px solid ${has2?'var(--green)':'var(--border)'};border-radius:6px;background:var(--bg);color:var(--text)"
+            onchange="onPdfItem2Change(${idx}, this.value)">
+            <option value="">-- 选择第二个商品 --</option>
+            ${allItemOptions}
+          </select>
+          <button onclick="removePdfItem2(${idx})" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 4px;flex-shrink:0" title="移除">✕</button>
+        </div>
+      </div>
+      <div id="pdf-add2-btn-${idx}" style="${has2 ? 'display:none;' : ''}margin-bottom:6px">
+        <button class="btn" style="font-size:11px;padding:4px 10px;color:var(--text2);border-style:dashed" onclick="addPdfItem2(${idx})">＋ 同时进另一个商品（如 battery / cartridge）</button>
+      </div>
+
+      <!-- New item button -->
       <div id="pdf-new-wrap-${idx}" style="${matched ? 'display:none' : ''}margin-bottom:8px">
         <button class="btn" style="width:100%;font-size:11px;padding:5px;border-style:dashed;color:var(--text2)" onclick="openPdfNewItem(${idx})">＋ 找不到？新建商品并匹配</button>
       </div>
-      <!-- Inline new-item form (hidden by default) -->
+      <!-- Inline new-item form -->
       <div id="pdf-new-form-${idx}" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;border:1px solid var(--border)">
         <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px">新建商品</div>
         <div style="display:flex;flex-direction:column;gap:6px">
@@ -2682,10 +2721,10 @@ function renderPdfResults(matches) {
         </div>
       </div>
 
-      <!-- Qty + ratio row -->
+      <!-- Qty + ratio -->
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:12px;color:var(--text3)">供应商数量 <b style="font-family:'DM Mono',monospace">${m.supplier_qty ?? '?'}</b> ×</span>
-        <input type="number" min="1" value="${ratio}" title="换算比例 (1供应商单位=多少个)" style="width:50px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-weight:600"
+        <input type="number" min="1" value="${ratio}" style="width:50px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-weight:600"
           oninput="onPdfRatioChange(${idx}, this.value)">
         <span style="font-size:12px;color:var(--text3)">= <b id="pdf-final-${idx}" style="color:var(--green);font-family:'DM Mono',monospace">${m.supplier_qty != null ? finalQty : '?'}</b> 个</span>
       </div>
@@ -2928,29 +2967,52 @@ function pdfCheckHighConf() {
   });
 }
 
+function addPdfItem2(idx) {
+  document.getElementById('pdf-item2-wrap-' + idx).style.display = 'block';
+  document.getElementById('pdf-add2-btn-' + idx).style.display = 'none';
+}
+
+function removePdfItem2(idx) {
+  pdfMatches[idx].item_id2 = null;
+  document.getElementById('pdf-item2-wrap-' + idx).style.display = 'none';
+  document.getElementById('pdf-add2-btn-' + idx).style.display = 'block';
+}
+
+function onPdfItem2Change(idx, val) {
+  pdfMatches[idx].item_id2 = val ? parseInt(val) : null;
+  const sel = document.getElementById('pdf-sel2-' + idx);
+  if(sel) sel.style.borderColor = val ? 'var(--green)' : 'var(--border)';
+}
+
 function addPdfMatchesToCart() {
   let added = 0;
   pdfMatches.forEach((m, idx) => {
     const chk = document.getElementById('pdf-chk-' + idx);
-    if(chk && !chk.checked) return; // user excluded this row
+    if(chk && !chk.checked) return;
 
     const sel = document.getElementById('pdf-sel-' + idx);
     if(sel && sel.value) m.item_id = parseInt(sel.value);
-    if(!m.item_id) return; // not matched = skip
+    if(!m.item_id) return;
 
     const finalQty = (m.supplier_qty != null ? m.supplier_qty : 1) * (m.ratio || 1);
 
-    // Save mapping for next time
     recordPdfMapping(m.item_code, m.pdf_name, m.item_id, m.ratio || 1);
-
-    // Mark this ItemCode as "pending" so re-upload knows it's already in cart
     if(m.item_code) { pdfPendingCodes.add(m.item_code); savePdfPendingCodes(); }
 
-    // Add to restock cart
+    // Add item 1
     const existing = restockCart.find(r => r.itemId === m.item_id);
     if(existing) existing.qty += finalQty;
     else restockCart.push({ itemId: m.item_id, qty: finalQty });
     added++;
+
+    // Add item 2 (battery/cartridge partner) with same qty
+    const sel2 = document.getElementById('pdf-sel2-' + idx);
+    if(sel2 && sel2.value) m.item_id2 = parseInt(sel2.value);
+    if(m.item_id2) {
+      const existing2 = restockCart.find(r => r.itemId === m.item_id2);
+      if(existing2) existing2.qty += finalQty;
+      else restockCart.push({ itemId: m.item_id2, qty: finalQty });
+    }
   });
 
   renderRestockCart();
