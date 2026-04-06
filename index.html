@@ -1924,6 +1924,21 @@ document.getElementById('scan-modal').addEventListener('click', function(e) {
   if(e.target === this) closeScanModal();
 });
 
+// Prevent scroll bleed-through on all modals
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('wheel', function(e) {
+    // Only stop if the scroll target is the overlay itself, not a scrollable child
+    const modal = overlay.querySelector('.modal, [style*="overflow"]');
+    if(modal && modal.contains(e.target)) return; // let it scroll inside modal
+    e.stopPropagation();
+  }, { passive: false });
+});
+
+// PDF modal specific - allow scrolling inside pdf-match-list only
+document.getElementById('pdf-modal').addEventListener('wheel', function(e) {
+  e.stopPropagation();
+}, { passive: true });
+
 // ── RESTOCK ────────────────────────────────────────────────────────
 // restockCart: [{ itemId, qty }]
 let restockCart = [];
@@ -2283,56 +2298,56 @@ async function handlePdfUpload(input) {
     console.log('PDF full text (first 500 chars):', fullText.slice(0, 500));
     console.log('PDF normalized (first 500 chars):', fullText.replace(/\s+/g,' ').slice(0, 500));
 
-    // Format: "RowNo ItemCode Description Qty.00 UNIT Price Amount"
+    // PDF.js actual output format: "PRICE NAME QTY.QQ UNIT AMOUNT ROWNUM ITEMCODE PRICE NAME..."
+    // i.e. item code comes AFTER its product line, at start of next entry
     const inventoryItems = items.filter(i => !i.bundle_components);
     const results = [];
 
-    // Normalize: collapse all whitespace including newlines into single space
     const normalized = fullText.replace(/\s+/g, ' ').trim();
 
-    // Find all (rownum, itemcode) positions
-    const codeRegex = /\b(\d{1,3})\s+([A-Z]{2,6}\d{3,}[A-Z0-9]*)\s+/g;
-    const allMatches = [];
+    // Find all (rownum, itemcode) positions — these mark the START of the NEXT product's prefix
+    const codeRegex = /\b(\d{1,3})\s+([A-Z]{2,6}\d{3,}[A-Z0-9]*)\b/g;
+    const allCodes = [];
     let cm;
     while((cm = codeRegex.exec(normalized)) !== null) {
-      const before = normalized.slice(Math.max(0, cm.index-40), cm.index);
-      if(/Description|Item Code/i.test(before)) continue;
-      allMatches.push({ start: cm.index, end: cm.index + cm[0].length, row: parseInt(cm[1]), code: cm[2] });
+      const before = normalized.slice(Math.max(0, cm.index-60), cm.index);
+      if(/Description|Item Code|No Item/i.test(before)) continue;
+      allCodes.push({ index: cm.index, end: cm.index + cm[0].length, row: parseInt(cm[1]), code: cm[2] });
     }
 
-    // Deduplicate: keep only first occurrence of each item code (lowest row number per code)
+    // Deduplicate by code - keep first occurrence
     const seenCodes = {};
-    for(const m of allMatches) {
-      if(!seenCodes[m.code] || m.row < seenCodes[m.code].row) seenCodes[m.code] = m;
+    for(const c of allCodes) {
+      if(!seenCodes[c.code]) seenCodes[c.code] = c;
     }
-    const sortedMatches = Object.values(seenCodes).sort((a,b) => a.row - b.row);
+    const sortedCodes = Object.values(seenCodes).sort((a, b) => a.index - b.index);
 
-    for(let i = 0; i < sortedMatches.length; i++) {
-      const c = sortedMatches[i];
-      const nextIdx = i + 1 < sortedMatches.length ? sortedMatches[i+1].start : normalized.length;
-      const segment = normalized.slice(c.end, nextIdx).trim();
+    // Each product's text is BEFORE its rownum+code, after the previous code's end
+    for(let i = 0; i < sortedCodes.length; i++) {
+      const c = sortedCodes[i];
+      // Segment: from end of previous code to start of this rownum
+      const prevEnd = i > 0 ? sortedCodes[i-1].end : 0;
+      const segment = normalized.slice(prevEnd, c.index).trim();
 
-      // Extract name and qty: "DESCRIPTION QTY.QQ UNIT PRICE AMOUNT"
+      if(!segment || segment.length < 3) continue;
+
+      // Extract qty UNIT from segment: "PRICE NAME QTY.QQ UNIT AMOUNT"
+      const qm = segment.match(/(\d+\.\d+)\s+UNIT\b/);
       let name, qty;
-      const qtyMatch = segment.match(/^(.*?)\s+(\d+\.\d+)\s+UNIT\b/);
-      if(qtyMatch) {
-        name = qtyMatch[1].trim();
-        qty  = parseFloat(qtyMatch[2]) || 1;
+      if(qm) {
+        qty = parseFloat(qm[1]);
+        // Name is between first price and qty
+        const beforeQty = segment.slice(0, segment.lastIndexOf(qm[0])).trim();
+        name = beforeQty.replace(/^\d+\.\d+\s+/, '').trim(); // remove leading price
       } else {
-        // No UNIT — last item or unusual format, grab last number as qty
-        const endNum = segment.match(/^(.+?)\s+(\d+\.\d+)\s*$/);
-        name = endNum ? endNum[1].trim() : segment.trim();
-        qty  = endNum ? parseFloat(endNum[2]) : 1;
+        // No UNIT in this segment - skip (header or noise)
+        continue;
       }
 
-      // Clean: remove leading price number e.g. "14.50 PRODUCT NAME"
-      name = name.replace(/^\d+\.\d+\s+/, '').trim();
-      // Remove trailing price+amount numbers
-      name = name.replace(/\s+\d+\.\d+\s+\d+\.\d+$/, '').trim();
+      // Remove trailing amount number
       name = name.replace(/\s+\d+\.\d+$/, '').trim();
-
       if(name.length < 3) continue;
-      if(/^(no|item|desc|price|qty|total|date|inv|page|your|our|terms|attn|ringgit|authoris)/i.test(name)) continue;
+      if(/^(no|item|desc|price|qty|total|date|inv|page|your|our|terms|attn|ringgit|authoris|goods|sold)/i.test(name)) continue;
 
       const { bestItem, bestScore } = smartMatch(name, inventoryItems);
       const confidence = bestScore >= 0.7 ? 'high' : bestScore >= 0.4 ? 'medium' : 'low';
