@@ -171,6 +171,14 @@
   .price-tag { font-size: 12px; color: var(--text2); font-family: 'DM Mono', monospace; }
   .subtotal-tag { font-size: 12px; color: var(--green); font-family: 'DM Mono', monospace; font-weight: 600; }
 
+  /* COLLAPSIBLE PANELS */
+  .collapse-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; overflow: hidden; }
+  .collapse-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); user-select: none; }
+  .collapse-header:hover { background: var(--surface2); }
+  .collapse-arrow { font-size: 16px; color: var(--text3); transition: transform 0.2s; display: inline-block; }
+  .collapse-arrow.open { transform: rotate(180deg); }
+  .collapse-body { padding: 0 16px 16px; }
+
   /* CUSTOMER MODE */
   .cust-cat-selector { padding:16px; background:var(--surface); border-bottom:1px solid var(--border); }
   .cust-cat-selector-title { font-size:13px; font-weight:600; color:var(--text2); margin-bottom:10px; }
@@ -272,93 +280,109 @@
 
     <div class="stock-layout">
       <div class="stock-left">
-        <div class="card">
-          <div class="card-title">添加商品</div>
-          <div class="form-row"><label>商品名</label><input type="text" id="new-name" placeholder="例：糖果 Mamee"></div>
-          <div class="form-row"><label>Category</label>
-            <select id="new-category" style="flex:1;min-width:0">
-              <option value="">-- 选择 Category --</option>
-            </select>
-          </div>
-          <div class="form-row" id="new-category-extra-row">
-            <label></label>
-            <input type="text" id="new-category-custom" placeholder="输入新 category 名称" style="display:none;flex:1">
-            <button class="btn" id="new-category-toggle" onclick="toggleNewCategoryInput()" style="flex-shrink:0;font-size:12px;padding:6px 10px">＋ 新 Category</button>
-          </div>
-          <div class="form-row">
-            <label>Barcode</label>
-            <div class="barcode-input-wrap">
-              <input type="text" id="new-barcode" placeholder="扫描或手动输入">
-              <button class="btn btn-scan" onclick="openScanModal('add')">📷 扫</button>
-            </div>
-          </div>
-          <div class="form-row"><label>家里数量</label><input type="number" id="new-home" min="0" value="0"></div>
-          <div class="form-row"><label>店里数量</label><input type="number" id="new-shop" min="0" value="0"></div>
-          <div class="form-row"><label>低库存警告</label><input type="number" id="new-threshold" min="0" value="10"></div>
-          <div class="form-row"><label>单价 (RM)</label><input type="number" id="new-price" min="0" step="0.01" value="0" placeholder="0.00"></div>
-          <button class="btn btn-block" onclick="addItem()">+ 添加商品</button>
-        </div>
 
-        <!-- RESTOCK CARD -->
-        <div class="card" style="margin-top:12px">
-          <div class="card-title">📦 进货 / 补库存</div>
-
-          <!-- Restock cart — shown at TOP so you see it immediately after scanning -->
-          <div id="restock-cart-wrap" style="display:none;margin-bottom:14px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <span style="font-size:13px;font-weight:600;color:var(--text2)">📋 待进货清单</span>
-              <span style="font-size:12px;color:var(--text3)" id="restock-cart-count">0 项</span>
-            </div>
-            <div id="restock-cart-list"></div>
-            <div class="form-row" style="margin-top:10px">
-              <label>补货到</label>
-              <select id="restock-location">
-                <option value="home">家里</option>
-                <option value="shop">店里</option>
+        <!-- ── COLLAPSIBLE PANEL: 添加商品 ── -->
+        <div class="collapse-card" id="panel-add">
+          <div class="collapse-header" onclick="togglePanel('panel-add')">
+            <span>＋ 添加商品</span>
+            <span class="collapse-arrow open" id="arrow-panel-add">▾</span>
+          </div>
+          <div class="collapse-body" id="body-panel-add">
+            <div class="form-row"><label>商品名</label><input type="text" id="new-name" placeholder="例：糖果 Mamee"></div>
+            <div class="form-row"><label>Category</label>
+              <select id="new-category" style="flex:1;min-width:0">
+                <option value="">-- 选择 Category --</option>
               </select>
             </div>
-            <button class="btn btn-block" style="background:var(--green);border-color:var(--green);color:#fff" onclick="confirmRestock()">✅ 确认全部进货</button>
-            <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearRestock()">🗑 清空清单</button>
-            <div style="height:1px;background:var(--border);margin:14px 0"></div>
+            <div class="form-row" id="new-category-extra-row">
+              <label></label>
+              <input type="text" id="new-category-custom" placeholder="输入新 category 名称" style="display:none;flex:1">
+              <button class="btn" id="new-category-toggle" onclick="toggleNewCategoryInput()" style="flex-shrink:0;font-size:12px;padding:6px 10px">＋ 新 Category</button>
+            </div>
+            <div class="form-row">
+              <label>Barcode</label>
+              <div class="barcode-input-wrap">
+                <input type="text" id="new-barcode" placeholder="扫描或手动输入">
+                <button class="btn btn-scan" onclick="openScanModal('add')">📷 扫</button>
+              </div>
+            </div>
+            <div class="form-row"><label>家里数量</label><input type="number" id="new-home" min="0" value="0"></div>
+            <div class="form-row"><label>店里数量</label><input type="number" id="new-shop" min="0" value="0"></div>
+            <div class="form-row"><label>低库存警告</label><input type="number" id="new-threshold" min="0" value="10"></div>
+            <div class="form-row"><label>单价 (RM)</label><input type="number" id="new-price" min="0" step="0.01" value="0" placeholder="0.00"></div>
+            <button class="btn btn-block" onclick="addItem()">+ 添加商品</button>
           </div>
+        </div>
 
-          <div class="form-row">
-            <label>搜索商品</label>
-            <input type="text" id="restock-search" placeholder="输入商品名搜索..." oninput="renderRestockSearch()" style="flex:1">
+        <!-- ── COLLAPSIBLE PANEL: 进货 ── -->
+        <div class="collapse-card" id="panel-restock">
+          <div class="collapse-header" onclick="togglePanel('panel-restock')">
+            <span>📦 进货 / 补库存</span>
+            <span class="collapse-arrow" id="arrow-panel-restock">▾</span>
           </div>
-          <div id="restock-search-results"></div>
-          <div class="form-row">
-            <label>或扫 Barcode</label>
-            <div class="barcode-input-wrap">
-              <input type="text" id="restock-barcode" placeholder="扫描 barcode" oninput="onRestockBarcodeTyped(this.value)">
-              <button class="btn btn-scan" onclick="openScanModal('restock')">📷 扫</button>
+          <div class="collapse-body" id="body-panel-restock" style="display:none">
+            <div id="restock-cart-wrap" style="display:none;margin-bottom:14px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <span style="font-size:13px;font-weight:600;color:var(--text2)">📋 待进货清单</span>
+                <span style="font-size:12px;color:var(--text3)" id="restock-cart-count">0 项</span>
+              </div>
+              <div id="restock-cart-list"></div>
+              <div class="form-row" style="margin-top:10px">
+                <label>补货到</label>
+                <select id="restock-location">
+                  <option value="home">家里</option>
+                  <option value="shop">店里</option>
+                </select>
+              </div>
+              <button class="btn btn-block" style="background:var(--green);border-color:var(--green);color:#fff" onclick="confirmRestock()">✅ 确认全部进货</button>
+              <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearRestock()">🗑 清空清单</button>
+              <div style="height:1px;background:var(--border);margin:14px 0"></div>
+            </div>
+            <div class="form-row">
+              <label>搜索商品</label>
+              <input type="text" id="restock-search" placeholder="输入商品名搜索..." oninput="renderRestockSearch()" style="flex:1">
+            </div>
+            <div id="restock-search-results"></div>
+            <div class="form-row">
+              <label>或扫 Barcode</label>
+              <div class="barcode-input-wrap">
+                <input type="text" id="restock-barcode" placeholder="扫描 barcode" oninput="onRestockBarcodeTyped(this.value)">
+                <button class="btn btn-scan" onclick="openScanModal('restock')">📷 扫</button>
+              </div>
             </div>
           </div>
         </div>
-        <!-- TRANSFER CARD -->
-        <div class="card" style="margin-top:12px">
-          <div class="card-title">🔄 转移库存（家里 → 店里）</div>
-          <div class="form-row">
-            <label>搜索商品</label>
-            <input type="text" id="transfer-search" placeholder="输入商品名搜索..." oninput="renderTransferSearch()" style="flex:1;min-width:0">
+
+        <!-- ── COLLAPSIBLE PANEL: 转移库存 ── -->
+        <div class="collapse-card" id="panel-transfer">
+          <div class="collapse-header" onclick="togglePanel('panel-transfer')">
+            <span>🔄 转移库存（家里 → 店里）</span>
+            <span class="collapse-arrow" id="arrow-panel-transfer">▾</span>
           </div>
-          <div id="transfer-search-results"></div>
-          <div class="form-row">
-            <label>或扫 Barcode</label>
-            <div class="barcode-input-wrap">
-              <input type="text" id="transfer-barcode" placeholder="扫描 barcode" oninput="onTransferBarcodeTyped(this.value)">
-              <button class="btn btn-scan" onclick="openScanModal('transfer')">📷 扫</button>
+          <div class="collapse-body" id="body-panel-transfer" style="display:none">
+            <!-- Transfer cart -->
+            <div id="transfer-cart-wrap" style="display:none;margin-bottom:14px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <span style="font-size:13px;font-weight:600;color:var(--text2)">📋 待转移清单</span>
+                <span style="font-size:12px;color:var(--text3)" id="transfer-cart-count">0 项</span>
+              </div>
+              <div id="transfer-cart-list"></div>
+              <button class="btn btn-block" style="background:var(--blue);border-color:var(--blue);color:#fff;margin-top:10px" onclick="confirmTransfer()">🔄 确认全部转移</button>
+              <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearTransfer()">🗑 清空清单</button>
+              <div style="height:1px;background:var(--border);margin:14px 0"></div>
             </div>
-          </div>
-          <div id="transfer-selected" style="display:none">
-            <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:10px;font-size:13px;font-weight:600;color:var(--text)" id="transfer-item-name">—</div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:10px" id="transfer-item-stock"></div>
             <div class="form-row">
-              <label>转移数量</label>
-              <input type="number" id="transfer-qty" min="1" value="1" style="flex:1">
+              <label>搜索商品</label>
+              <input type="text" id="transfer-search" placeholder="输入商品名搜索..." oninput="renderTransferSearch()" style="flex:1;min-width:0">
             </div>
-            <button class="btn btn-block" style="background:var(--blue);border-color:var(--blue);color:#fff" onclick="confirmTransfer()">🔄 确认转移</button>
-            <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearTransfer()">取消</button>
+            <div id="transfer-search-results"></div>
+            <div class="form-row">
+              <label>或扫 Barcode</label>
+              <div class="barcode-input-wrap">
+                <input type="text" id="transfer-barcode" placeholder="扫描 barcode" oninput="onTransferBarcodeTyped(this.value)">
+                <button class="btn btn-scan" onclick="openScanModal('transfer')">📷 扫</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1744,10 +1768,16 @@ function onBarcodeDetected(code) {
   } else if(scanTarget === 'transfer') {
     const found = items.find(i => i.barcode && i.barcode === code && !i.bundle_components);
     if(found) {
-      selectTransferItem(found.id);
-      statusEl.textContent = '✅ 已找到：' + found.name;
+      addToTransferCart(found.id);
+      statusEl.textContent = '✅ 已加入：' + found.name + ' （可继续扫下一个）';
       statusEl.className = 'scan-status found';
-      setTimeout(() => closeScanModal(), 800);
+      setTimeout(() => {
+        if(document.getElementById('scan-modal').classList.contains('open')) {
+          statusEl.textContent = '📡 继续扫描下一个...';
+          statusEl.className = 'scan-status';
+          startScanner();
+        }
+      }, 1200);
     } else {
       statusEl.textContent = '❌ 未找到商品（' + code + '）';
       statusEl.className = 'scan-status error';
@@ -2047,8 +2077,19 @@ function toggleCustCat(id) {
   }
 }
 
-// ── TRANSFER STOCK ─────────────────────────────────────────────────
-let transferItemId = null;
+// ── COLLAPSIBLE PANELS ─────────────────────────────────────────────
+function togglePanel(panelId) {
+  const body = document.getElementById('body-' + panelId);
+  const arrow = document.getElementById('arrow-' + panelId);
+  if(!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if(isOpen) arrow.classList.remove('open');
+  else arrow.classList.add('open');
+}
+
+// ── TRANSFER STOCK (cart-style, multi-item) ─────────────────────────
+let transferCart = []; // [{ itemId, qty }]
 
 function renderTransferSearch() {
   const query = document.getElementById('transfer-search').value.trim().toLowerCase();
@@ -2056,13 +2097,16 @@ function renderTransferSearch() {
   if(!query) { el.innerHTML = ''; return; }
   const filtered = items.filter(i => !i.bundle_components && i.name.toLowerCase().includes(query)).slice(0, 8);
   if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:8px">没有找到商品</div>'; return; }
-  el.innerHTML = '<div class="search-results">' + filtered.map(it => `
-    <div class="search-result-item" onclick="selectTransferItem(${it.id});document.getElementById('transfer-search').value='';document.getElementById('transfer-search-results').innerHTML=''">
+  el.innerHTML = '<div class="search-results">' + filtered.map(it => {
+    const inCart = transferCart.find(r => r.itemId === it.id);
+    const tag = inCart ? `<span style="font-size:11px;color:var(--blue);font-weight:600">已加 ${inCart.qty} 个</span>` : '';
+    return `<div class="search-result-item" onclick="addToTransferCart(${it.id});document.getElementById('transfer-search').value='';document.getElementById('transfer-search-results').innerHTML=''">
       <div>
-        <div class="search-result-name">${it.name}</div>
+        <div class="search-result-name">${it.name} ${tag}</div>
         <div class="search-result-meta">家里:${it.home_qty} → 店里:${it.shop_qty}</div>
       </div>
-    </div>`).join('') + '</div>';
+    </div>`;
+  }).join('') + '</div>';
 }
 
 function onTransferBarcodeTyped(val) {
@@ -2070,53 +2114,91 @@ function onTransferBarcodeTyped(val) {
   if(!val) return;
   const found = items.find(i => i.barcode && i.barcode === val && !i.bundle_components);
   if(found) {
-    selectTransferItem(found.id);
+    addToTransferCart(found.id);
     document.getElementById('transfer-barcode').value = '';
   }
 }
 
-function selectTransferItem(id) {
-  const it = items.find(i => i.id === id);
-  if(!it) return;
-  transferItemId = id;
-  document.getElementById('transfer-item-name').textContent = '📦 ' + it.name;
-  document.getElementById('transfer-item-stock').textContent = '家里：' + it.home_qty + ' 个　→　店里：' + it.shop_qty + ' 个';
-  document.getElementById('transfer-qty').value = 1;
-  document.getElementById('transfer-qty').max = it.home_qty;
-  document.getElementById('transfer-selected').style.display = 'block';
-  document.getElementById('transfer-search').value = '';
-  document.getElementById('transfer-search-results').innerHTML = '';
-  document.getElementById('transfer-barcode').value = '';
-  document.getElementById('transfer-qty').focus();
+function addToTransferCart(id) {
+  const existing = transferCart.find(r => r.itemId === id);
+  if(existing) existing.qty += 1;
+  else transferCart.push({ itemId: id, qty: 1 });
+  renderTransferCart();
+  const wrap = document.getElementById('transfer-cart-wrap');
+  if(wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function removeFromTransferCart(id) {
+  transferCart = transferCart.filter(r => r.itemId !== id);
+  renderTransferCart();
+}
+
+function updateTransferQty(id, val) {
+  const entry = transferCart.find(r => r.itemId === id);
+  if(entry) {
+    const it = items.find(i => i.id === id);
+    const max = it ? it.home_qty : 999;
+    entry.qty = Math.min(max, Math.max(1, parseInt(val) || 1));
+  }
+  renderTransferCart();
+}
+
+function renderTransferCart() {
+  const wrap = document.getElementById('transfer-cart-wrap');
+  const listEl = document.getElementById('transfer-cart-list');
+  const countEl = document.getElementById('transfer-cart-count');
+  if(!transferCart.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  countEl.textContent = transferCart.length + ' 项';
+  listEl.innerHTML = transferCart.map(r => {
+    const it = items.find(i => i.id === r.itemId);
+    if(!it) return '';
+    return `<div class="cart-item">
+      <div class="cart-item-name">${it.name}<br>
+        <small style="color:var(--text3);font-weight:400">家里:${it.home_qty} 店里:${it.shop_qty}</small>
+      </div>
+      <div class="cart-qty-wrap">
+        <label>数量</label>
+        <input type="number" min="1" max="${it.home_qty}" value="${r.qty}"
+          oninput="updateTransferQty(${it.id}, this.value)"
+          onchange="updateTransferQty(${it.id}, this.value)">
+      </div>
+      <button class="cart-remove" onclick="removeFromTransferCart(${it.id})">✕</button>
+    </div>`;
+  }).join('');
 }
 
 function clearTransfer() {
-  transferItemId = null;
-  document.getElementById('transfer-selected').style.display = 'none';
-  document.getElementById('transfer-item-name').textContent = '—';
-  document.getElementById('transfer-item-stock').textContent = '';
+  transferCart = [];
+  renderTransferCart();
   document.getElementById('transfer-search').value = '';
   document.getElementById('transfer-search-results').innerHTML = '';
   document.getElementById('transfer-barcode').value = '';
 }
 
 async function confirmTransfer() {
-  if(!transferItemId) return;
-  const qty = parseInt(document.getElementById('transfer-qty').value) || 0;
-  if(qty <= 0) { alert('请输入有效数量'); return; }
-  const it = items.find(i => i.id === transferItemId);
-  if(!it) return;
-  if(it.home_qty < qty) {
-    alert('家里库存不足！家里只剩 ' + it.home_qty + ' 个，无法转移 ' + qty + ' 个');
-    return;
+  if(!transferCart.length) return;
+  // Validate all
+  for(const r of transferCart) {
+    const it = items.find(i => i.id === r.itemId);
+    if(!it) continue;
+    if(it.home_qty < r.qty) {
+      alert(`家里库存不足！
+"${it.name}" 家里只剩 ${it.home_qty} 个，无法转移 ${r.qty} 个`);
+      return;
+    }
   }
   setSync('busy', '转移中...');
-  const { error } = await sb.from('items').update({
-    home_qty: it.home_qty - qty,
-    shop_qty: it.shop_qty + qty
-  }).eq('id', transferItemId);
-  if(error) { alert('转移失败：' + error.message); setSync('err','失败'); return; }
-  setSync('ok', `已转移：${it.name} ×${qty} 家里→店里 · ${timeNow()}`);
+  for(const r of transferCart) {
+    const it = items.find(i => i.id === r.itemId);
+    if(!it) continue;
+    const { error } = await sb.from('items').update({
+      home_qty: it.home_qty - r.qty,
+      shop_qty: it.shop_qty + r.qty
+    }).eq('id', it.id);
+    if(error) { alert('转移失败：' + it.name); setSync('err','失败'); return; }
+  }
+  setSync('ok', `已转移 ${transferCart.length} 项 家里→店里 · ${timeNow()}`);
   clearTransfer();
   await loadItems();
 }
