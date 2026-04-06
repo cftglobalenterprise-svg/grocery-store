@@ -18,10 +18,9 @@
     --radius: 12px; --radius-sm: 8px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); height: 100dvh; overflow: hidden; }
-  #app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
-  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 50; }
   .topbar-title { font-size: 16px; font-weight: 600; flex: 1; }
   .sync-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
   .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #4caf50; transition: background 0.3s; }
@@ -29,19 +28,18 @@
   .sync-dot.err { background: #f44336; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-  .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; overflow-x: auto; flex-shrink: 0; }
+  .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; position: sticky; top: 57px; z-index: 40; overflow-x: auto; }
   .tabs::-webkit-scrollbar { display: none; }
   .tab { padding: 14px 18px; font-size: 14px; font-weight: 500; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
   .tab.active { color: var(--text); border-bottom-color: var(--text); }
 
-  .page { display: none; }
-  .page.active { display: block; padding: 16px; max-width: 1100px; margin: 0 auto; overflow-y: auto; flex: 1; min-height: 0; }
-  #page-stock.active { display: flex !important; flex-direction: column; padding: 16px; padding-bottom: 0; max-width: 1100px; margin: 0 auto; overflow: hidden; flex: 1; min-height: 0; }
+  .page { display: none; padding: 16px; max-width: 1100px; margin: 0 auto; }
+  .page.active { display: block; }
 
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
   .card-title { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
 
-  .metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 12px; flex-shrink: 0; }
+  .metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 12px; }
   .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
   .metric-val { font-size: 22px; font-weight: 600; color: var(--text); font-family: 'DM Mono', monospace; }
   .metric-lbl { font-size: 11px; color: var(--text3); margin-top: 2px; }
@@ -203,23 +201,17 @@
   .cust-badge-out { font-size:12px; font-weight:600; color:var(--text3); background:var(--surface2); padding:3px 10px; border-radius:20px; white-space:nowrap; }
 
   /* STOCK TWO-COLUMN LAYOUT */
-  .stock-layout { display: flex; gap: 16px; flex: 1; min-height: 0; }
-  .stock-left { flex: 0 0 320px; min-width: 0; overflow-y: auto; overflow-x: hidden; }
+  .stock-layout { display: flex; gap: 16px; align-items: flex-start; }
+  .stock-left { flex: 0 0 320px; min-width: 0; position: sticky; top: 113px; max-height: calc(100vh - 130px); overflow-y: auto; overflow-x: hidden; }
   .stock-left::-webkit-scrollbar { width: 3px; }
   .stock-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   .stock-left .barcode-input-wrap { min-width: 0; }
   .stock-left .barcode-input-wrap input { min-width: 0; flex: 1; width: 0; }
-  .stock-right { flex: 1; min-width: 0; overflow-y: auto; }
-  .stock-right::-webkit-scrollbar { width: 3px; }
-  .stock-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .stock-right { flex: 1; min-width: 0; }
   @media (max-width: 780px) {
-    body { height: auto; overflow: auto; }
-    #app { height: auto; overflow: visible; }
-    .page.active { overflow-y: visible; flex: none; }
-    #page-stock.active { overflow: visible !important; flex: none; }
-    .stock-layout { flex-direction: column; flex: none; min-height: auto; }
-    .stock-left { flex: none; width: 100%; overflow-y: visible; overflow-x: visible; }
-    .stock-right { flex: none; width: 100%; overflow-y: visible; }
+    .stock-layout { flex-direction: column; }
+    .stock-left { flex: none; width: 100%; position: static; max-height: none; overflow-y: visible; overflow-x: visible; }
+    .stock-right { width: 100%; }
   }
 
   #loading { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 999; }
@@ -279,7 +271,7 @@
     </div>
 
     <!-- CATEGORY MANAGEMENT BUTTON -->
-    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;flex-shrink:0">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
       <button class="btn" style="font-size:13px;padding:8px 16px" onclick="openCatModal()">🏷 管理 Categories</button>
     </div>
 
@@ -2009,6 +2001,44 @@ function toggleCustCat(id) {
     arr.classList.remove('open');
   }
 }
+
+// ── INDEPENDENT COLUMN SCROLL ───────────────────────────────────────
+(function() {
+  function setupColumnScroll() {
+    const left = document.querySelector('.stock-left');
+    const right = document.querySelector('.stock-right');
+    if(!left || !right) return;
+
+    function handleWheel(e) {
+      // Find which column the mouse is over
+      const lRect = left.getBoundingClientRect();
+      const rRect = right.getBoundingClientRect();
+      const x = e.clientX;
+      const y = e.clientY;
+
+      const overLeft  = x >= lRect.left && x <= lRect.right && y >= lRect.top && y <= lRect.bottom;
+      const overRight = x >= rRect.left && x <= rRect.right && y >= rRect.top && y <= rRect.bottom;
+
+      if(overLeft || overRight) {
+        e.preventDefault();
+        const target = overLeft ? left : right;
+        target.scrollTop += e.deltaY;
+      }
+    }
+
+    // Remove old listener if any, then add fresh
+    document.removeEventListener('wheel', handleWheel, { passive: false });
+    document.addEventListener('wheel', handleWheel, { passive: false });
+  }
+
+  // Run after DOM ready and whenever tab switches to stock
+  document.addEventListener('DOMContentLoaded', setupColumnScroll);
+  const origSwitch = window.switchTab;
+  window.switchTab = function(t, el) {
+    origSwitch && origSwitch(t, el);
+    if(t === 'stock') setTimeout(setupColumnScroll, 50);
+  };
+})();
 
 init();
 </script>
