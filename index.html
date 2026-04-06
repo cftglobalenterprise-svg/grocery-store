@@ -207,7 +207,7 @@
   .stock-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   .stock-left .barcode-input-wrap { min-width: 0; }
   .stock-left .barcode-input-wrap input { min-width: 0; flex: 1; width: 0; }
-  .stock-right { flex: 1; min-width: 0; }
+  .stock-right { flex: 1; min-width: 0; max-height: calc(100vh - 130px); overflow-y: auto; position: sticky; top: 113px; }
   @media (max-width: 780px) {
     .stock-layout { flex-direction: column; }
     .stock-left { flex: none; width: 100%; position: static; max-height: none; overflow-y: visible; overflow-x: visible; }
