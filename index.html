@@ -3053,9 +3053,9 @@ function renderOrdDashboard() {
   if(!document.getElementById('ord-revenue')) return;
   const { start, end, barMode } = getOrdDateRange(ordPeriod);
 
-  // Only completed (done) orders
+  // Only completed (collected) orders
   const filtered = orders.filter(o => {
-    if(o.status !== 'done') return false;
+    if(o.status !== 'collected') return false;
     const d = new Date(o.created_at);
     return d >= start && d <= end;
   });
