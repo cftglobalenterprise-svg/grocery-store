@@ -2190,7 +2190,10 @@ If no match found for item_id, set it to null.`;
     });
 
     const data = await response.json();
-    const text = data.content.map(c => c.text || '').join('');
+    // Handle both direct Anthropic response and Edge Function wrapper
+    const rawContent = data.content || (data.data && data.data.content);
+    if(!rawContent) throw new Error('Edge Function error: ' + JSON.stringify(data));
+    const text = rawContent.map(c => c.text || '').join('');
     const clean = text.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
 
@@ -2209,7 +2212,7 @@ If no match found for item_id, set it to null.`;
   } catch(e) {
     statusEl.textContent = '❌ 读取失败：' + (e.message || '请重试');
     statusEl.style.color = 'var(--red)';
-    console.error(e);
+    console.error('PDF Error:', e);
   }
   input.value = '';
 }
