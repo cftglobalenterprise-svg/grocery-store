@@ -6,7 +6,7 @@
 <title>我的杂货店库存</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <style>
   :root {
     --bg: #f5f2ee; --surface: #ffffff; --surface2: #f0ede8; --border: #e2ddd7;
@@ -1843,6 +1843,8 @@ function toggleCat(id) {
 }
 
 // ── SCANNER ────────────────────────────────────────────────────────
+let zxingReader = null;
+
 function openScanModal(target) {
   scanTarget = target;
   document.getElementById('scan-modal').classList.add('open');
@@ -1858,42 +1860,74 @@ function closeScanModal() {
 }
 
 function startScanner() {
-  if(scannerRunning) stopScanner();
-  const container = document.getElementById('scanner-container');
-  const oldVid = container.querySelector('video');
-  if(oldVid) oldVid.remove();
+  stopScanner();
 
-  Quagga.init({
-    inputStream: {
-      name: 'Live', type: 'LiveStream', target: container,
-      constraints: { facingMode: 'environment', width: {ideal:640}, height: {ideal:320} }
-    },
-    locator: { patchSize: 'medium', halfSample: true },
-    numOfWorkers: 2, frequency: 10,
-    decoder: { readers: ['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader','upc_e_reader'] },
-    locate: true
-  }, function(err) {
-    if(err) {
-      document.getElementById('scan-status').textContent = '摄像头启动失败，请手动输入';
-      document.getElementById('scan-status').className = 'scan-status error';
-      return;
-    }
-    Quagga.start();
+  const container = document.getElementById('scanner-container');
+  // Ensure video element exists
+  let video = container.querySelector('video');
+  if(!video) {
+    video = document.createElement('video');
+    video.style.cssText = 'width:100%;display:block;';
+    container.insertBefore(video, container.firstChild);
+  }
+
+  try {
+    const hints = new Map();
+    const formats = [
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.UPC_E,
+      ZXing.BarcodeFormat.QR_CODE,
+    ];
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+    zxingReader = new ZXing.BrowserMultiFormatReader(hints, 300);
+
+    zxingReader.decodeFromConstraints(
+      { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } },
+      video,
+      (result, err) => {
+        if(result) {
+          onBarcodeDetected(result.getText());
+        }
+        // err is normal when no barcode in frame, ignore
+      }
+    );
+
     scannerRunning = true;
     document.getElementById('scan-status').textContent = '📡 正在扫描，请将条形码对准框内...';
-  });
-
-  Quagga.onDetected(function(result) {
-    const code = result.codeResult.code;
-    if(code) onBarcodeDetected(code);
-  });
+  } catch(e) {
+    document.getElementById('scan-status').textContent = '摄像头启动失败，请手动输入';
+    document.getElementById('scan-status').className = 'scan-status error';
+    console.error('Scanner error:', e);
+  }
 }
 
 function stopScanner() {
-  if(scannerRunning) { Quagga.stop(); scannerRunning = false; }
+  if(zxingReader) {
+    try { zxingReader.reset(); } catch(e) {}
+    zxingReader = null;
+  }
+  scannerRunning = false;
+  // Stop any active camera stream
+  const video = document.querySelector('#scanner-container video');
+  if(video && video.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+  }
 }
 
+let _lastScan = 0;
 function onBarcodeDetected(code) {
+  // Debounce: ignore if same code detected within 1.5s
+  const now = Date.now();
+  if(now - _lastScan < 1500) return;
+  _lastScan = now;
+
   stopScanner();
   const statusEl = document.getElementById('scan-status');
 
