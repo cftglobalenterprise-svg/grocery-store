@@ -88,6 +88,7 @@
 
   .order-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
   .order-row:last-child { border-bottom: none; }
+  .order-row.is-delivery { border-left: 3px solid var(--blue); padding-left: 10px; margin-left: -3px; }
   .order-info { flex: 1; min-width: 0; }
   .order-name { font-size: 14px; font-weight: 500; }
   .order-detail { font-size: 12px; color: var(--text2); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -508,18 +509,29 @@
         </div>
       </div>
       <!-- Metrics -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px">
         <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center">
           <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-revenue">RM 0.00</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">总营业额</div>
-        </div>
-        <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center">
-          <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-count">0</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">完成订单</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">已完成营业额</div>
         </div>
         <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center">
           <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-items">0</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px">商品件数</div>
+        </div>
+      </div>
+      <!-- Pending breakdown row -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+        <div style="background:var(--amber-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #f0d98a">
+          <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:var(--amber)" id="ord-pending-total">0</div>
+          <div style="font-size:10px;color:var(--amber);margin-top:2px">待处理</div>
+        </div>
+        <div style="background:var(--blue-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #a9cce3">
+          <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)" id="ord-pending-delivery">0</div>
+          <div style="font-size:10px;color:var(--blue);margin-top:2px">待配送</div>
+        </div>
+        <div style="background:var(--green-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #a3d9b1">
+          <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)" id="ord-count">0</div>
+          <div style="font-size:10px;color:var(--green);margin-top:2px">已完成</div>
         </div>
       </div>
       <!-- Daily bar chart -->
@@ -1648,19 +1660,21 @@ function renderOrders() {
     const totalLine = `<li style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;font-weight:600" id="pg-total-${gKey}">合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${groupTotal.toFixed(2)}</span></li>`;
     const ids = g.orders.map(o=>o.id).join(',');
 
-    return `<div class="order-row" id="${gKey}" style="align-items:flex-start;gap:8px">
+    return `<div class="order-row${g.is_delivery ? ' is-delivery' : ''}" id="${gKey}" style="align-items:flex-start;gap:8px">
       ${g.is_delivery ? `<label style="display:flex;align-items:flex-start;padding-top:3px;flex-shrink:0;cursor:pointer">
         <input type="checkbox" data-gkey="${gKey}" class="delivery-chk" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer">
       </label>` : ''}
       <div class="order-info" style="flex:1;min-width:0">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:6px">
           <div style="min-width:0;flex:1">
-            <div id="pg-name-${gKey}" class="order-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.customer}</div>
-            <div id="pg-loc-${gKey}" style="font-size:12px;color:var(--text2);margin-top:1px">${g.location}</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">
+              <div id="pg-name-${gKey}" style="font-size:17px;font-weight:700;color:${g.is_delivery ? 'var(--blue)' : '#b45309'};letter-spacing:-0.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${g.customer}</div>
+              ${db}
+            </div>
+            <div id="pg-loc-${gKey}" style="font-size:12px;color:var(--text2)">${g.location}</div>
           </div>
           <div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
             <span style="font-size:11px;color:var(--text3)">${g.dt}</span>
-            ${db}
             <button onclick="openPendingEditPanel('${gKey}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;color:var(--text2)" title="编辑订单">✏️</button>
           </div>
         </div>
@@ -1689,8 +1703,8 @@ function renderOrders() {
         <ul class="order-items-list" id="pg-items-${gKey}" style="margin-top:4px">${itemLines}${totalLine}</ul>
       </div>
       <div class="order-actions" style="flex-shrink:0">
-        <button class="btn btn-success" style="font-size:12px;padding:5px 8px" onclick="collectGroup('${ids}')">取货付款</button>
-        <button class="btn btn-danger" style="font-size:12px;padding:5px 8px" onclick="cancelGroup('${ids}')">取消</button>
+        <button class="btn btn-success" style="font-size:12px;padding:5px 8px;background:var(--green);color:#fff;border-color:var(--green)" onclick="collectGroup('${ids}')">✅ 取货</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:5px 8px" onclick="cancelGroup('${ids}')">✕ 取消</button>
       </div>
     </div>`;
   }
@@ -1700,17 +1714,38 @@ function renderOrders() {
   if(deliveryEl) deliveryEl.innerHTML = deliveryGroups.length ? deliveryGroups.map(buildGroupHTML).join('') : '<div class="empty">暂无配送订单</div>';
   if(pickupEl)   pickupEl.innerHTML   = pickupGroups.length  ? pickupGroups.map(buildGroupHTML).join('')  : '<div class="empty">暂无自取订单</div>';
 
-  if(dEl) dEl.innerHTML = done.length ? done.slice(0,30).map(o => {
-    const b = o.status==='collected' ? '<span class="badge badge-done">已取货</span>' : '<span class="badge badge-cancel">已取消</span>';
-    const isD = o.is_delivery ? '<span class="badge badge-shop">配送</span>' : '';
-    const dt = new Date(o.created_at).toLocaleDateString('zh-CN');
-    return `<div class="order-row">
-      <div class="order-info">
-        <div class="order-name">${o.customer} ${b} ${isD}</div>
-        <div class="order-detail">${o.item_name} × ${o.qty} <span>${dt}</span></div>
-      </div>
-    </div>`;
-  }).join('') : '<div class="empty">暂无历史记录</div>';
+  if(dEl) {
+    const doneOrders = done.slice(0, 60);
+    // Group by customer + minute
+    const doneGrouped = {};
+    doneOrders.forEach(o => {
+      const minute = new Date(o.created_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const key = o.customer + '||' + (o.location||'') + '||' + minute;
+      if(!doneGrouped[key]) doneGrouped[key] = { customer: o.customer, location: o.location, status: o.status, is_delivery: o.is_delivery, minute, orders: [] };
+      doneGrouped[key].orders.push(o);
+    });
+    dEl.innerHTML = Object.values(doneGrouped).length ? Object.values(doneGrouped).map(g => {
+      const b = g.status==='collected' ? '<span class="badge badge-done">✅ 已取货</span>' : '<span class="badge badge-cancel">✕ 已取消</span>';
+      const isD = g.is_delivery ? '<span class="badge badge-shop" style="font-size:10px">配送</span>' : '';
+      const dt = new Date(g.orders[0].created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+      const itemLines = g.orders.map(o=>{
+        const sub = o.total_price ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+o.total_price).toFixed(2)}</span>` : '';
+        return `<div style="font-size:12px;color:var(--text2);padding:1px 0">• ${o.item_name} × ${o.qty}${sub}</div>`;
+      }).join('');
+      return `<div class="order-row${g.is_delivery?' is-delivery':''}">
+        <div class="order-info">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+            <span class="order-name">${g.customer}</span>
+            ${b} ${isD}
+            <span style="font-size:11px;color:var(--text3);margin-left:auto">${dt}</span>
+          </div>
+          ${itemLines}
+          ${groupTotal > 0 ? `<div style="font-size:12px;font-weight:600;color:var(--green);font-family:'DM Mono',monospace;margin-top:4px">合计 RM ${groupTotal.toFixed(2)}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty">暂无历史记录</div>';
+  }
 }
 
 // ── ORDER TYPE (delivery / pickup) ─────────────────────────────────
@@ -3571,6 +3606,23 @@ function renderOrdDashboard() {
     const d = new Date(o.created_at);
     return d >= start && d <= end;
   });
+
+  // Pending orders stats (not date-filtered — always show current)
+  const pendingAll = orders.filter(o => o.status === 'pending');
+  const pendingDelivery = pendingAll.filter(o => o.is_delivery);
+  // Count unique pending groups by customer+location+minute key
+  const pendingGroups = new Set(pendingAll.map(o => {
+    const minute = new Date(o.created_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    return o.customer + '||' + o.location + '||' + minute;
+  }));
+  const pendingDeliveryGroups = new Set(pendingDelivery.map(o => {
+    const minute = new Date(o.created_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    return o.customer + '||' + o.location + '||' + minute;
+  }));
+  const pendingTotalEl = document.getElementById('ord-pending-total');
+  const pendingDelEl   = document.getElementById('ord-pending-delivery');
+  if(pendingTotalEl) pendingTotalEl.textContent = pendingGroups.size;
+  if(pendingDelEl)   pendingDelEl.textContent   = pendingDeliveryGroups.size;
 
   // ── Metrics ──────────────────────────────────────────────────────
   const revenue   = filtered.reduce((s,o) => s + (+(o.total_price||0)), 0);
