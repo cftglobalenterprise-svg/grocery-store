@@ -1631,12 +1631,16 @@ function renderOrders() {
     const db = g.deduct_from==='home' ? '<span class="badge badge-home">扣家里</span>' : '<span class="badge badge-shop">扣店里</span>';
     const itemLines = g.orders.map(o => {
       const price = o.total_price ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600">RM ${(+o.total_price).toFixed(2)}</span>` : '';
-      return `<li style="display:flex;align-items:center;gap:6px;padding:3px 0">
-        <span style="flex:1">• ${o.item_name} ×
-          <input type="number" min="1" value="${o.qty}" style="width:42px;padding:1px 4px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace"
+      return `<li style="display:flex;align-items:center;gap:6px;padding:3px 0;flex-wrap:wrap">
+        <span style="flex:1;min-width:0">• ${o.item_name}</span>
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+          <span style="font-size:11px;color:var(--text3)">x</span>
+          <input type="number" min="1" value="${o.qty}" style="width:40px;padding:1px 4px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace"
             onchange="updateOrderItemQty(${o.id},'${gKey}',this.value)">
-          ${price}
-        </span>
+          <span style="font-size:11px;color:var(--text3)">RM</span>
+          <input type="number" min="0" step="0.01" value="${o.total_price ? (+o.total_price).toFixed(2) : '0.00'}" style="width:58px;padding:1px 4px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace;color:var(--green);font-weight:600"
+            onchange="updateOrderItemPrice(${o.id},'${gKey}',this.value)">
+        </div>
         <button onclick="removeOrderItem(${o.id},'${gKey}')" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0;flex-shrink:0">✕</button>
       </li>`;
     }).join('');
@@ -1766,23 +1770,25 @@ function refreshPendingTotal(gKey) {
     : '';
 }
 
+async function updateOrderItemPrice(orderId, gKey, val) {
+  const price = Math.max(0, parseFloat(val) || 0);
+  const g = window._pendingGroups[gKey];
+  if(!g) return;
+  const o = g.orders.find(x => x.id === orderId);
+  if(!o) return;
+  await sb.from('orders').update({ total_price: price }).eq('id', orderId);
+  o.total_price = price;
+  refreshPendingTotal(gKey);
+}
+
 async function updateOrderItemQty(orderId, gKey, val) {
   const qty = Math.max(1, parseInt(val) || 1);
   const g = window._pendingGroups[gKey];
   if(!g) return;
   const o = g.orders.find(x => x.id === orderId);
   if(!o) return;
-  const item = items.find(i => i.id === o.item_id);
-  const newTotal = item ? (+(item.price||0)) * qty : 0;
-  await sb.from('orders').update({ qty, total_price: newTotal }).eq('id', orderId);
+  await sb.from('orders').update({ qty }).eq('id', orderId);
   o.qty = qty;
-  o.total_price = newTotal;
-  // Update price display
-  const li = document.querySelector(`#pg-items-${gKey} li input[onchange*="${orderId}"]`)?.closest('li');
-  if(li) {
-    const priceSpan = li.querySelector('span > span');
-    if(priceSpan && newTotal > 0) priceSpan.textContent = `RM ${newTotal.toFixed(2)}`;
-  }
   refreshPendingTotal(gKey);
 }
 
