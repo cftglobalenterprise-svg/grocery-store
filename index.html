@@ -1689,12 +1689,11 @@ function renderOrders() {
   const done    = orders.filter(o=>o.status!=='pending');
   const dEl = document.getElementById('done-list');
 
-  // Group by customer + location + minute
+  // Group by customer + location only (merge all pending orders for same customer)
   const grouped = {};
   pending.forEach(o => {
     const dt = new Date(o.created_at).toLocaleDateString('zh-CN');
-    const minute = new Date(o.created_at).toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-    const key = o.customer + '||' + o.location + '||' + minute;
+    const key = o.customer + '||' + o.location;
     if(!grouped[key]) grouped[key] = { customer: o.customer, location: o.location, deduct_from: o.deduct_from, is_delivery: !!o.is_delivery, payment_status: o.payment_status || 'unpaid', dt, orders: [] };
     grouped[key].orders.push(o);
   });
@@ -2132,18 +2131,18 @@ function buildSelectedOrdersText() {
   const lines = checked.map((chk, i) => {
     const g = window._pendingGroups[chk.dataset.gkey];
     if(!g) return '';
-    const itemList = g.orders.map(o => {
-      const price = o.total_price ? ` RM ${(+o.total_price).toFixed(2)}` : '';
-      return `   - ${o.item_name} x${o.qty}${price}`;
-    }).join('\n');
+    const itemList = g.orders.map(o => `   - ${o.item_name} x${o.qty}`).join('\n');
     const total = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
-    const totalLine = total > 0 ? `\n   *Total: RM ${total.toFixed(2)}*` : '';
-    const payLabels = { unpaid: '❌ 未付款 (collect cash/QR)', cod: '💵 货到付款 (collect RM ' + total.toFixed(2) + ')', paid_qr: '✅ 已付QR', paid_cash: '✅ 已付Cash' };
-    const payLine = '\n   ' + (payLabels[g.payment_status || 'unpaid'] || '❌ 未付款');
-    return `*${i+1}. ${g.customer}*\n${g.location}\n${itemList}${totalLine}${payLine}`;
+    const pay = g.payment_status || 'unpaid';
+    const isPaid = pay === 'paid_qr' || pay === 'paid_cash';
+    const payLabel = { unpaid: 'UNPAID', cod: 'COD', paid_qr: 'PAID QR', paid_cash: 'PAID CASH' }[pay];
+    const headerSuffix = isPaid
+      ? ` - ${payLabel}`
+      : ` - RM ${total.toFixed(2)} (${payLabel})`;
+    return `${i+1}. ${g.customer}${headerSuffix}\n${g.location}\n${itemList}`;
   }).filter(Boolean).join('\n\n');
 
-  return `*${today} - DELIVERY*\n\n${lines}`;
+  return `${today} - DELIVERY\n\n${lines}`;
 }
 
 function copySelectedOrders() {
