@@ -545,13 +545,27 @@
       <div class="card-title">新增订单</div>
 
       <div class="form-row"><label>顾客名/电话</label><input type="text" id="o-customer" placeholder="顾客名字或电话"></div>
-      <div class="form-row"><label>取货地点</label><input type="text" id="o-location" placeholder="例：店里、家里、XX路"></div>
+      <div class="form-row"><label>地址/备注</label><input type="text" id="o-location" placeholder="例：店里、Taman XX No.1"></div>
       <div class="form-row">
         <label>扣库存从</label>
         <select id="o-deduct">
           <option value="home">家里库存</option>
           <option value="shop">店里库存</option>
         </select>
+      </div>
+      <!-- Delivery toggle -->
+      <div class="form-row" style="gap:10px">
+        <label>类型</label>
+        <div style="display:flex;gap:8px;flex:1">
+          <button id="o-type-pickup" onclick="setOrderType('pickup')"
+            style="flex:1;padding:8px;font-size:13px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--text);background:var(--text);color:#fff;cursor:pointer;transition:all 0.15s">
+            自取
+          </button>
+          <button id="o-type-delivery" onclick="setOrderType('delivery')"
+            style="flex:1;padding:8px;font-size:13px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;transition:all 0.15s">
+            配送
+          </button>
+        </div>
       </div>
 
       <div class="divider"></div>
@@ -588,17 +602,23 @@
       <button class="btn btn-block" onclick="addOrder()">+ 下单（自动扣库存）</button>
     </div>
 
+    <!-- DELIVERY orders -->
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div class="card-title" style="margin-bottom:0">待取货付款</div>
+        <div class="card-title" style="margin-bottom:0;color:var(--blue)">配送订单</div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-success" style="font-size:12px;padding:5px 12px" onclick="copySelectedOrders()">📋 复制选中</button>
-          <button class="btn" style="font-size:12px;padding:5px 12px;background:#25D366;color:#fff;border-color:#25D366" onclick="sendToRiderWhatsApp()">
-            💬 Rider
-          </button>
+          <button class="btn" style="font-size:12px;padding:5px 10px" onclick="selectAllDelivery()">全选</button>
+          <button class="btn" style="font-size:12px;padding:5px 10px" onclick="copySelectedOrders()">复制选中</button>
+          <button class="btn" style="font-size:12px;padding:5px 10px;background:#25D366;color:#fff;border-color:#25D366" onclick="sendToRiderWhatsApp()">发给 Rider</button>
         </div>
       </div>
-      <div id="pending-list"><div class="empty">暂无待取货</div></div>
+      <div id="pending-delivery"><div class="empty">暂无配送订单</div></div>
+    </div>
+
+    <!-- PICKUP orders -->
+    <div class="card">
+      <div class="card-title">自取订单</div>
+      <div id="pending-pickup"><div class="empty">暂无自取订单</div></div>
     </div>
     <div class="card">
       <div class="card-title">历史记录</div>
@@ -1417,12 +1437,13 @@ async function addOrder() {
     await sb.from('orders').insert({
       customer, item_id: item.id, item_name: item.name,
       qty: c.qty, location: loc, deduct_from: deduct, status: 'pending',
-      total_price: itemTotal
+      total_price: itemTotal, is_delivery: _orderType === 'delivery'
     });
   }
 
   document.getElementById('o-customer').value='';
   document.getElementById('o-location').value='';
+  setOrderType('pickup'); // reset to pickup
   clearCart();
   await loadItems();
   await loadOrders();
@@ -1582,30 +1603,32 @@ function renderInstoreHistory() {
 
 function renderOrders() {
   const pending = orders.filter(o=>o.status==='pending');
-  const done = orders.filter(o=>o.status!=='pending');
-  const pEl = document.getElementById('pending-list');
+  const done    = orders.filter(o=>o.status!=='pending');
   const dEl = document.getElementById('done-list');
-  if(!pEl) return;
 
-  // Group pending orders by customer + location + date (same order)
+  // Group by customer + location + minute
   const grouped = {};
   pending.forEach(o => {
     const dt = new Date(o.created_at).toLocaleDateString('zh-CN');
-    // Group by customer + location + date (rounded to minute for same batch)
     const minute = new Date(o.created_at).toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
     const key = o.customer + '||' + o.location + '||' + minute;
-    if(!grouped[key]) grouped[key] = { customer: o.customer, location: o.location, deduct_from: o.deduct_from, dt, orders: [] };
+    if(!grouped[key]) grouped[key] = { customer: o.customer, location: o.location, deduct_from: o.deduct_from, is_delivery: !!o.is_delivery, dt, orders: [] };
     grouped[key].orders.push(o);
   });
 
-  // Store grouped data for copy function
   window._pendingGroups = {};
-
-  pEl.innerHTML = Object.values(grouped).length ? Object.values(grouped).map((g, gi) => {
+  const deliveryGroups = [], pickupGroups = [];
+  Object.values(grouped).forEach((g, gi) => {
     const gKey = 'pg_' + gi;
     window._pendingGroups[gKey] = g;
-    const lb = `<span class="badge badge-shop">${g.location}</span>`;
-    const db = g.orders[0].deduct_from==='home' ? '<span class="badge badge-home">扣家里</span>' : '<span class="badge badge-shop">扣店里</span>';
+    g._key = gKey;
+    if(g.is_delivery) deliveryGroups.push(g);
+    else pickupGroups.push(g);
+  });
+
+  function buildGroupHTML(g) {
+    const gKey = g._key;
+    const db = g.deduct_from==='home' ? '<span class="badge badge-home">扣家里</span>' : '<span class="badge badge-shop">扣店里</span>';
     const itemLines = g.orders.map(o => {
       const price = o.total_price ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600">RM ${(+o.total_price).toFixed(2)}</span>` : '';
       return `<li style="display:flex;align-items:center;gap:6px;padding:3px 0">
@@ -1614,110 +1637,122 @@ function renderOrders() {
             onchange="updateOrderItemQty(${o.id},'${gKey}',this.value)">
           ${price}
         </span>
-        <button onclick="removeOrderItem(${o.id},'${gKey}')" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="删除此商品">✕</button>
+        <button onclick="removeOrderItem(${o.id},'${gKey}')" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0;flex-shrink:0">✕</button>
       </li>`;
     }).join('');
-    const groupTotal = g.orders.reduce((s,o) => s + (+(o.total_price||0)), 0);
-    const totalLine = groupTotal > 0 ? `<li style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;font-weight:600" id="pg-total-${gKey}">合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${groupTotal.toFixed(2)}</span></li>` : `<li id="pg-total-${gKey}"></li>`;
+    const groupTotal = g.orders.reduce((s,o) => s+(+(o.total_price||0)), 0);
+    const totalLine = `<li style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;font-weight:600" id="pg-total-${gKey}">合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${groupTotal.toFixed(2)}</span></li>`;
     const ids = g.orders.map(o=>o.id).join(',');
-    return `<div class="order-row" id="${gKey}" style="align-items:flex-start">
-      <label style="display:flex;align-items:flex-start;padding-top:2px;cursor:pointer;flex-shrink:0">
-        <input type="checkbox" data-gkey="${gKey}" style="width:16px;height:16px;accent-color:var(--green);margin-top:1px;cursor:pointer">
-      </label>
-      <div class="order-info" style="flex:1">
-        <!-- Customer name: click to edit -->
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-          <span id="pg-name-${gKey}" class="order-name" style="cursor:pointer;border-bottom:1px dashed var(--border)" title="点击编辑" onclick="editPendingField('${gKey}','name')">${g.customer}</span>
-          <button onclick="editPendingField('${gKey}','name')" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;padding:0;line-height:1" title="编辑顾客">✏️</button>
-        </div>
-        <!-- Location: click to edit -->
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <span id="pg-loc-${gKey}" style="cursor:pointer;border-bottom:1px dashed var(--border);font-size:13px;color:var(--text2)" title="点击编辑地址" onclick="editPendingField('${gKey}','location')">${g.location}</span>
-          <button onclick="editPendingField('${gKey}','location')" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;padding:0;line-height:1" title="编辑地址">✏️</button>
-          ${db} <span style="font-size:12px;color:var(--text3)">${g.dt}</span>
-        </div>
-        <!-- Items list -->
-        <ul class="order-items-list" id="pg-items-${gKey}" style="margin-top:6px">${itemLines}${totalLine}</ul>
-        <!-- Add item -->
-        <div style="margin-top:6px">
-          <button onclick="openAddItemToPending('${gKey}')" style="background:none;border:1px dashed var(--border);border-radius:6px;padding:3px 10px;font-size:11px;color:var(--text3);cursor:pointer;width:100%;text-align:left">＋ 加商品</button>
-          <div id="pg-add-${gKey}" style="display:none;margin-top:6px;background:var(--surface2);border-radius:8px;padding:8px">
-            <input type="text" placeholder="搜索商品名..." oninput="searchAddToPending('${gKey}',this.value)"
-              style="width:100%;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);margin-bottom:6px">
-            <div id="pg-add-results-${gKey}"></div>
+
+    return `<div class="order-row" id="${gKey}" style="align-items:flex-start;gap:8px">
+      ${g.is_delivery ? `<label style="display:flex;align-items:flex-start;padding-top:3px;flex-shrink:0;cursor:pointer">
+        <input type="checkbox" data-gkey="${gKey}" class="delivery-chk" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer">
+      </label>` : ''}
+      <div class="order-info" style="flex:1;min-width:0">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px">
+          <div style="min-width:0;flex:1">
+            <div id="pg-name-${gKey}" class="order-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.customer}</div>
+            <div id="pg-loc-${gKey}" style="font-size:12px;color:var(--text2);margin-top:1px">${g.location}</div>
+          </div>
+          <div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
+            <span style="font-size:11px;color:var(--text3)">${g.dt}</span>
+            ${db}
+            <button onclick="openPendingEditPanel('${gKey}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;color:var(--text2)" title="编辑订单">✏️</button>
           </div>
         </div>
+        <!-- Edit panel (hidden by default) -->
+        <div id="pg-edit-${gKey}" style="display:none;background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:8px;border:1px solid var(--border)">
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <input id="pg-edit-name-${gKey}" type="text" value="${g.customer}" placeholder="顾客名/电话"
+              style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+            <input id="pg-edit-loc-${gKey}" type="text" value="${g.location}" placeholder="地址"
+              style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+            <button onclick="savePendingEdit('${gKey}')" style="background:var(--green);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;font-weight:600">保存</button>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:600">加商品</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <input type="text" placeholder="搜索商品名..." oninput="searchAddToPending('${gKey}',this.value)" id="pg-search-${gKey}"
+              style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+            <button onclick="openScanModal('pending_${gKey}')" class="btn btn-scan" style="flex-shrink:0">📷 扫</button>
+          </div>
+          <div id="pg-add-results-${gKey}"></div>
+        </div>
+        <ul class="order-items-list" id="pg-items-${gKey}" style="margin-top:4px">${itemLines}${totalLine}</ul>
       </div>
-      <div class="order-actions">
-        <button class="btn btn-success" style="font-size:12px;padding:5px 8px" onclick="collectGroup('${ids}')">已取货付款</button>
+      <div class="order-actions" style="flex-shrink:0">
+        <button class="btn btn-success" style="font-size:12px;padding:5px 8px" onclick="collectGroup('${ids}')">取货付款</button>
         <button class="btn btn-danger" style="font-size:12px;padding:5px 8px" onclick="cancelGroup('${ids}')">取消</button>
       </div>
     </div>`;
-  }).join('') : '<div class="empty">暂无待取货</div>';
+  }
 
-  dEl.innerHTML = done.length ? done.slice(0,30).map(o => {
+  const deliveryEl = document.getElementById('pending-delivery');
+  const pickupEl   = document.getElementById('pending-pickup');
+  if(deliveryEl) deliveryEl.innerHTML = deliveryGroups.length ? deliveryGroups.map(buildGroupHTML).join('') : '<div class="empty">暂无配送订单</div>';
+  if(pickupEl)   pickupEl.innerHTML   = pickupGroups.length  ? pickupGroups.map(buildGroupHTML).join('')  : '<div class="empty">暂无自取订单</div>';
+
+  if(dEl) dEl.innerHTML = done.length ? done.slice(0,30).map(o => {
     const b = o.status==='collected' ? '<span class="badge badge-done">已取货</span>' : '<span class="badge badge-cancel">已取消</span>';
+    const isD = o.is_delivery ? '<span class="badge badge-shop">配送</span>' : '';
     const dt = new Date(o.created_at).toLocaleDateString('zh-CN');
     return `<div class="order-row">
       <div class="order-info">
-        <div class="order-name">${o.customer} ${b}</div>
+        <div class="order-name">${o.customer} ${b} ${isD}</div>
         <div class="order-detail">${o.item_name} × ${o.qty} <span>${dt}</span></div>
       </div>
     </div>`;
   }).join('') : '<div class="empty">暂无历史记录</div>';
 }
 
-function editPendingField(gKey, field) {
+// ── ORDER TYPE (delivery / pickup) ─────────────────────────────────
+let _orderType = 'pickup';
+function setOrderType(type) {
+  _orderType = type;
+  const pb = document.getElementById('o-type-pickup');
+  const db = document.getElementById('o-type-delivery');
+  if(type === 'pickup') {
+    pb.style.cssText = 'flex:1;padding:8px;font-size:13px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--text);background:var(--text);color:#fff;cursor:pointer;transition:all 0.15s';
+    db.style.cssText = 'flex:1;padding:8px;font-size:13px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;transition:all 0.15s';
+  } else {
+    db.style.cssText = 'flex:1;padding:8px;font-size:13px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--blue);background:var(--blue);color:#fff;cursor:pointer;transition:all 0.15s';
+    pb.style.cssText = 'flex:1;padding:8px;font-size:13px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;transition:all 0.15s';
+  }
+}
+
+function openPendingEditPanel(gKey) {
+  const panel = document.getElementById('pg-edit-' + gKey);
+  if(!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if(panel.style.display === 'block') {
+    const inp = document.getElementById('pg-search-' + gKey);
+    if(inp) inp.focus();
+  }
+}
+
+async function savePendingEdit(gKey) {
   const g = window._pendingGroups[gKey];
   if(!g) return;
-
-  const isName = field === 'name';
-  const spanId = isName ? `pg-name-${gKey}` : `pg-loc-${gKey}`;
-  const span = document.getElementById(spanId);
-  if(!span || span.querySelector('input')) return; // already editing
-
-  const current = isName ? g.customer : g.location;
-  const origHtml = span.innerHTML;
-
-  // Replace span content with input
-  span.innerHTML = '';
-  const inp = document.createElement('input');
-  inp.type = 'text';
-  inp.value = current;
-  inp.style.cssText = 'width:100%;padding:3px 7px;font-size:13px;border:1px solid var(--text);border-radius:6px;font-family:inherit;background:var(--bg);color:var(--text);font-weight:' + (isName ? '600' : '400');
-  span.appendChild(inp);
-  inp.focus();
-  inp.select();
-
-  async function save() {
-    const newVal = inp.value.trim();
-    if(!newVal) { span.innerHTML = origHtml; return; }
-
-    // Update in DB for all orders in this group
-    setSync('busy', '更新中...');
-    const updateField = isName ? 'customer' : 'location';
-    for(const o of g.orders) {
-      await sb.from('orders').update({ [updateField]: newVal }).eq('id', o.id);
-      o[updateField] = newVal; // update local copy
-    }
-    if(isName) g.customer = newVal;
-    else g.location = newVal;
-
-    // Update the span text
-    span.textContent = newVal;
-    span.style.cssText = 'cursor:pointer;border-bottom:1px dashed var(--border);' + (isName ? 'font-size:15px;font-weight:600' : 'font-size:13px;color:var(--text2)');
-    span.onclick = () => editPendingField(gKey, field);
-
-    // Also update _pendingGroups for copy function
-    window._pendingGroups[gKey] = g;
-    setSync('ok', '已更新 · ' + timeNow());
+  const newName = document.getElementById('pg-edit-name-' + gKey)?.value.trim();
+  const newLoc  = document.getElementById('pg-edit-loc-' + gKey)?.value.trim();
+  if(!newName && !newLoc) return;
+  setSync('busy','更新中...');
+  for(const o of g.orders) {
+    const upd = {};
+    if(newName) upd.customer = newName;
+    if(newLoc)  upd.location = newLoc;
+    await sb.from('orders').update(upd).eq('id', o.id);
+    if(newName) o.customer = newName;
+    if(newLoc)  o.location = newLoc;
   }
+  if(newName) { g.customer = newName; const el = document.getElementById('pg-name-' + gKey); if(el) el.textContent = newName; }
+  if(newLoc)  { g.location = newLoc;  const el = document.getElementById('pg-loc-' + gKey);  if(el) el.textContent = newLoc; }
+  window._pendingGroups[gKey] = g;
+  setSync('ok','已更新 · ' + timeNow());
+  document.getElementById('pg-edit-' + gKey).style.display = 'none';
+}
 
-  inp.addEventListener('blur', save);
-  inp.addEventListener('keydown', e => {
-    if(e.key === 'Enter') { inp.blur(); }
-    if(e.key === 'Escape') { span.innerHTML = origHtml; }
-  });
+function selectAllDelivery() {
+  document.querySelectorAll('.delivery-chk').forEach(chk => chk.checked = true);
 }
 
 // ── PENDING ORDER ITEM EDITING ──────────────────────────────────────
@@ -1812,9 +1847,9 @@ async function addItemToPending(gKey, itemId) {
   const { data, error } = await sb.from('orders').insert({
     customer: g.customer, item_id: item.id, item_name: item.name,
     qty: 1, location: g.location, deduct_from: deduct,
-    status: 'pending', total_price
+    status: 'pending', total_price, is_delivery: !!g.is_delivery
   }).select().single();
-  if(error) { alert('加入失败'); return; }
+  if(error) { alert('加入失败：' + error.message); return; }
 
   // Deduct stock
   const field = deduct === 'shop' ? 'shop_qty' : 'home_qty';
@@ -1838,53 +1873,52 @@ async function addItemToPending(gKey, itemId) {
 
   refreshPendingTotal(gKey);
 
-  // Close search
-  const wrap = document.getElementById('pg-add-' + gKey);
-  if(wrap) { wrap.style.display = 'none'; wrap.querySelector('input').value = ''; }
-  document.getElementById('pg-add-results-' + gKey).innerHTML = '';
+  // Clear search box
+  const searchInp = document.getElementById('pg-search-' + gKey);
+  if(searchInp) searchInp.value = '';
+  const resultsEl = document.getElementById('pg-add-results-' + gKey);
+  if(resultsEl) resultsEl.innerHTML = '';
   await loadItems();
 }
 
 function buildSelectedOrdersText() {
-  const checked = [...document.querySelectorAll('#pending-list input[type=checkbox]:checked')];
+  const checked = [...document.querySelectorAll('.delivery-chk:checked')];
   if(!checked.length) return null;
 
+  const today = new Date().toLocaleDateString('en-GB', {day:'2-digit', month:'2-digit', year:'numeric'});
   const lines = checked.map((chk, i) => {
     const g = window._pendingGroups[chk.dataset.gkey];
     if(!g) return '';
     const itemList = g.orders.map(o => {
       const price = o.total_price ? ` RM ${(+o.total_price).toFixed(2)}` : '';
-      return `   • ${o.item_name} x${o.qty}${price}`;
+      return `   - ${o.item_name} x${o.qty}${price}`;
     }).join('\n');
     const total = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
     const totalLine = total > 0 ? `\n   *Total: RM ${total.toFixed(2)}*` : '';
-    return `*${i+1}. ${g.customer}*\n📍 ${g.location}\n${itemList}${totalLine}`;
+    return `*${i+1}. ${g.customer}*\n${g.location}\n${itemList}${totalLine}`;
   }).filter(Boolean).join('\n\n');
 
-  const today = new Date().toLocaleDateString('en-GB', {day:'2-digit', month:'2-digit', year:'numeric'}).replace(/\//g,'/');
   return `*${today} - DELIVERY*\n\n${lines}`;
 }
 
 function copySelectedOrders() {
   const text = buildSelectedOrdersText();
   if(!text) { alert('请先勾选要复制的订单'); return; }
-
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.querySelector('button[onclick="copySelectedOrders()"]');
-    if(btn) { btn.textContent = '✅ 已复制！'; setTimeout(()=>{ btn.textContent = '📋 复制选中'; }, 2000); }
+    if(btn) { const orig = btn.textContent; btn.textContent = '已复制！'; setTimeout(()=>{ btn.textContent = orig; }, 2000); }
   }).catch(() => {
     const ta = document.createElement('textarea');
     ta.value = text; document.body.appendChild(ta); ta.select();
     document.execCommand('copy'); document.body.removeChild(ta);
-    alert('已复制！可以贴到 WhatsApp 了');
+    alert('已复制！');
   });
 }
 
 function sendToRiderWhatsApp() {
   const text = buildSelectedOrdersText();
   if(!text) { alert('请先勾选要发送的订单'); return; }
-  const encoded = encodeURIComponent(text);
-  window.open(`https://wa.me/60165531109?text=${encoded}`, '_blank');
+  window.open(`https://wa.me/60165531109?text=${encodeURIComponent(text)}`, '_blank');
 }
 
 async function collectGroup(idsStr) {
@@ -2280,6 +2314,27 @@ function onBarcodeDetected(code) {
       }, 2000);
     }
 
+  } else if(scanTarget && scanTarget.startsWith('pending_')) {
+    const gKey = scanTarget.replace('pending_', '');
+    const found = items.find(i => i.barcode && i.barcode === code);
+    if(found) {
+      statusEl.textContent = '✅ 已识别：' + found.name;
+      statusEl.className = 'scan-status found';
+      setTimeout(async () => {
+        closeScanModal();
+        await addItemToPending(gKey, found.id);
+      }, 600);
+    } else {
+      statusEl.textContent = '❌ 未找到商品（' + code + '）';
+      statusEl.className = 'scan-status error';
+      setTimeout(() => {
+        if(document.getElementById('scan-modal').classList.contains('open')) {
+          statusEl.textContent = '📡 重新扫描...';
+          statusEl.className = 'scan-status';
+          startScanner();
+        }
+      }, 2000);
+    }
   } else if(scanTarget === 'order' || scanTarget === 'instore') {
     const found = items.find(i => i.barcode && i.barcode === code);
     if(found) {
