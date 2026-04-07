@@ -2139,7 +2139,7 @@ function buildSelectedOrdersText() {
     const headerSuffix = isPaid
       ? ` - ${payLabel}`
       : ` - RM ${total.toFixed(2)} (${payLabel})`;
-    return `${i+1}. ${g.customer}${headerSuffix}\n${g.location}\n${itemList}`;
+    return `${i+1}. ${g.customer}${headerSuffix}\n${itemList}\n${g.location}`;
   }).filter(Boolean).join('\n\n');
 
   return `${today} - DELIVERY\n\n${lines}`;
