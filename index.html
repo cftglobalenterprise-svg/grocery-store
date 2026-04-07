@@ -3783,15 +3783,9 @@ function renderOrdDashboard() {
   // Pending orders stats (not date-filtered — always show current)
   const pendingAll = orders.filter(o => o.status === 'pending');
   const pendingDelivery = pendingAll.filter(o => o.is_delivery);
-  // Count unique pending groups by customer+location+minute key
-  const pendingGroups = new Set(pendingAll.map(o => {
-    const minute = new Date(o.created_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-    return o.customer + '||' + o.location + '||' + minute;
-  }));
-  const pendingDeliveryGroups = new Set(pendingDelivery.map(o => {
-    const minute = new Date(o.created_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-    return o.customer + '||' + o.location + '||' + minute;
-  }));
+  // Count unique groups by customer+location (same key as renderOrders)
+  const pendingGroups = new Set(pendingAll.map(o => o.customer + '||' + o.location));
+  const pendingDeliveryGroups = new Set(pendingDelivery.map(o => o.customer + '||' + o.location));
   const pendingTotalEl = document.getElementById('ord-pending-total');
   const pendingDelEl   = document.getElementById('ord-pending-delivery');
   if(pendingTotalEl) pendingTotalEl.textContent = pendingGroups.size;
