@@ -1850,26 +1850,51 @@ async function updateOrderItemPrice(orderId, gKey, val) {
 }
 
 async function updateOrderItemQty(orderId, gKey, val) {
-  const qty = Math.max(1, parseInt(val) || 1);
+  const newQty = Math.max(1, parseInt(val) || 1);
   const g = window._pendingGroups[gKey];
   if(!g) return;
   const o = g.orders.find(x => x.id === orderId);
   if(!o) return;
 
-  // Recalculate total price: unit price × new qty
-  // Unit price = current total_price / current qty (or from item master)
-  const item = items.find(i => i.id === o.item_id);
-  const unitPrice = item?.price ? +(item.price) : (o.qty > 0 ? (+(o.total_price||0)) / o.qty : 0);
-  const newTotal = parseFloat((unitPrice * qty).toFixed(2));
+  const diff = newQty - o.qty; // positive = deduct more, negative = return stock
+  if(diff === 0) return;
 
-  await sb.from('orders').update({ qty, total_price: newTotal }).eq('id', orderId);
-  o.qty = qty;
+  const item = items.find(i => i.id === o.item_id);
+
+  // Check stock if increasing qty
+  if(diff > 0 && item) {
+    const field = o.deduct_from === 'shop' ? 'shop_qty' : 'home_qty';
+    if(item[field] < diff) {
+      alert('库存不足！\n"' + item.name + '" ' + (o.deduct_from==='shop'?'店里':'家里') + ' 只剩 ' + item[field] + ' 个，无法再加 ' + diff + ' 个');
+      const qtyInp = document.querySelector('#pg-items-' + gKey + ' input[onchange*="updateOrderItemQty(' + orderId + '"]');
+      if(qtyInp) qtyInp.value = o.qty;
+      return;
+    }
+  }
+
+  // Recalculate total price
+  const unitPrice = item?.price ? +(item.price) : (o.qty > 0 ? (+(o.total_price||0)) / o.qty : 0);
+  const newTotal = parseFloat((unitPrice * newQty).toFixed(2));
+
+  // Update order record
+  await sb.from('orders').update({ qty: newQty, total_price: newTotal }).eq('id', orderId);
+
+  // Adjust stock by the difference
+  if(item) {
+    const field = o.deduct_from === 'shop' ? 'shop_qty' : 'home_qty';
+    const newStock = item[field] - diff;
+    await sb.from('items').update({ [field]: newStock }).eq('id', item.id);
+    item[field] = newStock;
+  }
+
+  o.qty = newQty;
   o.total_price = newTotal;
 
-  // Update the price input in DOM
-  const priceInp = document.querySelector(`#pg-items-${gKey} input[onchange*="updateOrderItemPrice(${orderId}"]`);
+  // Update price input in DOM
+  const priceInp = document.querySelector('#pg-items-' + gKey + ' input[onchange*="updateOrderItemPrice(' + orderId + '"]');
   if(priceInp) priceInp.value = newTotal.toFixed(2);
 
+  setSync('ok', '已更新数量 · ' + timeNow());
   refreshPendingTotal(gKey);
 }
 
