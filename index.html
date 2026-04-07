@@ -592,6 +592,28 @@
           </button>
         </div>
       </div>
+      <!-- Payment status -->
+      <div class="form-row" style="gap:10px">
+        <label>付款</label>
+        <div style="display:flex;gap:6px;flex:1;flex-wrap:wrap">
+          <button id="o-pay-unpaid" onclick="setPayStatus('unpaid')"
+            style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--amber);background:var(--amber-bg);color:var(--amber);cursor:pointer;min-width:60px">
+            未付款
+          </button>
+          <button id="o-pay-cod" onclick="setPayStatus('cod')"
+            style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px">
+            货到付
+          </button>
+          <button id="o-pay-qr" onclick="setPayStatus('paid_qr')"
+            style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px">
+            已付QR
+          </button>
+          <button id="o-pay-cash" onclick="setPayStatus('paid_cash')"
+            style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px">
+            已付Cash
+          </button>
+        </div>
+      </div>
 
       <div class="divider"></div>
 
@@ -1464,13 +1486,15 @@ async function addOrder() {
     await sb.from('orders').insert({
       customer, item_id: item.id, item_name: item.name,
       qty: c.qty, location: loc, deduct_from: deduct, status: 'pending',
-      total_price: itemTotal, is_delivery: _orderType === 'delivery'
+      total_price: itemTotal, is_delivery: _orderType === 'delivery',
+      payment_status: _payStatus
     });
   }
 
   document.getElementById('o-customer').value='';
   document.getElementById('o-location').value='';
   setOrderType('pickup'); // reset to pickup
+  setPayStatus('unpaid'); // reset payment status
   clearCart();
   await loadItems();
   await loadOrders();
@@ -1491,7 +1515,7 @@ function onInstoreBarcodeTyped(val) {
 function addToInstoreCart(item) {
   const existing = instoreCart.find(c => c.item.id === item.id);
   if(existing) existing.qty += 1;
-  else instoreCart.push({ item, qty: 1 });
+  else instoreCart.push({ item, qty: 1, unitPrice: +(item.price||0) });
   renderInstoreCart();
 }
 
@@ -1508,6 +1532,13 @@ function updateInstoreQty(itemId, val) {
   renderInstoreCart();
 }
 
+function updateInstorePrice(itemId, val) {
+  itemId = parseInt(itemId);
+  const entry = instoreCart.find(c => c.item.id === itemId);
+  if(entry) entry.unitPrice = Math.max(0, parseFloat(val)||0);
+  renderInstoreCart();
+}
+
 function renderInstoreCart() {
   const el = document.getElementById('ins-cart-list');
   document.getElementById('ins-cart-count').textContent = '共 ' + instoreCart.length + ' 项';
@@ -1517,23 +1548,44 @@ function renderInstoreCart() {
     return;
   }
   el.innerHTML = instoreCart.map(c => {
-    const unitPrice = +(c.item.price||0);
+    const unitPrice = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
     const subtotal = (unitPrice * c.qty).toFixed(2);
-    const priceInfo = unitPrice > 0 ? `<span class="price-tag">RM ${unitPrice.toFixed(2)} × ${c.qty} = </span><span class="subtotal-tag">RM ${subtotal}</span>` : '';
+    const priceDisplay = unitPrice > 0
+      ? `<span class="price-tag">RM ${unitPrice.toFixed(2)} × ${c.qty} = </span><span class="subtotal-tag" style="cursor:pointer;text-decoration:underline dotted" onclick="editInstorePrice('${c.item.id}')" title="点击修改单价">RM ${subtotal}</span>`
+      : `<span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="editInstorePrice('${c.item.id}')">＋ 设置价格</span>`;
     return `
-    <div class="cart-item">
-      <div class="cart-item-name">${c.item.name}<br><small style="font-weight:normal">${priceInfo}</small></div>
+    <div class="cart-item" id="ins-row-${c.item.id}">
+      <div class="cart-item-name" style="flex:1;min-width:0">
+        ${c.item.name}
+        <br><small style="font-weight:normal">${priceDisplay}</small>
+      </div>
       <div class="cart-qty-wrap">
-        <label>数量</label>
-        <input type="number" min="1" value="${c.qty}"
+        <label>x</label>
+        <input type="number" min="1" value="${c.qty}" style="width:48px"
           oninput="updateInstoreQty('${c.item.id}', this.value)"
           onchange="updateInstoreQty('${c.item.id}', this.value)">
       </div>
       <button class="cart-remove" onclick="removeFromInstoreCart('${c.item.id}')">✕</button>
     </div>
   `}).join('');
-  const total = instoreCart.reduce((s,c) => s + (+(c.item.price||0)) * c.qty, 0);
+  const total = instoreCart.reduce((s,c) => {
+    const up = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
+    return s + up * c.qty;
+  }, 0);
   document.getElementById('ins-total').textContent = 'RM ' + total.toFixed(2);
+}
+
+function editInstorePrice(itemId) {
+  itemId = parseInt(itemId);
+  const entry = instoreCart.find(c => c.item.id === itemId);
+  if(!entry) return;
+  const curPrice = entry.unitPrice !== undefined ? entry.unitPrice : +(entry.item.price||0);
+  const newVal = prompt('修改单价（RM）：', curPrice.toFixed(2));
+  if(newVal === null) return; // cancelled
+  const parsed = parseFloat(newVal);
+  if(isNaN(parsed) || parsed < 0) { alert('请输入有效价格'); return; }
+  entry.unitPrice = parsed;
+  renderInstoreCart();
 }
 
 async function instoreCheckout() {
@@ -1564,10 +1616,14 @@ async function instoreCheckout() {
   }
 
   setSync('busy','结账中...');
-  const total = instoreCart.reduce((s,c) => s + (+(c.item.price||0)) * c.qty, 0);
+  const total = instoreCart.reduce((s,c) => {
+    const up = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
+    return s + up * c.qty;
+  }, 0);
 
   for(const c of instoreCart) {
     const item = items.find(i => i.id === c.item.id);
+    const unitPrice = c.unitPrice !== undefined ? c.unitPrice : +(item.price||0);
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
       // Bundle: deduct components, not the bundle item itself
       const bat = items.find(i => i.id === item.bundle_components.battery_id);
@@ -1584,7 +1640,7 @@ async function instoreCheckout() {
     await sb.from('orders').insert({
       customer: '门市现场', item_id: item.id, item_name: item.name,
       qty: c.qty, location: '门市', deduct_from: 'shop', status: 'instore',
-      total_price: (+(item.price||0)) * c.qty
+      total_price: unitPrice * c.qty
     });
   }
 
@@ -1639,7 +1695,7 @@ function renderOrders() {
     const dt = new Date(o.created_at).toLocaleDateString('zh-CN');
     const minute = new Date(o.created_at).toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
     const key = o.customer + '||' + o.location + '||' + minute;
-    if(!grouped[key]) grouped[key] = { customer: o.customer, location: o.location, deduct_from: o.deduct_from, is_delivery: !!o.is_delivery, dt, orders: [] };
+    if(!grouped[key]) grouped[key] = { customer: o.customer, location: o.location, deduct_from: o.deduct_from, is_delivery: !!o.is_delivery, payment_status: o.payment_status || 'unpaid', dt, orders: [] };
     grouped[key].orders.push(o);
   });
 
@@ -1657,16 +1713,17 @@ function renderOrders() {
     const gKey = g._key;
     const db = g.deduct_from==='home' ? '<span class="badge badge-home">扣家里</span>' : '<span class="badge badge-shop">扣店里</span>';
     const itemLines = g.orders.map(o => {
-      const price = o.total_price ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600">RM ${(+o.total_price).toFixed(2)}</span>` : '';
+      const total_price = +(o.total_price||0);
+      const priceTag = total_price > 0
+        ? `<span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline dotted" onclick="promptOrderItemPrice(${o.id},'${gKey}')" title="点击修改价格">RM ${total_price.toFixed(2)}</span>`
+        : `<span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="promptOrderItemPrice(${o.id},'${gKey}')">＋ 价格</span>`;
       return `<li style="display:flex;align-items:center;gap:6px;padding:3px 0;flex-wrap:wrap">
         <span style="flex:1;min-width:0">• ${o.item_name}</span>
-        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
           <span style="font-size:11px;color:var(--text3)">x</span>
           <input type="number" min="1" value="${o.qty}" style="width:40px;padding:1px 4px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace"
             onchange="updateOrderItemQty(${o.id},'${gKey}',this.value)">
-          <span style="font-size:11px;color:var(--text3)">RM</span>
-          <input type="number" min="0" step="0.01" value="${o.total_price ? (+o.total_price).toFixed(2) : '0.00'}" style="width:58px;padding:1px 4px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace;color:var(--green);font-weight:600"
-            onchange="updateOrderItemPrice(${o.id},'${gKey}',this.value)">
+          ${priceTag}
         </div>
         <button onclick="removeOrderItem(${o.id},'${gKey}')" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0;flex-shrink:0">✕</button>
       </li>`;
@@ -1685,6 +1742,7 @@ function renderOrders() {
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">
               <div id="pg-name-${gKey}" style="font-size:17px;font-weight:700;color:${g.is_delivery ? 'var(--blue)' : '#b45309'};letter-spacing:-0.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${g.customer}</div>
               ${db}
+              <span id="pg-pay-badge-${gKey}" onclick="togglePayStatus('${gKey}')" style="cursor:pointer" title="点击切换付款状态">${payStatusBadge(g.payment_status || 'unpaid')}</span>
             </div>
             <div id="pg-loc-${gKey}" style="font-size:12px;color:var(--text2)">${g.location}</div>
           </div>
@@ -1778,6 +1836,53 @@ function setOrderType(type) {
   }
 }
 
+// ── PAYMENT STATUS ─────────────────────────────────────────────────
+let _payStatus = 'unpaid';
+const _payConfig = {
+  unpaid:    { label: '未付款', bg: 'var(--amber-bg)',  color: 'var(--amber)', border: 'var(--amber)' },
+  cod:       { label: '货到付', bg: 'var(--blue-bg)',   color: 'var(--blue)',  border: 'var(--blue)'  },
+  paid_qr:   { label: '已付QR', bg: 'var(--green-bg)', color: 'var(--green)', border: 'var(--green)' },
+  paid_cash: { label: '已付Cash',bg:'var(--green-bg)', color: 'var(--green)', border: 'var(--green)' },
+};
+
+function setPayStatus(status) {
+  _payStatus = status;
+  ['unpaid','cod','paid_qr','paid_cash'].forEach(s => {
+    const btn = document.getElementById('o-pay-' + s);
+    if(!btn) return;
+    const cfg = _payConfig[s];
+    if(s === status) {
+      btn.style.cssText = `flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid ${cfg.border};background:${cfg.bg};color:${cfg.color};cursor:pointer;min-width:60px`;
+    } else {
+      btn.style.cssText = 'flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px';
+    }
+  });
+}
+
+function payStatusBadge(status) {
+  const cfg = _payConfig[status] || _payConfig['unpaid'];
+  return `<span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.color};white-space:nowrap">${cfg.label}</span>`;
+}
+
+async function togglePayStatus(gKey) {
+  const g = window._pendingGroups[gKey];
+  if(!g) return;
+  const cycle = ['unpaid','cod','paid_qr','paid_cash'];
+  const cur = g.payment_status || 'unpaid';
+  const next = cycle[(cycle.indexOf(cur) + 1) % cycle.length];
+  g.payment_status = next;
+  window._pendingGroups[gKey] = g;
+  for(const o of g.orders) {
+    await sb.from('orders').update({ payment_status: next }).eq('id', o.id);
+    o.payment_status = next;
+  }
+  // Update badge in DOM without full re-render
+  const badgeEl = document.getElementById('pg-pay-badge-' + gKey);
+  if(badgeEl) badgeEl.outerHTML = `<span id="pg-pay-badge-${gKey}" onclick="togglePayStatus('${gKey}')" style="cursor:pointer" title="点击切换付款状态">${payStatusBadge(next)}</span>`;
+  setSync('ok', '付款状态已更新 · ' + timeNow());
+}
+
+
 function openPendingEditPanel(gKey) {
   const panel = document.getElementById('pg-edit-' + gKey);
   if(!panel) return;
@@ -1823,6 +1928,33 @@ function refreshPendingTotal(gKey) {
   if(el) el.innerHTML = total > 0
     ? `合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${total.toFixed(2)}</span>`
     : '';
+  // Refresh each item's price tag in DOM
+  g.orders.forEach(o => {
+    const li = document.querySelector(`#pg-items-${gKey} li`);
+    // Find the price span for this order by its onclick
+    const priceSpan = document.querySelector(`[onclick="promptOrderItemPrice(${o.id},'${gKey}')"]`);
+    if(priceSpan) {
+      const tp = +(o.total_price||0);
+      if(tp > 0) {
+        priceSpan.textContent = 'RM ' + tp.toFixed(2);
+      } else {
+        priceSpan.textContent = '＋ 价格';
+      }
+    }
+  });
+}
+
+async function promptOrderItemPrice(orderId, gKey) {
+  const g = window._pendingGroups[gKey];
+  if(!g) return;
+  const o = g.orders.find(x => x.id === orderId);
+  if(!o) return;
+  const cur = o.total_price ? (+o.total_price).toFixed(2) : '0.00';
+  const newVal = prompt('修改总价（RM）：', cur);
+  if(newVal === null) return;
+  const parsed = parseFloat(newVal);
+  if(isNaN(parsed) || parsed < 0) { alert('请输入有效价格'); return; }
+  await updateOrderItemPrice(orderId, gKey, parsed);
 }
 
 async function updateOrderItemPrice(orderId, gKey, val) {
@@ -2006,7 +2138,9 @@ function buildSelectedOrdersText() {
     }).join('\n');
     const total = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
     const totalLine = total > 0 ? `\n   *Total: RM ${total.toFixed(2)}*` : '';
-    return `*${i+1}. ${g.customer}*\n${g.location}\n${itemList}${totalLine}`;
+    const payLabels = { unpaid: '❌ 未付款 (collect cash/QR)', cod: '💵 货到付款 (collect RM ' + total.toFixed(2) + ')', paid_qr: '✅ 已付QR', paid_cash: '✅ 已付Cash' };
+    const payLine = '\n   ' + (payLabels[g.payment_status || 'unpaid'] || '❌ 未付款');
+    return `*${i+1}. ${g.customer}*\n${g.location}\n${itemList}${totalLine}${payLine}`;
   }).filter(Boolean).join('\n\n');
 
   return `*${today} - DELIVERY*\n\n${lines}`;
