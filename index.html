@@ -596,21 +596,21 @@
       <div class="form-row" style="gap:10px">
         <label>付款</label>
         <div style="display:flex;gap:6px;flex:1;flex-wrap:wrap">
-          <button id="o-pay-unpaid" onclick="setPayStatus('unpaid')"
+          <button type="button" id="o-pay-unpaid" onclick="setPayStatus('unpaid')"
             style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--amber);background:var(--amber-bg);color:var(--amber);cursor:pointer;min-width:60px">
             未付款
           </button>
-          <button id="o-pay-cod" onclick="setPayStatus('cod')"
+          <button type="button" id="o-pay-cod" onclick="setPayStatus('cod')"
             style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px">
             货到付
           </button>
-          <button id="o-pay-qr" onclick="setPayStatus('paid_qr')"
+          <button type="button" id="o-pay-qr" onclick="setPayStatus('paid_qr')"
             style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px">
-            已付QR
+            PAID QR
           </button>
-          <button id="o-pay-cash" onclick="setPayStatus('paid_cash')"
+          <button type="button" id="o-pay-cash" onclick="setPayStatus('paid_cash')"
             style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px">
-            已付Cash
+            PAID CASH
           </button>
         </div>
       </div>
