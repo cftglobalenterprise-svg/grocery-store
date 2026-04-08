@@ -1846,21 +1846,17 @@ const _payConfig = {
 
 function setPayStatus(status) {
   _payStatus = status;
+  const styles = {
+    unpaid:    'flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #f0c040;background:#fef3cd;color:#7d4e00;cursor:pointer;min-width:60px',
+    cod:       'flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #5dade2;background:#d6eaf8;color:#1a5276;cursor:pointer;min-width:60px',
+    paid_qr:   'flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #52be80;background:#d8f3dc;color:#2d6a4f;cursor:pointer;min-width:60px',
+    paid_cash: 'flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #52be80;background:#d8f3dc;color:#2d6a4f;cursor:pointer;min-width:60px',
+  };
+  const inactive = 'flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid #e2ddd7;background:#ffffff;color:#6b6560;cursor:pointer;min-width:60px';
   ['unpaid','cod','paid_qr','paid_cash'].forEach(s => {
     const btn = document.getElementById('o-pay-' + s);
     if(!btn) return;
-    const cfg = _payConfig[s];
-    if(s === status) {
-      btn.style.background = cfg.bg;
-      btn.style.color = cfg.color;
-      btn.style.borderColor = cfg.border;
-      btn.style.borderWidth = '2px';
-    } else {
-      btn.style.background = '';
-      btn.style.color = '#6b6560';
-      btn.style.borderColor = '#e2ddd7';
-      btn.style.borderWidth = '1px';
-    }
+    btn.setAttribute('style', s === status ? styles[s] : inactive);
   });
 }
 
