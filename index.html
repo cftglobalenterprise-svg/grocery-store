@@ -852,6 +852,14 @@
         <button class="btn btn-scan" onclick="openScanModal('adj')">📷 扫</button>
       </div>
     </div>
+    <!-- BULK PRICE SECTION -->
+    <div class="bundle-section">
+      <div class="bundle-toggle-row">
+        <label>🏷 套餐价格（买多有优惠）</label>
+      </div>
+      <div id="bulk-price-rows"></div>
+      <button type="button" class="btn" style="font-size:12px;padding:5px 10px;border-style:dashed;width:100%;margin-top:4px;color:var(--text2)" onclick="addBulkPriceRow()">＋ 加一个套餐</button>
+    </div>
     <!-- BUNDLE SECTION -->
     <div class="bundle-section">
       <div class="bundle-toggle-row">
@@ -1353,8 +1361,48 @@ function openAdj(id) {
     if(bc.battery_id) document.getElementById('adj-bundle-battery').value = bc.battery_id;
     if(bc.cartridge_id) document.getElementById('adj-bundle-cartridge').value = bc.cartridge_id;
   }
+  // populate bulk prices
+  renderBulkPriceRows(it.bulk_prices || []);
   document.getElementById('adj-modal').classList.add('open');
 }
+
+function renderBulkPriceRows(bulkPrices) {
+  const el = document.getElementById('bulk-price-rows');
+  el.innerHTML = bulkPrices.map((bp, i) => `
+    <div class="bundle-component-row" id="bulk-row-${i}" style="align-items:center;gap:6px;margin-bottom:6px">
+      <label style="min-width:40px;font-size:12px">买</label>
+      <input type="number" min="2" value="${bp.qty}" style="width:54px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center" placeholder="数量" id="bulk-qty-${i}">
+      <label style="font-size:12px">个 =</label>
+      <input type="number" min="0" step="0.01" value="${bp.price}" style="width:70px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;color:var(--green);font-weight:600" placeholder="总价" id="bulk-price-${i}">
+      <label style="font-size:12px">RM</label>
+      <button type="button" onclick="removeBulkPriceRow(${i})" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0;margin-left:auto">✕</button>
+    </div>
+  `).join('');
+}
+
+function addBulkPriceRow() {
+  const current = getBulkPricesFromDOM();
+  current.push({ qty: 4, price: 0 });
+  renderBulkPriceRows(current);
+}
+
+function removeBulkPriceRow(idx) {
+  const current = getBulkPricesFromDOM();
+  current.splice(idx, 1);
+  renderBulkPriceRows(current);
+}
+
+function getBulkPricesFromDOM() {
+  const rows = document.getElementById('bulk-price-rows').querySelectorAll('[id^="bulk-qty-"]');
+  const result = [];
+  rows.forEach((el, i) => {
+    const qty   = parseInt(document.getElementById('bulk-qty-' + i)?.value) || 0;
+    const price = parseFloat(document.getElementById('bulk-price-' + i)?.value) || 0;
+    if(qty >= 2) result.push({ qty, price });
+  });
+  return result;
+}
+
 function closeAdj() { document.getElementById('adj-modal').classList.remove('open'); }
 function toggleBundleFields(on) {
   const fields = document.getElementById('bundle-fields');
@@ -1380,6 +1428,8 @@ async function saveAdj() {
     if(!batteryId || !cartridgeId) { alert('请选择 Battery 和 Cartridge 零件！'); setSync('ok',''); return; }
     bundle_components = { battery_id: parseInt(batteryId), cartridge_id: parseInt(cartridgeId) };
   }
+  // bulk prices
+  const bulk_prices = getBulkPricesFromDOM().filter(bp => bp.qty >= 2 && bp.price > 0);
   await sb.from('items').update({
     name: adjName,
     home_qty: +document.getElementById('adj-home').value||0,
@@ -1387,7 +1437,8 @@ async function saveAdj() {
     price: +document.getElementById('adj-price').value||0,
     category: adjCat||null,
     barcode: adjBarcode||null,
-    bundle_components
+    bundle_components,
+    bulk_prices: bulk_prices.length ? bulk_prices : []
   }).eq('id', adjId);
   closeAdj();
   await loadItems();
@@ -1398,7 +1449,7 @@ async function saveAdj() {
 function addToCart(item) {
   const existing = cart.find(c => c.item.id === item.id);
   if(existing) { existing.qty += 1; }
-  else { cart.push({ item, qty: 1 }); }
+  else { cart.push({ item, qty: 1, useBulk: false }); }
   renderCart();
 }
 
@@ -1415,6 +1466,44 @@ function updateCartQty(itemId, val) {
   renderCart();
 }
 
+function toggleCartBulk(itemId) {
+  itemId = parseInt(itemId);
+  const entry = cart.find(c => c.item.id === itemId);
+  if(!entry) return;
+  entry.useBulk = !entry.useBulk;
+  renderCart();
+}
+
+// Returns { unitPrice, totalPrice, bulkApplied, bulkLabel }
+function getCartItemPricing(c) {
+  const item = c.item;
+  const bulkPrices = item.bulk_prices || [];
+  const unitPrice = +(item.price || 0);
+
+  // Find matching bulk tier: exact qty match or best tier where qty >= tier qty
+  const match = bulkPrices
+    .filter(bp => c.qty >= bp.qty)
+    .sort((a, b) => b.qty - a.qty)[0];
+
+  if(match && c.useBulk) {
+    // How many complete sets + remainder
+    const sets = Math.floor(c.qty / match.qty);
+    const remainder = c.qty % match.qty;
+    const total = sets * match.price + remainder * unitPrice;
+    return {
+      totalPrice: total,
+      bulkApplied: true,
+      bulkLabel: `${match.qty}个套餐 RM${match.price.toFixed(2)} × ${sets}${remainder > 0 ? ` + ${remainder}×RM${unitPrice.toFixed(2)}` : ''}`,
+    };
+  }
+
+  return {
+    totalPrice: unitPrice * c.qty,
+    bulkApplied: false,
+    bulkLabel: null,
+  };
+}
+
 function renderCart() {
   const el = document.getElementById('cart-list');
   document.getElementById('cart-count').textContent = '共 ' + cart.length + ' 项';
@@ -1424,22 +1513,57 @@ function renderCart() {
     return;
   }
   el.innerHTML = cart.map(c => {
-    const unitPrice = +(c.item.price||0);
-    const subtotal = (unitPrice * c.qty).toFixed(2);
-    const priceInfo = unitPrice > 0 ? `<span class="price-tag">RM ${unitPrice.toFixed(2)} × ${c.qty} = </span><span class="subtotal-tag">RM ${subtotal}</span>` : '';
+    const item = c.item;
+    const unitPrice = +(item.price || 0);
+    const bulkPrices = item.bulk_prices || [];
+    const pricing = getCartItemPricing(c);
+
+    // Check if any bulk tier is reachable
+    const availableBulk = bulkPrices.filter(bp => c.qty >= bp.qty).sort((a,b) => b.qty - a.qty)[0];
+
+    let priceRow = '';
+    if(availableBulk) {
+      // Show toggle between normal and bulk
+      const normalTotal = (unitPrice * c.qty).toFixed(2);
+      const bulkSavings = (unitPrice * c.qty - getCartItemPricing({...c, useBulk: true}).totalPrice).toFixed(2);
+      priceRow = `
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+          <button type="button" onclick="toggleCartBulk(${item.id})" style="font-size:10px;padding:2px 8px;border-radius:10px;border:1.5px solid ${c.useBulk ? '#52be80' : '#e2ddd7'};background:${c.useBulk ? '#d8f3dc' : '#fff'};color:${c.useBulk ? '#2d6a4f' : '#9e9890'};cursor:pointer;font-weight:600;white-space:nowrap">
+            ${c.useBulk ? '✓ 套餐价' : '套餐价'}
+          </button>
+          <span style="font-size:11px;color:var(--text3)">${availableBulk.qty}个 = RM${availableBulk.price.toFixed(2)}</span>
+          ${c.useBulk && +bulkSavings > 0 ? `<span style="font-size:10px;color:#2d6a4f;font-weight:600">省 RM${bulkSavings}</span>` : ''}
+          <span class="subtotal-tag" style="margin-left:auto">RM ${pricing.totalPrice.toFixed(2)}</span>
+        </div>`;
+    } else {
+      const subtotal = pricing.totalPrice.toFixed(2);
+      priceRow = unitPrice > 0
+        ? `<div style="margin-top:3px"><span class="price-tag">RM ${unitPrice.toFixed(2)} × ${c.qty} = </span><span class="subtotal-tag">RM ${subtotal}</span></div>`
+        : '';
+      // Show available bulk tiers as hint even if qty not reached yet
+      if(bulkPrices.length > 0) {
+        const hints = bulkPrices.map(bp => `${bp.qty}个=RM${bp.price}`).join(' / ');
+        priceRow += `<div style="font-size:10px;color:var(--text3);margin-top:2px">套餐: ${hints}</div>`;
+      }
+    }
+
     return `
     <div class="cart-item">
-      <div class="cart-item-name">${c.item.name}<br><small style="font-weight:normal">${priceInfo}</small></div>
-      <div class="cart-qty-wrap">
-        <label>数量</label>
-        <input type="number" min="1" value="${c.qty}"
-          oninput="updateCartQty('${c.item.id}', this.value)"
-          onchange="updateCartQty('${c.item.id}', this.value)">
+      <div class="cart-item-name" style="flex:1;min-width:0">
+        ${item.name}
+        ${priceRow}
       </div>
-      <button class="cart-remove" onclick="removeFromCart('${c.item.id}')">✕</button>
-    </div>
-  `}).join('');
-  const total = cart.reduce((s,c) => s + (+(c.item.price||0)) * c.qty, 0);
+      <div class="cart-qty-wrap">
+        <label>x</label>
+        <input type="number" min="1" value="${c.qty}"
+          oninput="updateCartQty('${item.id}', this.value)"
+          onchange="updateCartQty('${item.id}', this.value)">
+      </div>
+      <button class="cart-remove" onclick="removeFromCart('${item.id}')">✕</button>
+    </div>`;
+  }).join('');
+
+  const total = cart.reduce((s, c) => s + getCartItemPricing(c).totalPrice, 0);
   document.getElementById('order-total').textContent = 'RM ' + total.toFixed(2);
 }
 
@@ -1514,7 +1638,7 @@ async function addOrder() {
       if(e1) { alert('下单失败：' + item.name); setSync('err','失败'); return; }
       if(deduct==='home') item.home_qty -= c.qty; else item.shop_qty -= c.qty;
     }
-    const itemTotal = (+(item.price||0)) * c.qty;
+    const itemTotal = getCartItemPricing(c).totalPrice;
     await sb.from('orders').insert({
       customer, item_id: item.id, item_name: item.name,
       qty: c.qty, location: loc, deduct_from: deduct, status: 'pending',
@@ -1547,7 +1671,7 @@ function onInstoreBarcodeTyped(val) {
 function addToInstoreCart(item) {
   const existing = instoreCart.find(c => c.item.id === item.id);
   if(existing) existing.qty += 1;
-  else instoreCart.push({ item, qty: 1, unitPrice: +(item.price||0) });
+  else instoreCart.push({ item, qty: 1, unitPrice: +(item.price||0), useBulk: false });
   renderInstoreCart();
 }
 
@@ -1564,10 +1688,36 @@ function updateInstoreQty(itemId, val) {
   renderInstoreCart();
 }
 
-function updateInstorePrice(itemId, val) {
+function toggleInstoreBulk(itemId) {
   itemId = parseInt(itemId);
   const entry = instoreCart.find(c => c.item.id === itemId);
-  if(entry) entry.unitPrice = Math.max(0, parseFloat(val)||0);
+  if(!entry) return;
+  entry.useBulk = !entry.useBulk;
+  renderInstoreCart();
+}
+
+function getInstoreItemPricing(c) {
+  const bulkPrices = c.item.bulk_prices || [];
+  const unitPrice = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
+  const match = bulkPrices.filter(bp => c.qty >= bp.qty).sort((a,b) => b.qty - a.qty)[0];
+  if(match && c.useBulk) {
+    const sets = Math.floor(c.qty / match.qty);
+    const remainder = c.qty % match.qty;
+    return { totalPrice: sets * match.price + remainder * unitPrice, bulkApplied: true, match };
+  }
+  return { totalPrice: unitPrice * c.qty, bulkApplied: false, match: null };
+}
+
+function editInstorePrice(itemId) {
+  itemId = parseInt(itemId);
+  const entry = instoreCart.find(c => c.item.id === itemId);
+  if(!entry) return;
+  const curPrice = entry.unitPrice !== undefined ? entry.unitPrice : +(entry.item.price||0);
+  const newVal = prompt('修改单价（RM）：', curPrice.toFixed(2));
+  if(newVal === null) return;
+  const parsed = parseFloat(newVal);
+  if(isNaN(parsed) || parsed < 0) { alert('请输入有效价格'); return; }
+  entry.unitPrice = parsed;
   renderInstoreCart();
 }
 
@@ -1581,16 +1731,33 @@ function renderInstoreCart() {
   }
   el.innerHTML = instoreCart.map(c => {
     const unitPrice = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
-    const subtotal = (unitPrice * c.qty).toFixed(2);
-    const priceDisplay = unitPrice > 0
-      ? `<span class="price-tag">RM ${unitPrice.toFixed(2)} × ${c.qty} = </span><span class="subtotal-tag" style="cursor:pointer;text-decoration:underline dotted" onclick="editInstorePrice('${c.item.id}')" title="点击修改单价">RM ${subtotal}</span>`
-      : `<span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="editInstorePrice('${c.item.id}')">＋ 设置价格</span>`;
+    const pricing = getInstoreItemPricing(c);
+    const bulkPrices = c.item.bulk_prices || [];
+    const availableBulk = bulkPrices.filter(bp => c.qty >= bp.qty).sort((a,b) => b.qty - a.qty)[0];
+    let priceRow = '';
+    if(availableBulk) {
+      const bulkSavings = (unitPrice * c.qty - getInstoreItemPricing({...c, useBulk:true}).totalPrice).toFixed(2);
+      priceRow = `<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:3px">
+        <button type="button" onclick="toggleInstoreBulk(${c.item.id})" style="font-size:10px;padding:2px 7px;border-radius:10px;border:1.5px solid ${c.useBulk?'#52be80':'#e2ddd7'};background:${c.useBulk?'#d8f3dc':'#fff'};color:${c.useBulk?'#2d6a4f':'#9e9890'};cursor:pointer;font-weight:600">
+          ${c.useBulk ? '✓ 套餐价' : '套餐价'}
+        </button>
+        <span style="font-size:10px;color:var(--text3)">${availableBulk.qty}个=RM${availableBulk.price.toFixed(2)}</span>
+        ${c.useBulk && +bulkSavings > 0 ? `<span style="font-size:10px;color:#2d6a4f;font-weight:600">省RM${bulkSavings}</span>` : ''}
+        <span class="subtotal-tag" style="margin-left:auto;cursor:pointer;text-decoration:underline dotted" onclick="editInstorePrice(${c.item.id})">RM ${pricing.totalPrice.toFixed(2)}</span>
+      </div>`;
+    } else {
+      const subtotal = pricing.totalPrice.toFixed(2);
+      priceRow = unitPrice > 0
+        ? `<div style="margin-top:3px"><span class="price-tag" style="cursor:pointer" onclick="editInstorePrice(${c.item.id})">RM ${unitPrice.toFixed(2)} × ${c.qty} = </span><span class="subtotal-tag" style="cursor:pointer;text-decoration:underline dotted" onclick="editInstorePrice(${c.item.id})">RM ${subtotal}</span></div>`
+        : `<div style="margin-top:2px"><span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="editInstorePrice(${c.item.id})">＋ 设置价格</span></div>`;
+      if(bulkPrices.length > 0) {
+        const hints = bulkPrices.map(bp => `${bp.qty}个=RM${bp.price}`).join(' / ');
+        priceRow += `<div style="font-size:10px;color:var(--text3);margin-top:1px">套餐: ${hints}</div>`;
+      }
+    }
     return `
     <div class="cart-item" id="ins-row-${c.item.id}">
-      <div class="cart-item-name" style="flex:1;min-width:0">
-        ${c.item.name}
-        <br><small style="font-weight:normal">${priceDisplay}</small>
-      </div>
+      <div class="cart-item-name" style="flex:1;min-width:0">${c.item.name}${priceRow}</div>
       <div class="cart-qty-wrap">
         <label>x</label>
         <input type="number" min="1" value="${c.qty}" style="width:48px"
@@ -1598,26 +1765,10 @@ function renderInstoreCart() {
           onchange="updateInstoreQty('${c.item.id}', this.value)">
       </div>
       <button class="cart-remove" onclick="removeFromInstoreCart('${c.item.id}')">✕</button>
-    </div>
-  `}).join('');
-  const total = instoreCart.reduce((s,c) => {
-    const up = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
-    return s + up * c.qty;
-  }, 0);
+    </div>`;
+  }).join('');
+  const total = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
   document.getElementById('ins-total').textContent = 'RM ' + total.toFixed(2);
-}
-
-function editInstorePrice(itemId) {
-  itemId = parseInt(itemId);
-  const entry = instoreCart.find(c => c.item.id === itemId);
-  if(!entry) return;
-  const curPrice = entry.unitPrice !== undefined ? entry.unitPrice : +(entry.item.price||0);
-  const newVal = prompt('修改单价（RM）：', curPrice.toFixed(2));
-  if(newVal === null) return; // cancelled
-  const parsed = parseFloat(newVal);
-  if(isNaN(parsed) || parsed < 0) { alert('请输入有效价格'); return; }
-  entry.unitPrice = parsed;
-  renderInstoreCart();
 }
 
 async function instoreCheckout(payMethod) {
@@ -1648,14 +1799,11 @@ async function instoreCheckout(payMethod) {
   }
 
   setSync('busy','结账中...');
-  const total = instoreCart.reduce((s,c) => {
-    const up = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
-    return s + up * c.qty;
-  }, 0);
+  const total = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
 
   for(const c of instoreCart) {
     const item = items.find(i => i.id === c.item.id);
-    const unitPrice = c.unitPrice !== undefined ? c.unitPrice : +(item.price||0);
+    const itemTotal = getInstoreItemPricing(c).totalPrice;
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
       // Bundle: deduct components, not the bundle item itself
       const bat = items.find(i => i.id === item.bundle_components.battery_id);
@@ -1672,7 +1820,7 @@ async function instoreCheckout(payMethod) {
     await sb.from('orders').insert({
       customer: '门市现场', item_id: item.id, item_name: item.name,
       qty: c.qty, location: '门市', deduct_from: 'shop', status: 'instore',
-      total_price: unitPrice * c.qty,
+      total_price: itemTotal,
       payment_status: payMethod || 'paid_cash'
     });
   }
