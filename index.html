@@ -463,7 +463,10 @@
         <span class="total-label">本次总价</span>
         <span class="total-amount" id="ins-total">RM 0.00</span>
       </div>
-      <button class="btn btn-block" onclick="instoreCheckout()">✅ 结账（自动扣店里库存）</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <button class="btn btn-block" style="margin-top:0;background:#1a5276;border-color:#1a5276;color:#fff;font-size:14px;padding:12px" onclick="instoreCheckout('paid_qr')">📲 QR 结账</button>
+        <button class="btn btn-block" style="margin-top:0;background:#2d6a4f;border-color:#2d6a4f;color:#fff;font-size:14px;padding:12px" onclick="instoreCheckout('paid_cash')">💵 Cash 结账</button>
+      </div>
     </div>
     <!-- SALES DASHBOARD -->
     <div class="card" id="sales-dashboard">
@@ -627,10 +630,6 @@
           <button type="button" id="o-pay-qr" onclick="setPayStatus('paid_qr')"
             style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px">
             PAID QR
-          </button>
-          <button type="button" id="o-pay-cash" onclick="setPayStatus('paid_cash')"
-            style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px">
-            PAID CASH
           </button>
         </div>
       </div>
@@ -1614,7 +1613,7 @@ function editInstorePrice(itemId) {
   renderInstoreCart();
 }
 
-async function instoreCheckout() {
+async function instoreCheckout(payMethod) {
   if(!instoreCart.length) { alert('购物车是空的，请先扫描商品'); return; }
 
   // Check stock (including bundle components)
@@ -1666,7 +1665,8 @@ async function instoreCheckout() {
     await sb.from('orders').insert({
       customer: '门市现场', item_id: item.id, item_name: item.name,
       qty: c.qty, location: '门市', deduct_from: 'shop', status: 'instore',
-      total_price: unitPrice * c.qty
+      total_price: unitPrice * c.qty,
+      payment_status: payMethod || 'paid_cash'
     });
   }
 
@@ -1885,7 +1885,7 @@ function setPayStatus(status) {
     paid_cash: 'flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #52be80;background:#d8f3dc;color:#2d6a4f;cursor:pointer;min-width:60px',
   };
   const inactive = 'flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid #e2ddd7;background:#ffffff;color:#6b6560;cursor:pointer;min-width:60px';
-  ['unpaid','cod','paid_qr','paid_cash'].forEach(s => {
+  ['unpaid','cod','paid_qr'].forEach(s => {
     const btn = document.getElementById('o-pay-' + s);
     if(!btn) return;
     btn.setAttribute('style', s === status ? styles[s] : inactive);
