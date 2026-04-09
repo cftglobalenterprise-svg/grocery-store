@@ -500,9 +500,34 @@
         <div id="dash-chart-labels" style="display:flex;gap:3px;margin-top:3px"></div>
       </div>
       <!-- Top items -->
-      <div>
+      <div style="margin-bottom:14px">
         <div style="font-size:11px;color:var(--text3);margin-bottom:6px">热销商品 Top 5</div>
         <div id="dash-top-items"></div>
+      </div>
+      <!-- DATE LOOKUP -->
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:11px;font-weight:600;color:var(--text3)">查看指定日期</span>
+          <input type="date" id="dash-date-picker" style="flex:1;padding:5px 8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderDashDateLookup()">
+          <button class="btn" style="font-size:11px;padding:4px 10px;flex-shrink:0" onclick="document.getElementById('dash-date-picker').value='';renderDashDateLookup()">清除</button>
+        </div>
+        <div id="dash-date-result" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div style="background:var(--surface);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
+              <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="dash-date-rev">RM 0</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:2px">营业额</div>
+            </div>
+            <div style="background:var(--surface);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
+              <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="dash-date-txn">0</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:2px">交易次数</div>
+            </div>
+            <div style="background:var(--surface);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
+              <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="dash-date-items">0</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:2px">商品件数</div>
+            </div>
+          </div>
+          <div id="dash-date-breakdown" style="margin-top:8px;font-size:12px;color:var(--text2)"></div>
+        </div>
       </div>
     </div>
 
@@ -561,29 +586,29 @@
         </div>
       </div>
 
-      <!-- DELIVERY vs PICKUP + WEEK CHART -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px">
-          <div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:8px">今天：配送 vs 自取</div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-            <span style="font-size:12px;color:var(--text2)">🚚 配送</span>
-            <span style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="ord-delivery-rev">RM 0</span>
-          </div>
-          <div style="background:var(--border);border-radius:3px;height:5px;margin-bottom:8px">
-            <div id="ord-delivery-bar" style="background:#5dade2;height:5px;border-radius:3px;width:0%;transition:width 0.4s"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-            <span style="font-size:12px;color:var(--text2)">🏃 自取</span>
-            <span style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace;color:#b45309" id="ord-pickup-rev">RM 0</span>
-          </div>
-          <div style="background:var(--border);border-radius:3px;height:5px">
-            <div id="ord-pickup-bar" style="background:#f0c040;height:5px;border-radius:3px;width:0%;transition:width 0.4s"></div>
-          </div>
+      <!-- DATE LOOKUP -->
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:11px;font-weight:600;color:var(--text3)">查看指定日期</span>
+          <input type="date" id="ord-date-picker" style="flex:1;padding:5px 8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderOrdDateLookup()">
+          <button class="btn" style="font-size:11px;padding:4px 10px;flex-shrink:0" onclick="document.getElementById('ord-date-picker').value='';renderOrdDateLookup()">清除</button>
         </div>
-        <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px">
-          <div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:8px">本周每日走势</div>
-          <div style="display:flex;align-items:flex-end;gap:3px;height:48px" id="ord-week-chart"></div>
-          <div style="display:flex;gap:3px;margin-top:3px" id="ord-week-labels"></div>
+        <div id="ord-date-result" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div style="background:var(--surface);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
+              <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-date-rev">RM 0</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:2px">营业额</div>
+            </div>
+            <div style="background:var(--surface);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
+              <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-date-count">0</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:2px">完成单数</div>
+            </div>
+            <div style="background:var(--surface);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
+              <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-date-items">0</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:2px">商品件数</div>
+            </div>
+          </div>
+          <div id="ord-date-breakdown" style="margin-top:8px;font-size:12px;color:var(--text2)"></div>
         </div>
       </div>
 
@@ -622,10 +647,6 @@
           <button type="button" id="o-pay-unpaid" onclick="setPayStatus('unpaid')"
             style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--amber);background:var(--amber-bg);color:var(--amber);cursor:pointer;min-width:60px">
             未付款
-          </button>
-          <button type="button" id="o-pay-cod" onclick="setPayStatus('cod')"
-            style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px">
-            货到付
           </button>
           <button type="button" id="o-pay-qr" onclick="setPayStatus('paid_qr')"
             style="flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;min-width:60px">
@@ -1885,7 +1906,7 @@ function setPayStatus(status) {
     paid_cash: 'flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #52be80;background:#d8f3dc;color:#2d6a4f;cursor:pointer;min-width:60px',
   };
   const inactive = 'flex:1;padding:7px 6px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid #e2ddd7;background:#ffffff;color:#6b6560;cursor:pointer;min-width:60px';
-  ['unpaid','cod','paid_qr'].forEach(s => {
+  ['unpaid','paid_qr'].forEach(s => {
     const btn = document.getElementById('o-pay-' + s);
     if(!btn) return;
     btn.setAttribute('style', s === status ? styles[s] : inactive);
@@ -3881,6 +3902,74 @@ function renderDashboard() {
     : '<div style="font-size:12px;color:var(--text3)">暂无销售记录</div>';
 }
 
+// ── DATE LOOKUP HELPERS ────────────────────────────────────────────
+function renderDashDateLookup() {
+  const val = document.getElementById('dash-date-picker').value;
+  const resultEl = document.getElementById('dash-date-result');
+  if(!val) { resultEl.style.display = 'none'; return; }
+
+  const [y, m, d] = val.split('-').map(Number);
+  const dayStart = new Date(y, m-1, d);
+  const dayEnd   = new Date(y, m-1, d+1);
+
+  const dayOrders = orders.filter(o => {
+    if(o.status !== 'instore') return false;
+    const dt = new Date(o.created_at);
+    return dt >= dayStart && dt < dayEnd;
+  });
+
+  const rev   = dayOrders.reduce((s,o) => s+(+(o.total_price||0)), 0);
+  const items = dayOrders.reduce((s,o) => s+(+(o.qty||0)), 0);
+  const txns  = new Set(dayOrders.map(o => new Date(o.created_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}))).size;
+
+  document.getElementById('dash-date-rev').textContent   = 'RM ' + rev.toFixed(2);
+  document.getElementById('dash-date-txn').textContent   = txns;
+  document.getElementById('dash-date-items').textContent = items;
+
+  // QR vs Cash breakdown
+  const qrRev   = dayOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const cashRev = dayOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  document.getElementById('dash-date-breakdown').innerHTML = rev > 0
+    ? `<span style="margin-right:12px">📲 QR: <b>RM ${qrRev.toFixed(2)}</b></span><span>💵 Cash: <b>RM ${cashRev.toFixed(2)}</b></span>`
+    : '<span style="color:var(--text3)">该日期暂无门市记录</span>';
+
+  resultEl.style.display = 'block';
+}
+
+function renderOrdDateLookup() {
+  const val = document.getElementById('ord-date-picker').value;
+  const resultEl = document.getElementById('ord-date-result');
+  if(!val) { resultEl.style.display = 'none'; return; }
+
+  const [y, m, d] = val.split('-').map(Number);
+  const dayStart = new Date(y, m-1, d);
+  const dayEnd   = new Date(y, m-1, d+1);
+
+  const dayOrders = orders.filter(o => {
+    if(o.status !== 'collected') return false;
+    const dt = new Date(o.created_at);
+    return dt >= dayStart && dt < dayEnd;
+  });
+
+  const rev   = dayOrders.reduce((s,o) => s+(+(o.total_price||0)), 0);
+  const items = dayOrders.reduce((s,o) => s+(+(o.qty||0)), 0);
+  const count = new Set(dayOrders.map(o=>o.id)).size;
+
+  document.getElementById('ord-date-rev').textContent   = 'RM ' + rev.toFixed(2);
+  document.getElementById('ord-date-count').textContent = count;
+  document.getElementById('ord-date-items').textContent = items;
+
+  // QR vs Cash breakdown
+  const qrRev   = dayOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const cashRev = dayOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const unpaid  = dayOrders.filter(o=>!o.payment_status||o.payment_status==='unpaid').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  document.getElementById('ord-date-breakdown').innerHTML = rev > 0
+    ? `<span style="margin-right:12px">📲 QR: <b>RM ${qrRev.toFixed(2)}</b></span><span style="margin-right:12px">💵 Cash: <b>RM ${cashRev.toFixed(2)}</b></span>${unpaid>0?`<span>⚠ 未付: <b>RM ${unpaid.toFixed(2)}</b></span>`:''}`
+    : '<span style="color:var(--text3)">该日期暂无订单记录</span>';
+
+  resultEl.style.display = 'block';
+}
+
 // ── ORDER DASHBOARD ────────────────────────────────────────────────
 let ordPeriod = 'today';
 
@@ -3976,50 +4065,6 @@ function renderOrdDashboard() {
     .filter(o => !o.payment_status || o.payment_status === 'unpaid' || o.payment_status === 'cod')
     .reduce((s,o) => s + (+(o.total_price||0)), 0);
   document.getElementById('ord-uncollected').textContent = 'RM ' + uncollectedRev.toFixed(2);
-
-  // ── Delivery vs Pickup (today) ────────────────────────────────────
-  const deliveryRev = todayOrders.filter(o => o.is_delivery).reduce((s,o) => s + (+(o.total_price||0)), 0);
-  const pickupRev   = todayOrders.filter(o => !o.is_delivery).reduce((s,o) => s + (+(o.total_price||0)), 0);
-  const maxSplit = Math.max(deliveryRev, pickupRev, 0.01);
-  document.getElementById('ord-delivery-rev').textContent = 'RM ' + deliveryRev.toFixed(0);
-  document.getElementById('ord-pickup-rev').textContent   = 'RM ' + pickupRev.toFixed(0);
-  document.getElementById('ord-delivery-bar').style.width = Math.round(deliveryRev / maxSplit * 100) + '%';
-  document.getElementById('ord-pickup-bar').style.width   = Math.round(pickupRev   / maxSplit * 100) + '%';
-
-  // ── This week mini bar chart ──────────────────────────────────────
-  const dayOfWeek = today.getDay() || 7;
-  const weekStart = new Date(today); weekStart.setDate(today.getDate() - (dayOfWeek - 1));
-  const weekDays = {};
-  const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  for(let i = 0; i < dayOfWeek; i++) {
-    const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
-    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    weekDays[key] = { val: 0, label: dayNames[i] };
-  }
-  orders.filter(o => o.status === 'collected').forEach(o => {
-    const d = new Date(o.created_at);
-    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    if(weekDays[key]) weekDays[key].val += (+(o.total_price||0));
-  });
-  const dayKeys = Object.keys(weekDays).sort();
-  const maxVal  = Math.max(...dayKeys.map(k => weekDays[k].val), 0.01);
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const yestKey  = `${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`;
-
-  document.getElementById('ord-week-chart').innerHTML = dayKeys.map(k => {
-    const val = weekDays[k].val;
-    const pct = val > 0 ? Math.max(6, Math.round(val / maxVal * 44)) : 2;
-    const isToday = k === todayKey;
-    const isYest  = k === yestKey;
-    const bg = isToday ? '#1a5276' : isYest ? '#5dade2' : (val > 0 ? '#a9cce3' : '#e2ddd7');
-    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:48px" title="${weekDays[k].label} RM ${val.toFixed(0)}">
-      <div style="width:100%;background:${bg};border-radius:2px 2px 0 0;height:${pct}px"></div>
-    </div>`;
-  }).join('');
-  document.getElementById('ord-week-labels').innerHTML = dayKeys.map(k => {
-    const isToday = k === todayKey;
-    return `<div style="flex:1;text-align:center;font-size:9px;color:${isToday ? '#1a5276' : 'var(--text3)'};font-weight:${isToday ? '700' : '400'}">${weekDays[k].label}</div>`;
-  }).join('');
 }
 
 // ── COLLAPSIBLE PANELS ─────────────────────────────────────────────
