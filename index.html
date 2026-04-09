@@ -664,7 +664,13 @@
 
     <!-- PICKUP orders -->
     <div class="card">
-      <div class="card-title">🏃 自取订单</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">🏃 自取订单</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn" style="font-size:12px;padding:5px 10px" onclick="selectAllPickup()">全选</button>
+          <button class="btn" style="font-size:12px;padding:5px 10px" onclick="copySelectedPickup()">复制选中</button>
+        </div>
+      </div>
       <div id="pending-pickup"><div class="empty">暂无自取订单</div></div>
     </div>
 
@@ -1732,9 +1738,14 @@ function renderOrders() {
     const ids = g.orders.map(o=>o.id).join(',');
 
     return `<div class="order-row${g.is_delivery ? ' is-delivery' : ''}" id="${gKey}" style="align-items:flex-start;gap:8px">
-      ${g.is_delivery ? `<label style="display:flex;align-items:flex-start;padding-top:3px;flex-shrink:0;cursor:pointer">
-        <input type="checkbox" data-gkey="${gKey}" class="delivery-chk" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer">
-      </label>` : ''}
+      ${g.is_delivery
+        ? `<label style="display:flex;align-items:flex-start;padding-top:3px;flex-shrink:0;cursor:pointer">
+            <input type="checkbox" data-gkey="${gKey}" class="delivery-chk" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer">
+           </label>`
+        : `<label style="display:flex;align-items:flex-start;padding-top:3px;flex-shrink:0;cursor:pointer">
+            <input type="checkbox" data-gkey="${gKey}" class="pickup-chk" style="width:16px;height:16px;accent-color:#b45309;cursor:pointer">
+           </label>`
+      }
       <div class="order-info" style="flex:1;min-width:0">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:6px">
           <div style="min-width:0;flex:1">
@@ -1997,6 +2008,40 @@ async function savePendingEdit(gKey) {
 
 function selectAllDelivery() {
   document.querySelectorAll('.delivery-chk').forEach(chk => chk.checked = true);
+}
+
+function selectAllPickup() {
+  document.querySelectorAll('.pickup-chk').forEach(chk => chk.checked = true);
+}
+
+function copySelectedPickup() {
+  const checked = [...document.querySelectorAll('.pickup-chk:checked')];
+  if(!checked.length) { alert('请先勾选要复制的订单'); return; }
+
+  const today = new Date().toLocaleDateString('en-GB', {day:'2-digit', month:'2-digit', year:'numeric'});
+  const lines = checked.map((chk, i) => {
+    const g = window._pendingGroups[chk.dataset.gkey];
+    if(!g) return '';
+    const itemList = g.orders.map(o => `   - ${o.item_name} x${o.qty}`).join('\n');
+    const pickupLabel = (g.pickup_status === 'picked') ? 'PICKED UP' : 'NOT PICKED UP';
+    const pay = g.payment_status || 'unpaid';
+    const isPaid = pay === 'paid_qr' || pay === 'paid_cash';
+    const payLabels = { unpaid: 'UNPAID', cod: 'COD', paid_qr: 'PAID QR', paid_cash: 'PAID CASH' };
+    const total = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+    const headerSuffix = isPaid ? ` - ${payLabels[pay]}` : ` - RM ${total.toFixed(2)} (${payLabels[pay]})`;
+    return `${i+1}. ${g.customer}${headerSuffix}\n   ${pickupLabel}\n${itemList}`;
+  }).filter(Boolean).join('\n\n');
+
+  const text = `${today} - PICKUP\n\n${lines}`;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('button[onclick="copySelectedPickup()"]');
+    if(btn) { const orig = btn.textContent; btn.textContent = '已复制！'; setTimeout(() => btn.textContent = orig, 2000); }
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    alert('已复制！');
+  });
 }
 
 // ── PENDING ORDER ITEM EDITING ──────────────────────────────────────
