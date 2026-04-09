@@ -931,7 +931,10 @@
 
     <!-- Add new rule form -->
     <div style="border-top:1px solid var(--border);padding-top:12px;overflow-y:auto;flex:1">
-      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">新增套餐规则</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div id="br-form-title" style="font-size:12px;font-weight:600;color:var(--text2)">新增套餐规则</div>
+        <button type="button" id="br-cancel-btn" onclick="brCancelEdit()" style="display:none;font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:6px;background:none;cursor:pointer;color:var(--text2)">取消编辑</button>
+      </div>
       <div class="form-row">
         <label>套餐名</label>
         <input type="text" id="br-name" placeholder="例：套餐A">
@@ -966,7 +969,7 @@
         <button class="btn" style="font-size:11px;padding:2px 8px;margin-left:auto" onclick="brClearAll()">清空</button>
       </div>
 
-      <button class="btn btn-block" onclick="saveBundleRule()" style="background:var(--text);color:#fff;border-color:var(--text)">＋ 添加套餐</button>
+      <button id="br-save-btn" class="btn btn-block" onclick="saveBundleRule()" style="background:var(--text);color:#fff;border-color:var(--text)">＋ 添加套餐</button>
     </div>
   </div>
 </div>
@@ -2836,14 +2839,17 @@ function renderBundleRulesList() {
   el.innerHTML = bundleRules.map(r => {
     const ids = r.item_ids || [];
     const scope = ids.length ? `${ids.length} 个指定商品` : '全部商品';
-    const unitPrice = (+r.total_price / r.min_qty).toFixed(2);
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:6px">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700;color:var(--text)">${r.name}</div>
-        <div style="font-size:12px;color:var(--text2);margin-top:2px">买 <b>${r.min_qty}</b> 个 = <b style="color:#2d6a4f">RM${(+r.total_price).toFixed(2)}</b> <span style="color:var(--text3)">(约 RM${unitPrice}/个)</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">${scope}</div>
+    // Use stored total_price directly — avoid floating point by not recalculating
+    const totalPrice = parseFloat((+r.total_price).toFixed(2));
+    const unitPrice = (totalPrice / r.min_qty).toFixed(2);
+    return `<div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:700;color:var(--text);flex:1">${r.name}</span>
+        <button onclick="openEditBundleRule(${r.id})" style="background:none;border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--text2)">✏️ 编辑</button>
+        <button onclick="deleteBundleRule(${r.id})" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 4px">✕</button>
       </div>
-      <button onclick="deleteBundleRule(${r.id})" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 6px;flex-shrink:0">✕</button>
+      <div style="font-size:12px;color:var(--text2)">买 <b>${r.min_qty}</b> 个 = <b style="color:#2d6a4f">RM${totalPrice.toFixed(2)}</b> <span style="color:var(--text3)">(约 RM${unitPrice}/个)</span></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">${scope}</div>
     </div>`;
   }).join('');
 }
@@ -2855,8 +2861,52 @@ async function deleteBundleRule(id) {
   renderBundleRulesList();
 }
 
+let _brEditingId = null; // null = new rule, id = editing existing
+
+function openEditBundleRule(id) {
+  const r = bundleRules.find(x => x.id === id);
+  if(!r) return;
+  _brEditingId = id;
+  document.getElementById('br-name').value = r.name;
+  document.getElementById('br-qty').value = r.min_qty;
+  document.getElementById('br-total-price').value = (+r.total_price).toFixed(2);
+  // Load selected items
+  _brSelectedItemIds = new Set(r.item_ids || []);
+  renderBrCatChips();
+  renderBrSearch();
+  updateBrCount();
+  // Scroll form into view and highlight
+  const formTitle = document.querySelector('#bundle-rules-modal [style*="新增套餐规则"], #bundle-rules-modal [style*="编辑套餐规则"]');
+  document.getElementById('br-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('br-name').focus();
+  // Update button label
+  updateBrFormTitle();
+}
+
+function updateBrFormTitle() {
+  const titleEl  = document.getElementById('br-form-title');
+  const btnEl    = document.getElementById('br-save-btn');
+  const cancelEl = document.getElementById('br-cancel-btn');
+  if(titleEl)  titleEl.textContent   = _brEditingId ? '编辑套餐规则' : '新增套餐规则';
+  if(btnEl)    btnEl.textContent     = _brEditingId ? '💾 保存修改' : '＋ 添加套餐';
+  if(cancelEl) cancelEl.style.display = _brEditingId ? 'inline-block' : 'none';
+}
+
+function brCancelEdit() {
+  _brEditingId = null;
+  _brSelectedItemIds = new Set();
+  document.getElementById('br-name').value = '';
+  document.getElementById('br-qty').value = '4';
+  document.getElementById('br-total-price').value = '';
+  renderBrCatChips();
+  renderBrSearch();
+  updateBrCount();
+  updateBrFormTitle();
+}
+
 function openBundleRulesModal() {
   _brSelectedItemIds = new Set();
+  _brEditingId = null;
   renderBundleRulesList();
   renderBrCatChips();
   renderBrSearch();
@@ -2865,6 +2915,7 @@ function openBundleRulesModal() {
   document.getElementById('br-qty').value = '4';
   document.getElementById('br-total-price').value = '';
   document.getElementById('br-item-search').value = '';
+  updateBrFormTitle();
   document.getElementById('bundle-rules-modal').classList.add('open');
   document.body.classList.add('modal-open');
 }
@@ -2967,15 +3018,27 @@ function updateBrCount() {
 async function saveBundleRule() {
   const name       = document.getElementById('br-name').value.trim();
   const min_qty    = parseInt(document.getElementById('br-qty').value);
-  const totalPrice = parseFloat(document.getElementById('br-total-price').value);
+  const totalPrice = parseFloat(parseFloat(document.getElementById('br-total-price').value).toFixed(2));
   if(!name)                 { alert('请输入套餐名称'); return; }
   if(!min_qty || min_qty<2) { alert('数量至少为 2'); return; }
   if(!totalPrice || totalPrice<=0) { alert('请填写套餐总价'); return; }
 
-  const rule = { name, min_qty, total_price: totalPrice, item_ids: _brSelectedItemIds.size > 0 ? [..._brSelectedItemIds] : null };
-  const { data, error } = await sb.from('bundle_rules').insert(rule).select().single();
-  if(error) { alert('保存失败：' + error.message); return; }
-  bundleRules.push(data);
+  const payload = { name, min_qty, total_price: totalPrice, item_ids: _brSelectedItemIds.size > 0 ? [..._brSelectedItemIds] : null };
+
+  if(_brEditingId) {
+    // Update existing
+    const { error } = await sb.from('bundle_rules').update(payload).eq('id', _brEditingId);
+    if(error) { alert('保存失败：' + error.message); return; }
+    const idx = bundleRules.findIndex(r => r.id === _brEditingId);
+    if(idx >= 0) bundleRules[idx] = { ...bundleRules[idx], ...payload };
+    _brEditingId = null;
+  } else {
+    // Insert new
+    const { data, error } = await sb.from('bundle_rules').insert(payload).select().single();
+    if(error) { alert('保存失败：' + error.message); return; }
+    bundleRules.push(data);
+  }
+
   _brSelectedItemIds = new Set();
   document.getElementById('br-name').value = '';
   document.getElementById('br-qty').value = '4';
@@ -2983,6 +3046,7 @@ async function saveBundleRule() {
   renderBrCatChips();
   renderBrSearch();
   updateBrCount();
+  updateBrFormTitle();
   renderBundleRulesList();
 }
 
