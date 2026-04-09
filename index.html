@@ -271,6 +271,7 @@
 <div id="app" style="display:none">
   <div class="topbar">
     <div class="topbar-title">🛒 杂货店库存</div>
+    <button class="btn" style="font-size:12px;padding:7px 13px;flex-shrink:0" onclick="openBundleRulesModal()">🎁 套餐规则</button>
     <button class="btn" style="font-size:12px;padding:7px 13px;flex-shrink:0" onclick="openCustomerMode()">📱 顾客展示</button>
     <div class="sync-indicator">
       <div class="sync-dot" id="sync-dot"></div>
@@ -667,9 +668,11 @@
         <span class="cart-count" id="cart-count">共 0 项</span>
       </div>
       <div id="cart-list"><div class="cart-empty">还没有商品，请扫描 barcode 添加</div></div>
-      <div class="total-bar">
-        <span class="total-label">订单总价</span>
-        <span class="total-amount" id="order-total">RM 0.00</span>
+      <div id="order-total">
+        <div class="total-bar">
+          <span class="total-label">订单总价</span>
+          <span class="total-amount">RM 0.00</span>
+        </div>
       </div>
       <button class="btn btn-block" onclick="addOrder()">+ 下单（自动扣库存）</button>
     </div>
@@ -915,6 +918,46 @@
   </div>
 </div>
 
+<!-- BUNDLE RULES MODAL -->
+<div class="modal-overlay" id="bundle-rules-modal">
+  <div class="modal" style="max-width:520px;max-height:90vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3 style="margin:0">🎁 套餐规则</h3>
+      <button class="btn" style="font-size:12px;padding:4px 10px" onclick="closeBundleRulesModal()">关闭</button>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">设定套餐内的商品，买够数量自动享套餐总价。</p>
+
+    <!-- Existing rules -->
+    <div id="bundle-rules-list" style="overflow-y:auto;max-height:240px;margin-bottom:10px"></div>
+
+    <!-- Add new rule form -->
+    <div style="border-top:1px solid var(--border);padding-top:12px;overflow-y:auto">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">新增套餐规则</div>
+      <div class="form-row">
+        <label>套餐名</label>
+        <input type="text" id="br-name" placeholder="例：套餐A">
+      </div>
+      <div class="form-row">
+        <label>买满</label>
+        <input type="number" id="br-qty" min="2" value="4" style="width:60px;flex:none;text-align:center">
+        <label style="margin:0 8px;min-width:unset;font-size:13px">个 = RM</label>
+        <input type="number" id="br-total-price" min="0" step="0.01" placeholder="50.00" style="flex:1">
+      </div>
+
+      <!-- Item pool search -->
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px;font-weight:600">套餐内的商品（留空 = 全部商品都可以混）</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input type="text" id="br-item-search" placeholder="搜索商品加入套餐..." oninput="renderBrSearch()" style="flex:1">
+      </div>
+      <div id="br-search-results" style="max-height:120px;overflow-y:auto;margin-bottom:6px"></div>
+      <div id="br-selected-items" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;padding:6px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:10px">
+        <span id="br-selected-placeholder" style="font-size:12px;color:var(--text3);align-self:center">（未选择 = 全部商品）</span>
+      </div>
+      <button class="btn btn-block" onclick="saveBundleRule()" style="background:var(--text);color:#fff;border-color:var(--text)">＋ 添加套餐</button>
+    </div>
+  </div>
+</div>
+
 <!-- SCAN MODAL -->
 <div class="modal-overlay" id="scan-modal">
   <div class="modal" style="max-width:420px">
@@ -956,7 +999,7 @@ function setSync(state, msg) {
 
 async function init() {
   try {
-    await loadItems(); await loadOrders();
+    await loadItems(); await loadOrders(); await loadBundleRules();
     subscribeRealtime();
     document.getElementById('loading').style.display = 'none';
     document.getElementById('app').style.display = 'block';
@@ -1509,7 +1552,7 @@ function renderCart() {
   document.getElementById('cart-count').textContent = '共 ' + cart.length + ' 项';
   if(!cart.length) {
     el.innerHTML = '<div class="cart-empty">还没有商品，请扫描 barcode 添加</div>';
-    document.getElementById('order-total').textContent = 'RM 0.00';
+    document.getElementById('order-total').innerHTML = '<div class="total-bar"><span class="total-label">订单总价</span><span class="total-amount">RM 0.00</span></div>';
     return;
   }
   el.innerHTML = cart.map(c => {
@@ -1563,8 +1606,28 @@ function renderCart() {
     </div>`;
   }).join('');
 
-  const total = cart.reduce((s, c) => s + getCartItemPricing(c).totalPrice, 0);
-  document.getElementById('order-total').textContent = 'RM ' + total.toFixed(2);
+  // Apply cross-item bundle rules
+  const { savings, appliedRules, itemFinalTotals } = applyBundleRulesToCart(cart);
+  const baseTotal = cart.reduce((s, c) => s + getCartItemPricing(c).totalPrice, 0);
+  const finalTotal = baseTotal - savings;
+
+  let bundleInfoHtml = '';
+  if(appliedRules.length > 0) {
+    bundleInfoHtml = `<div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:8px 12px;margin-top:6px;border:1px solid #52be80">` +
+      appliedRules.map(a =>
+        `<div style="font-size:11px;color:#2d6a4f;font-weight:600">🎁 ${a.rule.name} × ${a.sets} 套 (${a.sets * a.rule.min_qty}个 @ RM${a.discountUnitPrice.toFixed(2)}/个)</div>`
+      ).join('') +
+      `<div style="font-size:12px;color:#2d6a4f;font-weight:700;margin-top:4px">套餐优惠省 RM${savings.toFixed(2)}</div>` +
+      `</div>`;
+  }
+
+  document.getElementById('order-total').innerHTML = bundleInfoHtml +
+    `<div class="total-bar" style="margin-top:${bundleInfoHtml?'6px':'0'}">
+      <span class="total-label">订单总价${savings > 0 ? ` <span style="font-size:11px;color:#2d6a4f">（已优惠 RM${savings.toFixed(2)}）</span>` : ''}</span>
+      <span class="total-amount">RM ${finalTotal.toFixed(2)}</span>
+    </div>`;
+  cart._bundleSavings = savings;
+  cart._bundleItemFinalTotals = itemFinalTotals;
 }
 
 function clearCart() {
@@ -1638,7 +1701,9 @@ async function addOrder() {
       if(e1) { alert('下单失败：' + item.name); setSync('err','失败'); return; }
       if(deduct==='home') item.home_qty -= c.qty; else item.shop_qty -= c.qty;
     }
-    const itemTotal = getCartItemPricing(c).totalPrice;
+    const bundleItemFinalTotals = cart._bundleItemFinalTotals || new Map();
+    const baseItemTotal = getCartItemPricing(c).totalPrice;
+    const itemTotal = bundleItemFinalTotals.has(item.id) ? bundleItemFinalTotals.get(item.id) : baseItemTotal;
     await sb.from('orders').insert({
       customer, item_id: item.id, item_name: item.name,
       qty: c.qty, location: loc, deduct_from: deduct, status: 'pending',
@@ -1767,8 +1832,17 @@ function renderInstoreCart() {
       <button class="cart-remove" onclick="removeFromInstoreCart('${c.item.id}')">✕</button>
     </div>`;
   }).join('');
-  const total = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
-  document.getElementById('ins-total').textContent = 'RM ' + total.toFixed(2);
+  const baseTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const { savings: brSavings, appliedRules: brRules, itemFinalTotals: brFinalTotals } = applyBundleRulesToCart(instoreCart);
+  const finalTotal = baseTotal - brSavings;
+  instoreCart._bundleSavings = brSavings;
+  instoreCart._bundleItemFinalTotals = brFinalTotals;
+
+  if(brRules.length > 0) {
+    document.getElementById('ins-total').innerHTML = `<span style="font-size:11px;color:#2d6a4f;font-weight:600;display:block;text-align:right">套餐省 RM${brSavings.toFixed(2)}</span>RM ${finalTotal.toFixed(2)}`;
+  } else {
+    document.getElementById('ins-total').textContent = 'RM ' + finalTotal.toFixed(2);
+  }
 }
 
 async function instoreCheckout(payMethod) {
@@ -1799,11 +1873,14 @@ async function instoreCheckout(payMethod) {
   }
 
   setSync('busy','结账中...');
-  const total = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const brFinalTotals = instoreCart._bundleItemFinalTotals || new Map();
+  const total = instoreCart.reduce((s,c) => {
+    return s + (brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice);
+  }, 0);
 
   for(const c of instoreCart) {
     const item = items.find(i => i.id === c.item.id);
-    const itemTotal = getInstoreItemPricing(c).totalPrice;
+    const itemTotal = brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice;
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
       // Bundle: deduct components, not the bundle item itself
       const bat = items.find(i => i.id === item.bundle_components.battery_id);
@@ -2725,6 +2802,192 @@ function toggleCat(id) {
   } else {
     body.style.display = 'none'; arr.classList.remove('open');
   }
+}
+
+// ── BUNDLE RULES (cross-item promotions) ──────────────────────────
+let bundleRules = [];
+let _brSelectedItemIds = []; // item ids selected for new rule
+
+async function loadBundleRules() {
+  const { data } = await sb.from('bundle_rules').select('*').order('min_qty');
+  bundleRules = data || [];
+}
+
+function openBundleRulesModal() {
+  _brSelectedItemIds = [];
+  renderBundleRulesList();
+  renderBrSelectedItems();
+  document.getElementById('br-name').value = '';
+  document.getElementById('br-qty').value = '4';
+  document.getElementById('br-total-price').value = '';
+  document.getElementById('br-item-search').value = '';
+  document.getElementById('br-search-results').innerHTML = '';
+  document.getElementById('bundle-rules-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+
+function closeBundleRulesModal() {
+  document.getElementById('bundle-rules-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+
+function renderBundleRulesList() {
+  const el = document.getElementById('bundle-rules-list');
+  if(!bundleRules.length) {
+    el.innerHTML = '<div class="empty" style="padding:10px 0">还没有套餐规则</div>';
+    return;
+  }
+  el.innerHTML = bundleRules.map(r => {
+    const ids = r.item_ids || [];
+    const itemNames = ids.length
+      ? ids.map(id => { const it = items.find(i=>i.id===id); return it ? it.name : '?'; }).join('、')
+      : '全部商品';
+    const unitPrice = (+r.total_price / r.min_qty).toFixed(2);
+    return `<div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:700;color:var(--text)">${r.name}</span>
+        <button onclick="deleteBundleRule(${r.id})" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2)">买 <b>${r.min_qty}</b> 个 = <b style="color:var(--green)">RM${(+r.total_price).toFixed(2)}</b> (每个约 RM${unitPrice})</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${itemNames}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderBrSearch() {
+  const q = document.getElementById('br-item-search').value.trim().toLowerCase();
+  const el = document.getElementById('br-search-results');
+  if(!q) { el.innerHTML = ''; return; }
+  const filtered = items.filter(i => !i.bundle_components && i.name.toLowerCase().includes(q) && !_brSelectedItemIds.includes(i.id)).slice(0, 6);
+  if(!filtered.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px">没有找到</div>'; return; }
+  el.innerHTML = '<div class="search-results">' + filtered.map(it =>
+    `<div class="search-result-item" onclick="brAddItem(${it.id})">
+      <div>
+        <div class="search-result-name">${it.name}</div>
+        <div class="search-result-meta">${it.category||''} · RM${(+(it.price||0)).toFixed(2)}</div>
+      </div>
+    </div>`
+  ).join('') + '</div>';
+}
+
+function brAddItem(id) {
+  if(!_brSelectedItemIds.includes(id)) _brSelectedItemIds.push(id);
+  document.getElementById('br-item-search').value = '';
+  document.getElementById('br-search-results').innerHTML = '';
+  renderBrSelectedItems();
+}
+
+function brRemoveItem(id) {
+  _brSelectedItemIds = _brSelectedItemIds.filter(x => x !== id);
+  renderBrSelectedItems();
+}
+
+function renderBrSelectedItems() {
+  const el = document.getElementById('br-selected-items');
+  const ph = document.getElementById('br-selected-placeholder');
+  if(!_brSelectedItemIds.length) {
+    el.innerHTML = '<span id="br-selected-placeholder" style="font-size:12px;color:var(--text3);align-self:center">（未选择 = 全部商品）</span>';
+    return;
+  }
+  el.innerHTML = _brSelectedItemIds.map(id => {
+    const it = items.find(i=>i.id===id);
+    if(!it) return '';
+    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#d8f3dc;color:#2d6a4f;border-radius:12px;font-size:11px;font-weight:600">
+      ${it.name}
+      <button type="button" onclick="brRemoveItem(${id})" style="background:none;border:none;color:#2d6a4f;cursor:pointer;font-size:13px;padding:0;line-height:1">×</button>
+    </span>`;
+  }).join('');
+}
+
+async function saveBundleRule() {
+  const name       = document.getElementById('br-name').value.trim();
+  const min_qty    = parseInt(document.getElementById('br-qty').value);
+  const totalPrice = parseFloat(document.getElementById('br-total-price').value);
+  if(!name)                 { alert('请输入套餐名称'); return; }
+  if(!min_qty || min_qty<2) { alert('数量至少为 2'); return; }
+  if(!totalPrice || totalPrice<=0) { alert('请填写套餐总价'); return; }
+
+  const rule = { name, min_qty, total_price: totalPrice, item_ids: _brSelectedItemIds.length ? _brSelectedItemIds : null };
+  const { data, error } = await sb.from('bundle_rules').insert(rule).select().single();
+  if(error) { alert('保存失败：' + error.message); return; }
+  bundleRules.push(data);
+  _brSelectedItemIds = [];
+  document.getElementById('br-name').value = '';
+  document.getElementById('br-qty').value = '4';
+  document.getElementById('br-total-price').value = '';
+  renderBrSelectedItems();
+  renderBundleRulesList();
+}
+
+async function deleteBundleRule(id) {
+  if(!confirm('删除这条套餐规则？')) return;
+  await sb.from('bundle_rules').delete().eq('id', id);
+  bundleRules = bundleRules.filter(r => r.id !== id);
+  renderBundleRulesList();
+}
+
+// Apply bundle rules to a cart array
+// Returns { savings, appliedRules, itemFinalTotals }
+// itemFinalTotals: Map<itemId, finalTotalForItem>
+function applyBundleRulesToCart(cartArr) {
+  if(!bundleRules.length) return { savings: 0, appliedRules: [], itemFinalTotals: new Map() };
+
+  // Build working copy: track how much of each item is still at normal price
+  const remaining = new Map(); // itemId -> { item, qtyLeft, normalPrice, discountedTotal }
+  cartArr.forEach(c => {
+    if(c.item.bundle_components) return;
+    const normalTotal = (c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0)) * c.qty;
+    remaining.set(c.item.id, { item: c.item, qtyLeft: c.qty, normalPrice: c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0), discountedTotal: 0 });
+  });
+
+  const appliedRules = [];
+  let totalSavings = 0;
+
+  for(const rule of bundleRules) {
+    const itemIds = rule.item_ids; // null = all items eligible
+    // Get eligible items from remaining
+    const eligible = [...remaining.values()].filter(r => {
+      if(r.qtyLeft <= 0) return false;
+      if(itemIds && itemIds.length > 0 && !itemIds.includes(r.item.id)) return false;
+      return true;
+    });
+
+    const eligibleQty = eligible.reduce((s,r) => s + r.qtyLeft, 0);
+    if(eligibleQty < rule.min_qty) continue;
+
+    const sets = Math.floor(eligibleQty / rule.min_qty);
+    const qtyToDiscount = sets * rule.min_qty;
+    const discountUnitPrice = +rule.total_price / rule.min_qty;
+
+    // Distribute across items: take from highest qty first
+    const sorted = [...eligible].sort((a,b) => b.qtyLeft - a.qtyLeft);
+    let toTake = qtyToDiscount;
+    let ruleSavings = 0;
+    for(const r of sorted) {
+      if(toTake <= 0) break;
+      const take = Math.min(r.qtyLeft, toTake);
+      const saving = take * (r.normalPrice - discountUnitPrice);
+      ruleSavings += saving;
+      r.discountedTotal += take * discountUnitPrice;
+      r.qtyLeft -= take;
+      toTake -= take;
+    }
+
+    totalSavings += ruleSavings;
+    appliedRules.push({ rule, sets, discountUnitPrice, savings: ruleSavings });
+  }
+
+  // Build final totals per item
+  const itemFinalTotals = new Map();
+  remaining.forEach((r, itemId) => {
+    const cartEntry = cartArr.find(c => c.item.id === itemId);
+    if(!cartEntry) return;
+    const baseTotal = (cartEntry.unitPrice !== undefined ? cartEntry.unitPrice : +(cartEntry.item.price||0)) * cartEntry.qty;
+    const finalTotal = r.discountedTotal + r.qtyLeft * r.normalPrice;
+    itemFinalTotals.set(itemId, finalTotal);
+  });
+
+  return { savings: Math.max(0, totalSavings), appliedRules, itemFinalTotals };
 }
 
 // ── SCANNER ────────────────────────────────────────────────────────
