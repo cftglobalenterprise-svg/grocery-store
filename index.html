@@ -920,7 +920,7 @@
 
 <!-- BUNDLE RULES MODAL -->
 <div class="modal-overlay" id="bundle-rules-modal">
-  <div class="modal" style="max-width:540px;max-height:90vh;display:flex;flex-direction:column" onwheel="event.stopPropagation()">
+  <div class="modal" style="max-width:540px;max-height:95vh;display:flex;flex-direction:column" onwheel="event.stopPropagation()">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="margin:0">🎁 套餐规则</h3>
       <button class="btn" style="font-size:12px;padding:4px 10px" onclick="closeBundleRulesModal()">关闭</button>
@@ -957,7 +957,7 @@
         <input type="text" id="br-item-search" placeholder="搜索商品..." oninput="renderBrSearch()" style="flex:1">
         <button class="btn" style="font-size:11px;padding:4px 8px;flex-shrink:0" onclick="brSelectAllVisible()">全选搜索结果</button>
       </div>
-      <div id="br-search-results" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px"></div>
+      <div id="br-search-results" style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px"></div>
 
       <!-- Selected summary -->
       <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:10px">
@@ -2908,7 +2908,7 @@ function renderBrSearch() {
 
   const filtered = items
     .filter(i => !i.bundle_components && (!q || i.name.toLowerCase().includes(q)))
-    .slice(0, 60);
+    .slice(0, 500);
 
   if(!filtered.length) {
     el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px">没有找到商品</div>';
@@ -2945,7 +2945,7 @@ function brToggleItem(id, checked) {
 
 function brSelectAllVisible() {
   const q = document.getElementById('br-item-search').value.trim().toLowerCase();
-  items.filter(i => !i.bundle_components && (!q || i.name.toLowerCase().includes(q))).slice(0,60)
+  items.filter(i => !i.bundle_components && (!q || i.name.toLowerCase().includes(q))).slice(0,500)
     .forEach(i => _brSelectedItemIds.add(i.id));
   renderBrCatChips();
   renderBrSearch();
