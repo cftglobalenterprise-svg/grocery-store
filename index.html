@@ -1691,30 +1691,39 @@ async function instoreCheckout(payMethod) {
 function renderInstoreHistory() {
   const el = document.getElementById('ins-history-list');
   if(!el) return;
-  const instore = orders.filter(o => o.status === 'instore').slice(0, 30);
+  const instore = orders.filter(o => o.status === 'instore').slice(0, 50);
 
-  // Group by minute (same transaction)
   const grouped = {};
   instore.forEach(o => {
     const minute = new Date(o.created_at).toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-    if(!grouped[minute]) grouped[minute] = { minute, orders: [], dt: new Date(o.created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) };
+    if(!grouped[minute]) grouped[minute] = { minute, payment_status: o.payment_status, orders: [], dt: new Date(o.created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) };
     grouped[minute].orders.push(o);
   });
 
+  const payBadge = (ps) => {
+    if(ps === 'paid_qr')   return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d6eaf8;color:#1a5276;border:1px solid #5dade2">QR</span>';
+    if(ps === 'paid_cash') return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80">Cash</span>';
+    return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:var(--surface2);color:var(--text3);border:1px solid var(--border)">-</span>';
+  };
+
   el.innerHTML = Object.values(grouped).length ? Object.values(grouped).map(g => {
     const itemLines = g.orders.map(o => {
-      const sub = o.total_price ? ` = RM ${(+o.total_price).toFixed(2)}` : '';
-      return `<li>• ${o.item_name} × ${o.qty}${sub}</li>`;
+      const sub = o.total_price ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+o.total_price).toFixed(2)}</span>` : '';
+      return `<div style="font-size:12px;color:var(--text2);padding:1px 0">• ${o.item_name} × ${o.qty}${sub}</div>`;
     }).join('');
     const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
     return `<div class="order-row">
       <div class="order-info">
-        <div class="order-name">门市结账 <span style="font-size:12px;color:var(--text2)">${g.dt}</span></div>
-        <ul class="order-items-list">${itemLines}</ul>
-        <div style="font-size:13px;font-weight:600;color:var(--green);margin-top:4px">合计 RM ${groupTotal.toFixed(2)}</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-size:13px;font-weight:600;color:var(--text)">门市</span>
+          ${payBadge(g.payment_status)}
+          <span style="font-size:11px;color:var(--text3);margin-left:auto">${g.dt}</span>
+        </div>
+        ${itemLines}
+        ${groupTotal > 0 ? `<div style="font-size:12px;font-weight:600;color:var(--green);font-family:'DM Mono',monospace;margin-top:4px">合计 RM ${groupTotal.toFixed(2)}</div>` : ''}
       </div>
     </div>`;
-  }).join('') : '<div class="empty">暂无历史记录</div>';
+  }).join('') : '<div class="empty">暂无门市记录</div>';
 }
 
 function renderOrders() {
@@ -1814,8 +1823,9 @@ function renderOrders() {
         <ul class="order-items-list" id="pg-items-${gKey}" style="margin-top:4px">${itemLines}${totalLine}</ul>
       </div>
       <div class="order-actions" style="flex-shrink:0">
-        <button class="btn btn-success" style="font-size:12px;padding:5px 8px;background:var(--green);color:#fff;border-color:var(--green)" onclick="collectGroup('${ids}')">✅ 取货</button>
-        <button class="btn btn-danger" style="font-size:12px;padding:5px 8px" onclick="cancelGroup('${ids}')">✕ 取消</button>
+        <button class="btn" style="font-size:11px;padding:4px 7px;background:#1a5276;color:#fff;border-color:#1a5276;white-space:nowrap" onclick="collectGroup('${ids}','paid_qr')">QR</button>
+        <button class="btn" style="font-size:11px;padding:4px 7px;background:#2d6a4f;color:#fff;border-color:#2d6a4f;white-space:nowrap" onclick="collectGroup('${ids}','paid_cash')">Cash</button>
+        <button class="btn btn-danger" style="font-size:11px;padding:4px 7px" onclick="cancelGroup('${ids}')">✕</button>
       </div>
     </div>`;
   }
@@ -1826,17 +1836,24 @@ function renderOrders() {
   if(pickupEl)   pickupEl.innerHTML   = pickupGroups.length  ? pickupGroups.map(buildGroupHTML).join('')  : '<div class="empty">暂无自取订单</div>';
 
   if(dEl) {
-    const doneOrders = done.slice(0, 60);
-    // Group by customer + minute
+    // Only collected/cancelled orders - exclude instore
+    const doneOrders = orders.filter(o => o.status === 'collected' || o.status === 'cancelled').slice(0, 60);
     const doneGrouped = {};
     doneOrders.forEach(o => {
       const minute = new Date(o.created_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
       const key = o.customer + '||' + (o.location||'') + '||' + minute;
-      if(!doneGrouped[key]) doneGrouped[key] = { customer: o.customer, location: o.location, status: o.status, is_delivery: o.is_delivery, minute, orders: [] };
+      if(!doneGrouped[key]) doneGrouped[key] = { customer: o.customer, location: o.location, status: o.status, is_delivery: o.is_delivery, payment_status: o.payment_status, minute, orders: [] };
       doneGrouped[key].orders.push(o);
     });
+    const payBadge = (ps) => {
+      if(ps === 'paid_qr')   return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d6eaf8;color:#1a5276;border:1px solid #5dade2">QR</span>';
+      if(ps === 'paid_cash') return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80">Cash</span>';
+      return '';
+    };
     dEl.innerHTML = Object.values(doneGrouped).length ? Object.values(doneGrouped).map(g => {
-      const b = g.status==='collected' ? '<span class="badge badge-done">✅ 已取货</span>' : '<span class="badge badge-cancel">✕ 已取消</span>';
+      const statusBadge = g.status==='collected'
+        ? '<span class="badge badge-done">已完成</span>'
+        : '<span class="badge badge-cancel">已取消</span>';
       const isD = g.is_delivery ? '<span class="badge badge-shop" style="font-size:10px">配送</span>' : '';
       const dt = new Date(g.orders[0].created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
       const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
@@ -1848,7 +1865,7 @@ function renderOrders() {
         <div class="order-info">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
             <span class="order-name">${g.customer}</span>
-            ${b} ${isD}
+            ${statusBadge} ${isD} ${payBadge(g.payment_status)}
             <span style="font-size:11px;color:var(--text3);margin-left:auto">${dt}</span>
           </div>
           ${itemLines}
@@ -2316,12 +2333,16 @@ function sendToRiderWhatsApp() {
   window.open(`https://wa.me/60165531109?text=${encodeURIComponent(text)}`, '_blank');
 }
 
-async function collectGroup(idsStr) {
+async function collectGroup(idsStr, payMethod) {
   const ids = idsStr.split(',');
   setSync('busy','更新中...');
-  for(const id of ids) await sb.from('orders').update({status:'collected'}).eq('id',id);
+  for(const id of ids) {
+    const upd = { status: 'collected' };
+    if(payMethod) upd.payment_status = payMethod;
+    await sb.from('orders').update(upd).eq('id', id);
+  }
   await loadOrders();
-  setSync('ok','已更新 · '+timeNow());
+  setSync('ok','已取货 · '+timeNow());
 }
 
 async function cancelGroup(idsStr) {
