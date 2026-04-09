@@ -1694,7 +1694,7 @@ function renderOrders() {
   pending.forEach(o => {
     const dt = new Date(o.created_at).toLocaleDateString('zh-CN');
     const key = o.customer + '||' + o.location;
-    if(!grouped[key]) grouped[key] = { customer: o.customer, location: o.location, deduct_from: o.deduct_from, is_delivery: !!o.is_delivery, payment_status: o.payment_status || 'unpaid', dt, orders: [] };
+    if(!grouped[key]) grouped[key] = { customer: o.customer, location: o.location, deduct_from: o.deduct_from, is_delivery: !!o.is_delivery, payment_status: o.payment_status || 'unpaid', pickup_status: o.pickup_status || 'not_picked', dt, orders: [] };
     grouped[key].orders.push(o);
   });
 
@@ -1741,7 +1741,8 @@ function renderOrders() {
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">
               <div id="pg-name-${gKey}" style="font-size:17px;font-weight:700;color:${g.is_delivery ? 'var(--blue)' : '#b45309'};letter-spacing:-0.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${g.customer}</div>
               ${db}
-              <span id="pg-pay-badge-${gKey}" onclick="togglePayStatus('${gKey}')" style="cursor:pointer" title="点击切换付款状态">${payStatusBadge(g.payment_status || 'unpaid')}</span>
+              <span id="pg-pay-badge-${gKey}" onclick="togglePayStatus('${gKey}')" style="cursor:pointer" title="点击修改付款状态">${payStatusBadge(g.payment_status || 'unpaid')}</span>
+              ${!g.is_delivery ? `<span id="pg-pickup-badge-${gKey}" onclick="togglePickupStatus('${gKey}')" style="cursor:pointer" title="点击修改取货状态">${pickupStatusBadge(g.pickup_status || 'not_picked')}</span>` : ''}
             </div>
             <div id="pg-loc-${gKey}" style="font-size:12px;color:var(--text2)">${g.location}</div>
           </div>
@@ -1863,6 +1864,53 @@ function setPayStatus(status) {
 function payStatusBadge(status) {
   const cfg = _payConfig[status] || _payConfig['unpaid'];
   return `<span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.border};white-space:nowrap">${cfg.label}</span>`;
+}
+
+function pickupStatusBadge(status) {
+  if(status === 'picked') {
+    return `<span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80;white-space:nowrap">已取货</span>`;
+  }
+  return `<span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:#f0ede8;color:#6b6560;border:1px solid #c8c3bc;white-space:nowrap">未取货</span>`;
+}
+
+async function togglePickupStatus(gKey) {
+  const g = window._pendingGroups[gKey];
+  if(!g) return;
+
+  const cur = g.pickup_status || 'not_picked';
+  const overlay = document.createElement('div');
+  overlay.id = 'pickup-picker-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,0.15)">
+      <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">取货状态</div>
+      <button onclick="applyPickupStatus('${gKey}','not_picked')" style="display:block;width:100%;margin-bottom:6px;padding:9px 14px;border-radius:8px;border:1.5px solid;font-size:13px;font-weight:600;cursor:pointer;text-align:left;${cur==='not_picked' ? 'background:#f0ede8;color:#6b6560;border-color:#c8c3bc' : 'background:#f5f2ee;color:#9e9890;border-color:#e2ddd7'}">
+        ${ cur==='not_picked' ? '✓ ' : ''}未取货
+      </button>
+      <button onclick="applyPickupStatus('${gKey}','picked')" style="display:block;width:100%;margin-bottom:6px;padding:9px 14px;border-radius:8px;border:1.5px solid;font-size:13px;font-weight:600;cursor:pointer;text-align:left;${cur==='picked' ? 'background:#d8f3dc;color:#2d6a4f;border-color:#52be80' : 'background:#f5f2ee;color:#9e9890;border-color:#e2ddd7'}">
+        ${cur==='picked' ? '✓ ' : ''}已取货
+      </button>
+      <button onclick="document.getElementById('pickup-picker-overlay').remove()" style="display:block;width:100%;margin-top:4px;padding:7px;border-radius:8px;border:1px solid #e2ddd7;background:none;font-size:12px;color:#9e9890;cursor:pointer">取消</button>
+    </div>
+  `;
+  overlay.addEventListener('click', e => { if(e.target === overlay) overlay.remove(); });
+  document.getElementById('pickup-picker-overlay')?.remove();
+  document.body.appendChild(overlay);
+}
+
+async function applyPickupStatus(gKey, next) {
+  document.getElementById('pickup-picker-overlay')?.remove();
+  const g = window._pendingGroups[gKey];
+  if(!g) return;
+  g.pickup_status = next;
+  window._pendingGroups[gKey] = g;
+  for(const o of g.orders) {
+    await sb.from('orders').update({ pickup_status: next }).eq('id', o.id);
+    o.pickup_status = next;
+  }
+  const badgeEl = document.getElementById('pg-pickup-badge-' + gKey);
+  if(badgeEl) badgeEl.outerHTML = `<span id="pg-pickup-badge-${gKey}" onclick="togglePickupStatus('${gKey}')" style="cursor:pointer" title="点击修改取货状态">${pickupStatusBadge(next)}</span>`;
+  setSync('ok', '取货状态已更新 · ' + timeNow());
 }
 
 async function togglePayStatus(gKey) {
