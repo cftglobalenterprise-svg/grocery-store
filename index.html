@@ -159,7 +159,7 @@
   .cat-arrow.open { transform: rotate(90deg); }
   .cat-body { border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); overflow: hidden; }
 
-  .search-results { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 4px; overflow: hidden; max-height: 220px; overflow-y: auto; }
+  .search-results { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 4px; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; }
   .search-result-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s; }
   .search-result-item:last-child { border-bottom: none; }
   .search-result-item:hover { background: var(--surface2); }
@@ -221,10 +221,8 @@
 
   /* ORDERS TWO-COLUMN LAYOUT */
   .orders-layout { display: flex; gap: 16px; align-items: flex-start; }
-  .orders-left { flex: 0 0 380px; min-width: 0; position: sticky; top: 113px; max-height: calc(100vh - 130px); overflow-y: auto; overflow-x: hidden; }
-  .orders-left::-webkit-scrollbar { width: 3px; }
-  .orders-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  .orders-right { flex: 1; min-width: 0; position: sticky; top: 113px; max-height: calc(100vh - 130px); overflow-y: auto; }
+  .orders-left { flex: 1; min-width: 0; }
+  .orders-right { flex: 0 0 260px; position: sticky; top: 113px; max-height: calc(100vh - 130px); overflow-y: auto; }
   .orders-right::-webkit-scrollbar { width: 3px; }
   .orders-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   @media (max-width: 820px) {
@@ -553,68 +551,10 @@
     </div><!-- end instore-layout -->
   </div>
   <div id="page-orders" class="page">
+    <div class="orders-layout">
 
-    <!-- ORDER SALES DASHBOARD -->
-    <div class="card" id="ord-dashboard">
-      <div style="margin-bottom:12px">
-        <div class="card-title" style="margin-bottom:0">📦 订单</div>
-      </div>
-
-      <!-- TODAY'S CASH FLOW - always fixed to today -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:14px;text-align:center;border:1px solid #52be80">
-          <div style="font-size:11px;color:#2d6a4f;font-weight:600;margin-bottom:4px">今天已收</div>
-          <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:#2d6a4f" id="ord-collected">RM 0.00</div>
-        </div>
-        <div style="background:#fadbd8;border-radius:var(--radius-sm);padding:14px;text-align:center;border:1px solid #f1948a">
-          <div style="font-size:11px;color:#922b21;font-weight:600;margin-bottom:4px">待收款</div>
-          <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:#922b21" id="ord-uncollected">RM 0.00</div>
-        </div>
-      </div>
-
-      <!-- PENDING + COMPLETED ROW -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
-        <div style="background:#fef3cd;border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #f0c040">
-          <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:#7d4e00" id="ord-pending-total">0</div>
-          <div style="font-size:10px;color:#7d4e00;margin-top:2px;font-weight:600">待处理</div>
-        </div>
-        <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #5dade2">
-          <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="ord-pending-delivery">0</div>
-          <div style="font-size:10px;color:#1a5276;margin-top:2px;font-weight:600">待配送</div>
-        </div>
-        <div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #52be80">
-          <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:#2d6a4f" id="ord-count">0</div>
-          <div style="font-size:10px;color:#2d6a4f;margin-top:2px;font-weight:600">今天完成单</div>
-        </div>
-      </div>
-
-      <!-- DATE LOOKUP -->
-      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span style="font-size:11px;font-weight:600;color:var(--text3)">查看指定日期</span>
-          <input type="date" id="ord-date-picker" style="flex:1;padding:5px 8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderOrdDateLookup()">
-          <button class="btn" style="font-size:11px;padding:4px 8px;flex-shrink:0" onclick="document.getElementById('ord-date-picker').value='';renderOrdDateLookup()">✕</button>
-        </div>
-        <div id="ord-date-result" style="display:none">
-          <div style="background:var(--surface);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border);margin-bottom:6px">
-            <div style="font-size:11px;color:var(--text3);margin-bottom:3px">当日完成营业额</div>
-            <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-date-rev">RM 0</div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-            <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:8px;text-align:center;border:1px solid #5dade2">
-              <div style="font-size:10px;color:#1a5276;font-weight:600;margin-bottom:2px">📲 QR</div>
-              <div style="font-size:14px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="ord-date-qr">RM 0</div>
-            </div>
-            <div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:8px;text-align:center;border:1px solid #52be80">
-              <div style="font-size:10px;color:#2d6a4f;font-weight:600;margin-bottom:2px">💵 Cash</div>
-              <div style="font-size:14px;font-weight:700;font-family:'DM Mono',monospace;color:#2d6a4f" id="ord-date-cash">RM 0</div>
-            </div>
-          </div>
-          <div id="ord-date-breakdown" style="margin-top:6px;font-size:11px;color:var(--text3)"></div>
-        </div>
-      </div>
-
-    </div>
+    <!-- LEFT: new order + pending + history -->
+    <div class="orders-left">
 
     <div class="card">
       <div class="card-title">新增订单</div>
@@ -723,6 +663,92 @@
       <div id="done-list"><div class="empty">暂无历史记录</div></div>
     </div>
 
+    </div><!-- end orders-left -->
+
+    <!-- RIGHT: dashboard (sticky) -->
+    <div class="orders-right">
+      <div class="card" id="ord-dashboard">
+
+        <!-- 时间切换 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="card-title" style="margin-bottom:0">📊 订单概览</div>
+          <div style="display:flex;gap:5px">
+            <button class="btn" id="ord-btn-today" style="font-size:11px;padding:4px 8px;background:var(--text);color:#fff;border-color:var(--text)" onclick="setOrdPeriod('today')">今天</button>
+            <button class="btn" id="ord-btn-yesterday" style="font-size:11px;padding:4px 8px" onclick="setOrdPeriod('yesterday')">昨天</button>
+            <button class="btn" id="ord-btn-week" style="font-size:11px;padding:4px 8px" onclick="setOrdPeriod('week')">本周</button>
+          </div>
+        </div>
+
+        <!-- 总额 大字 -->
+        <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;text-align:center;margin-bottom:8px">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">已收款总额</div>
+          <div style="font-size:26px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-period-revenue">RM 0.00</div>
+        </div>
+
+        <!-- QR / Cash 分拆 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+          <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #5dade2">
+            <div style="font-size:10px;color:#1a5276;font-weight:600;margin-bottom:3px">📲 QR</div>
+            <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="ord-period-qr">RM 0.00</div>
+          </div>
+          <div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #52be80">
+            <div style="font-size:10px;color:#2d6a4f;font-weight:600;margin-bottom:3px">💵 Cash</div>
+            <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:#2d6a4f" id="ord-period-cash">RM 0.00</div>
+          </div>
+        </div>
+
+        <!-- PENDING + COMPLETED ROW -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+          <div style="background:#fef3cd;border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #f0c040">
+            <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:#7d4e00" id="ord-pending-total">0</div>
+            <div style="font-size:10px;color:#7d4e00;margin-top:2px;font-weight:600">待处理</div>
+          </div>
+          <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #5dade2">
+            <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="ord-pending-delivery">0</div>
+            <div style="font-size:10px;color:#1a5276;margin-top:2px;font-weight:600">待配送</div>
+          </div>
+          <div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #52be80">
+            <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:#2d6a4f" id="ord-count">0</div>
+            <div style="font-size:10px;color:#2d6a4f;margin-top:2px;font-weight:600">今天完成单</div>
+          </div>
+        </div>
+
+        <!-- 待收款 -->
+        <div style="background:#fadbd8;border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #f1948a;margin-bottom:12px">
+          <div style="font-size:10px;color:#922b21;font-weight:600;margin-bottom:3px">⏳ 待收款</div>
+          <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:#922b21" id="ord-uncollected">RM 0.00</div>
+        </div>
+
+        <!-- 查指定日期 -->
+        <div style="border-top:1px solid var(--border);padding-top:10px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font-size:11px;font-weight:600;color:var(--text3)">查指定日期</span>
+            <input type="date" id="ord-date-picker" style="flex:1;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderOrdDateLookup()">
+            <button class="btn" style="font-size:11px;padding:3px 8px;flex-shrink:0" onclick="document.getElementById('ord-date-picker').value='';renderOrdDateLookup()">✕</button>
+          </div>
+          <div id="ord-date-result" style="display:none">
+            <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px;text-align:center;margin-bottom:6px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:3px">当日已收款</div>
+              <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="ord-date-rev">RM 0</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:8px;text-align:center;border:1px solid #5dade2">
+                <div style="font-size:10px;color:#1a5276;font-weight:600;margin-bottom:2px">📲 QR</div>
+                <div style="font-size:14px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="ord-date-qr">RM 0</div>
+              </div>
+              <div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:8px;text-align:center;border:1px solid #52be80">
+                <div style="font-size:10px;color:#2d6a4f;font-weight:600;margin-bottom:2px">💵 Cash</div>
+                <div style="font-size:14px;font-weight:700;font-family:'DM Mono',monospace;color:#2d6a4f" id="ord-date-cash">RM 0</div>
+              </div>
+            </div>
+            <div id="ord-date-breakdown" style="margin-top:6px;font-size:11px;color:var(--text3)"></div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- end orders-right -->
+
+    </div><!-- end orders-layout -->
   </div>
 
   <!-- OVERVIEW PAGE -->
@@ -1052,6 +1078,7 @@ async function loadOrders() {
   renderInstoreHistory();
   renderDashboard();
   renderOrdDashboard();
+  renderOrdPeriodRevenue();
 }
 
 function subscribeRealtime() {
@@ -2502,8 +2529,9 @@ function sendToRiderWhatsApp() {
 async function collectGroup(idsStr, payMethod) {
   const ids = idsStr.split(',');
   setSync('busy','更新中...');
+  const collectedAt = new Date().toISOString();
   for(const id of ids) {
-    const upd = { status: 'collected' };
+    const upd = { status: 'collected', collected_at: collectedAt };
     if(payMethod) upd.payment_status = payMethod;
     await sb.from('orders').update(upd).eq('id', id);
   }
@@ -4349,7 +4377,8 @@ function renderOrdDateLookup() {
 
   const dayOrders = orders.filter(o => {
     if(o.status !== 'collected') return false;
-    const dt = new Date(o.created_at);
+    // Use collected_at if available (actual payment time), else fall back to created_at
+    const dt = new Date(o.collected_at || o.created_at);
     return dt >= dayStart && dt < dayEnd;
   });
 
@@ -4383,7 +4412,27 @@ function setOrdPeriod(period) {
       btn.style.borderColor= p === period ? 'var(--text)' : '';
     }
   });
-  renderOrdDashboard();
+  renderOrdPeriodRevenue();
+}
+
+function renderOrdPeriodRevenue() {
+  const el = document.getElementById('ord-period-revenue');
+  if(!el) return;
+  const { start, end } = getOrdDateRange(ordPeriod);
+  // Use collected_at for payment-based filtering
+  const filtered = orders.filter(o => {
+    if(o.status !== 'collected') return false;
+    const dt = new Date(o.collected_at || o.created_at);
+    return dt >= start && dt <= end && (o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash');
+  });
+  const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||0)), 0);
+  const qrRev    = filtered.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const cashRev  = filtered.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  el.textContent = 'RM ' + revenue.toFixed(2);
+  const qrEl   = document.getElementById('ord-period-qr');
+  const cashEl = document.getElementById('ord-period-cash');
+  if(qrEl)   qrEl.textContent   = 'RM ' + qrRev.toFixed(2);
+  if(cashEl) cashEl.textContent = 'RM ' + cashRev.toFixed(2);
 }
 
 function getOrdDateRange(period) {
@@ -4410,26 +4459,22 @@ function renderOrdDashboard() {
   const now   = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const todayOrders = orders.filter(o => o.status === 'collected' && new Date(o.created_at) >= today);
+  // Use collected_at (actual payment time) to count today's completed orders
+  const todayOrders = orders.filter(o => {
+    if(o.status !== 'collected') return false;
+    const dt = new Date(o.collected_at || o.created_at);
+    return dt >= today;
+  });
   const todayCount  = new Set(todayOrders.map(o => o.id)).size;
   document.getElementById('ord-count').textContent = todayCount;
 
-  // ── Cash flow - always today ──────────────────────────────────────
+  // ── Pending orders ──────────────────────────────────────────────────
   const pendingAll = orders.filter(o => o.status === 'pending');
   const pendingDelivery = pendingAll.filter(o => o.is_delivery);
   const pendingGroups = new Set(pendingAll.map(o => o.customer + '||' + o.location));
   const pendingDeliveryGroups = new Set(pendingDelivery.map(o => o.customer + '||' + o.location));
   document.getElementById('ord-pending-total').textContent    = pendingGroups.size;
   document.getElementById('ord-pending-delivery').textContent = pendingDeliveryGroups.size;
-
-  // Collected today = paid_qr or paid_cash (pending already paid + completed today paid)
-  const pendingPaidRev = pendingAll
-    .filter(o => o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash')
-    .reduce((s,o) => s + (+(o.total_price||0)), 0);
-  const completedPaidRev = todayOrders
-    .filter(o => o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash')
-    .reduce((s,o) => s + (+(o.total_price||0)), 0);
-  document.getElementById('ord-collected').textContent = 'RM ' + (pendingPaidRev + completedPaidRev).toFixed(2);
 
   // Uncollected = all pending unpaid + cod
   const uncollectedRev = pendingAll
