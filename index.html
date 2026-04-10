@@ -3301,7 +3301,7 @@ function renderRestockSearch() {
   if(!query) { el.innerHTML = ''; return; }
   const filtered = items.filter(i => i.name.toLowerCase().includes(query)).slice(0, 8);
   if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:8px">没有找到商品</div>'; return; }
-  el.innerHTML = '<div class="search-results">' + filtered.map(it => {
+  el.innerHTML = '<div class="search-results" onwheel="event.stopPropagation()">' + filtered.map(it => {
     const inCart = restockCart.find(r => r.itemId === it.id);
     const tag = inCart ? `<span style="font-size:11px;color:var(--green);font-weight:600">已加 ${inCart.qty} 个</span>` : '';
     return `<div class="search-result-item" onclick="addToRestockCart(${it.id});document.getElementById('restock-search').value='';document.getElementById('restock-search-results').innerHTML=''">
@@ -4503,7 +4503,7 @@ function renderTransferSearch() {
   if(!query) { el.innerHTML = ''; return; }
   const filtered = items.filter(i => !i.bundle_components && i.name.toLowerCase().includes(query)).slice(0, 8);
   if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:8px">没有找到商品</div>'; return; }
-  el.innerHTML = '<div class="search-results">' + filtered.map(it => {
+  el.innerHTML = '<div class="search-results" onwheel="event.stopPropagation()">' + filtered.map(it => {
     const inCart = transferCart.find(r => r.itemId === it.id);
     const tag = inCart ? `<span style="font-size:11px;color:var(--blue);font-weight:600">已加 ${inCart.qty} 个</span>` : '';
     return `<div class="search-result-item" onclick="addToTransferCart(${it.id});document.getElementById('transfer-search').value='';document.getElementById('transfer-search-results').innerHTML=''">
