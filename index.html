@@ -562,11 +562,12 @@
       <div class="form-row"><label>顾客名/电话</label><input type="text" id="o-customer" placeholder="顾客名字或电话"></div>
       <div class="form-row"><label>地址/备注</label><input type="text" id="o-location" placeholder="例：店里、Taman XX No.1"></div>
       <div class="form-row">
-        <label>扣库存从</label>
-        <select id="o-deduct">
+        <label>默认扣货</label>
+        <select id="o-deduct" onchange="updateCartDeductDefaults()">
           <option value="home">家里库存</option>
           <option value="shop">店里库存</option>
         </select>
+        <span style="font-size:11px;color:var(--text3);flex-shrink:0">（可逐项修改）</span>
       </div>
       <!-- Delivery toggle -->
       <div class="form-row" style="gap:10px">
@@ -1538,7 +1539,10 @@ async function saveAdj() {
 function addToCart(item) {
   const existing = cart.find(c => c.item.id === item.id);
   if(existing) { existing.qty += 1; }
-  else { cart.push({ item, qty: 1 }); }
+  else {
+    const defaultDeduct = document.getElementById('o-deduct')?.value || 'home';
+    cart.push({ item, qty: 1, deduct: defaultDeduct });
+  }
   renderCart();
 }
 
@@ -1569,6 +1573,22 @@ function getCartItemPricing(c) {
   return { totalPrice: unitPrice * c.qty };
 }
 
+function toggleCartDeduct(itemId) {
+  itemId = parseInt(itemId);
+  const entry = cart.find(c => c.item.id === itemId);
+  if(!entry) return;
+  entry.deduct = (entry.deduct === 'home') ? 'shop' : 'home';
+  entry._deductManual = true; // mark as manually set
+  renderCart();
+}
+
+function updateCartDeductDefaults() {
+  const def = document.getElementById('o-deduct')?.value || 'home';
+  // Only update items that haven't been manually changed
+  cart.forEach(c => { if(!c._deductManual) c.deduct = def; });
+  renderCart();
+}
+
 function renderCart() {
   const el = document.getElementById('cart-list');
   document.getElementById('cart-count').textContent = '共 ' + cart.length + ' 项';
@@ -1581,6 +1601,9 @@ function renderCart() {
     const item = c.item;
     const unitPrice = +(item.price || 0);
     const subtotal = (unitPrice * c.qty).toFixed(2);
+    const deduct = c.deduct || 'home';
+    const homeQty = item.home_qty ?? 0;
+    const shopQty = item.shop_qty ?? 0;
     const priceRow = unitPrice > 0
       ? `<div style="margin-top:3px"><span class="price-tag">RM ${unitPrice.toFixed(2)} × ${c.qty} = </span><span class="subtotal-tag">RM ${subtotal}</span></div>`
       : '';
@@ -1590,6 +1613,16 @@ function renderCart() {
       <div class="cart-item-name" style="flex:1;min-width:0">
         ${item.name}
         ${priceRow}
+        <div style="margin-top:4px;display:flex;gap:4px;align-items:center">
+          <span style="font-size:10px;color:var(--text3)">扣:</span>
+          <button onclick="toggleCartDeduct(${item.id})"
+            style="font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;border:1.5px solid;cursor:pointer;transition:all 0.15s;
+              ${deduct==='home'
+                ? 'background:#d8f3dc;color:#2d6a4f;border-color:#52be80'
+                : 'background:#d6eaf8;color:#1a5276;border-color:#5dade2'}">
+            ${deduct==='home' ? `家里 (${homeQty})` : `店里 (${shopQty})`}
+          </button>
+        </div>
       </div>
       <div class="cart-qty-wrap">
         <label>x</label>
@@ -1648,12 +1681,12 @@ async function addOrder() {
   if(!cart.length) { alert('购物车是空的，请先扫描商品'); return; }
   const loc = document.getElementById('o-location').value.trim();
   if(!loc) { alert('请输入取货地点'); return; }
-  const deduct = document.getElementById('o-deduct').value;
 
-  // Validate stock for all items (including bundle components)
+  // Validate stock for all items using per-item deduct setting
   for(const c of cart) {
     const item = items.find(i => i.id === c.item.id);
     if(!item) { alert('商品 "' + c.item.name + '" 找不到，请刷新'); return; }
+    const deduct = c.deduct || 'home';
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
       const bat = items.find(i => i.id === item.bundle_components.battery_id);
       const car = items.find(i => i.id === item.bundle_components.cartridge_id);
@@ -1680,8 +1713,8 @@ async function addOrder() {
 
   for(const c of cart) {
     const item = items.find(i => i.id === c.item.id);
+    const deduct = c.deduct || 'home';
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
-      // Bundle: deduct components
       const bat = items.find(i => i.id === item.bundle_components.battery_id);
       const car = items.find(i => i.id === item.bundle_components.cartridge_id);
       const batUpdate = deduct==='home' ? {home_qty: bat.home_qty - c.qty} : {shop_qty: bat.shop_qty - c.qty};
@@ -1709,8 +1742,8 @@ async function addOrder() {
 
   document.getElementById('o-customer').value='';
   document.getElementById('o-location').value='';
-  setOrderType('pickup'); // reset to pickup
-  setPayStatus('unpaid'); // reset payment status
+  setOrderType('pickup');
+  setPayStatus('unpaid');
   clearCart();
   await loadItems();
   await loadOrders();
