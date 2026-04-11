@@ -1996,7 +1996,11 @@ function renderOrders() {
       </li>`;
     }).join('');
     const groupTotal = g.orders.reduce((s,o) => s+(+(o.total_price||0)), 0);
-    const totalLine = `<li style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;font-weight:600" id="pg-total-${gKey}">合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${groupTotal.toFixed(2)}</span></li>`;
+    const totalLine = `<li style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;font-weight:600;display:flex;align-items:center;gap:6px" id="pg-total-${gKey}">
+      合计
+      <span style="color:var(--green);font-family:'DM Mono',monospace;cursor:pointer;text-decoration:underline dotted" onclick="promptGroupTotal('${gKey}')" title="点击修改总价">RM ${groupTotal.toFixed(2)}</span>
+      <span style="font-size:10px;color:var(--text3);font-weight:400">✏️</span>
+    </li>`;
     const ids = g.orders.map(o=>o.id).join(',');
 
     return `<div class="order-row${g.is_delivery ? ' is-delivery' : ''}" id="${gKey}" style="align-items:flex-start;gap:8px">
@@ -2318,9 +2322,7 @@ function refreshPendingTotal(gKey) {
   if(!g) return;
   const total = g.orders.reduce((s,o) => s + (+(o.total_price||0)), 0);
   const el = document.getElementById('pg-total-' + gKey);
-  if(el) el.innerHTML = total > 0
-    ? `合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${total.toFixed(2)}</span>`
-    : '';
+  if(el) el.innerHTML = `合计 <span style="color:var(--green);font-family:'DM Mono',monospace;cursor:pointer;text-decoration:underline dotted" onclick="promptGroupTotal('${gKey}')" title="点击修改总价">RM ${total.toFixed(2)}</span> <span style="font-size:10px;color:var(--text3);font-weight:400">✏️</span>`;
   // Refresh each item's price tag in DOM
   g.orders.forEach(o => {
     const li = document.querySelector(`#pg-items-${gKey} li`);
@@ -2336,6 +2338,48 @@ function refreshPendingTotal(gKey) {
     }
   });
 }
+
+async function promptGroupTotal(gKey) {
+  const g = window._pendingGroups[gKey];
+  if(!g || !g.orders.length) return;
+
+  const curTotal = g.orders.reduce((s,o) => s + (+(o.total_price||0)), 0);
+  const newVal = prompt(`修改订单总价（RM）：\n\n当前各商品价格：\n${g.orders.map(o=>`• ${o.item_name} × ${o.qty}  RM ${(+(o.total_price||0)).toFixed(2)}`).join('\n')}`, curTotal.toFixed(2));
+  if(newVal === null) return;
+  const newTotal = parseFloat(newVal);
+  if(isNaN(newTotal) || newTotal < 0) { alert('请输入有效价格'); return; }
+
+  // If only 1 item, set directly
+  if(g.orders.length === 1) {
+    await sb.from('orders').update({ total_price: newTotal }).eq('id', g.orders[0].id);
+    g.orders[0].total_price = newTotal;
+    refreshPendingTotal(gKey);
+    setSync('ok', '价格已更新 · ' + timeNow());
+    return;
+  }
+
+  // Multiple items: distribute proportionally by current price; if all zero, split equally
+  const totalCur = g.orders.reduce((s,o) => s + (+(o.total_price||0)), 0);
+  let remaining = newTotal;
+  for(let i = 0; i < g.orders.length; i++) {
+    const o = g.orders[i];
+    let share;
+    if(i === g.orders.length - 1) {
+      // Last item gets the remainder to avoid rounding errors
+      share = parseFloat(remaining.toFixed(2));
+    } else if(totalCur > 0) {
+      share = parseFloat(((+(o.total_price||0)) / totalCur * newTotal).toFixed(2));
+    } else {
+      share = parseFloat((newTotal / g.orders.length).toFixed(2));
+    }
+    remaining -= share;
+    await sb.from('orders').update({ total_price: share }).eq('id', o.id);
+    o.total_price = share;
+  }
+  refreshPendingTotal(gKey);
+  setSync('ok', '总价已更新并分摊 · ' + timeNow());
+}
+
 
 async function promptOrderItemPrice(orderId, gKey) {
   const g = window._pendingGroups[gKey];
