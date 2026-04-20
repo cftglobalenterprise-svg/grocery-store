@@ -1683,7 +1683,10 @@ async function addOrder() {
   if(!loc) { alert('请输入取货地点'); return; }
   const deduct = document.getElementById('o-deduct').value;
 
-  // Validate stock for all items (including bundle components)
+  // ── 下单前强制拉最新库存 ──
+  await loadItems();
+
+  // Validate stock with fresh data
   for(const c of cart) {
     const item = items.find(i => i.id === c.item.id);
     if(!item) { alert('商品 "' + c.item.name + '" 找不到，请刷新'); return; }
@@ -1898,26 +1901,29 @@ function renderInstoreCart() {
 async function instoreCheckout(payMethod) {
   if(!instoreCart.length) { alert('购物车是空的，请先扫描商品'); return; }
 
-  // Check stock (including bundle components)
+  // ── 结账前强制拉最新库存，防止订单已预留但本地未更新 ──
+  setSync('busy','检查库存...');
+  await loadItems(); // 拉最新数据
+
+  // Check stock with fresh data
   for(const c of instoreCart) {
     const item = items.find(i => i.id === c.item.id);
-    if(!item) { alert('商品 "' + c.item.name + '" 找不到，请刷新'); return; }
+    if(!item) { alert('商品 "' + c.item.name + '" 找不到，请刷新'); setSync('ok',''); return; }
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
-      // Bundle: check component stock instead
       const bat = items.find(i => i.id === item.bundle_components.battery_id);
       const car = items.find(i => i.id === item.bundle_components.cartridge_id);
       if(!bat || bat.shop_qty < c.qty) {
         alert('店里库存不足！\n套装零件 "' + (bat?bat.name:'Battery') + '" 只剩 ' + (bat?bat.shop_qty:0) + ' 个，套装需要 ' + c.qty + ' 个');
-        return;
+        setSync('ok',''); return;
       }
       if(!car || car.shop_qty < c.qty) {
         alert('店里库存不足！\n套装零件 "' + (car?car.name:'Cartridge') + '" 只剩 ' + (car?car.shop_qty:0) + ' 个，套装需要 ' + c.qty + ' 个');
-        return;
+        setSync('ok',''); return;
       }
     } else {
       if(item.shop_qty < c.qty) {
-        alert('店里库存不足！\n"' + item.name + '" 只剩 ' + item.shop_qty + ' 个，你消费了 ' + c.qty + ' 个');
-        return;
+        alert('店里库存不足！\n"' + item.name + '" 只剩 ' + item.shop_qty + ' 个\n（可能已被预留给其他订单）');
+        setSync('ok',''); return;
       }
     }
   }
