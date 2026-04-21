@@ -557,8 +557,20 @@
       <div class="orders-right">
 
         <div class="card">
-          <div class="card-title">新增订单</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div class="card-title" style="margin-bottom:0">新增订单</div>
+            <button id="order-lock-btn" onclick="toggleOrderLock()" style="font-size:12px;padding:5px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-weight:600">🔒 已锁定</button>
+          </div>
 
+          <!-- Locked overlay -->
+          <div id="order-locked-view" style="text-align:center;padding:32px 16px;color:var(--text3)">
+            <div style="font-size:36px;margin-bottom:10px">🔒</div>
+            <div style="font-size:13px;margin-bottom:4px">新增订单已锁定</div>
+            <div style="font-size:11px;color:var(--text3)">点击右上角解锁</div>
+          </div>
+
+          <!-- Unlocked form -->
+          <div id="order-unlocked-view" style="display:none">
           <div class="form-row"><label>顾客名/电话</label><input type="text" id="o-customer" placeholder="顾客名字或电话"></div>
           <div class="form-row"><label>地址/备注</label><input type="text" id="o-location" placeholder="例：店里、Taman XX No.1"></div>
           <div class="form-row">
@@ -631,6 +643,7 @@
         </div>
       </div>
       <button class="btn btn-block" onclick="addOrder()">+ 下单（自动扣库存）</button>
+          </div><!-- end order-unlocked-view -->
     </div>
 
     <!-- DELIVERY orders -->
@@ -2186,6 +2199,30 @@ function renderOrders() {
       </div>`;
     }).join('') : '<div class="empty">暂无历史记录</div>';
   }
+}
+
+// ── ORDER FORM LOCK ────────────────────────────────────────────────
+const ORDER_PASSWORD = '8888'; // 改成你想要的密码
+let _orderUnlocked = false;
+
+function toggleOrderLock() {
+  if(_orderUnlocked) {
+    _orderUnlocked = false;
+    document.getElementById('order-locked-view').style.display = '';
+    document.getElementById('order-unlocked-view').style.display = 'none';
+    document.getElementById('order-lock-btn').textContent = '🔒 已锁定';
+    document.getElementById('order-lock-btn').style.cssText = 'font-size:12px;padding:5px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-weight:600';
+    return;
+  }
+  const pw = prompt('请输入密码：');
+  if(pw === null) return;
+  if(pw !== ORDER_PASSWORD) { alert('密码错误'); return; }
+  _orderUnlocked = true;
+  document.getElementById('order-locked-view').style.display = 'none';
+  document.getElementById('order-unlocked-view').style.display = '';
+  document.getElementById('order-lock-btn').textContent = '🔓 已解锁';
+  document.getElementById('order-lock-btn').style.cssText = 'font-size:12px;padding:5px 12px;border-radius:20px;border:1.5px solid #52be80;background:#d8f3dc;color:#2d6a4f;cursor:pointer;font-weight:600';
+  setPayStatus(_payStatus);
 }
 
 // ── ORDER TYPE (delivery / pickup) ─────────────────────────────────
