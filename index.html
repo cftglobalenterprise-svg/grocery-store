@@ -791,6 +791,22 @@
 
   <!-- PROFIT PAGE (hidden until unlocked) -->
   <div id="page-profit" class="page">
+
+    <!-- MONTHLY P&L — top -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📋 月度损益表</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="month" id="pnl-month-picker" style="padding:5px 8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderPnL()">
+          <button class="btn" style="font-size:11px;padding:4px 10px" onclick="exportPnL()">📄 导出</button>
+        </div>
+      </div>
+      <div id="pnl-body">
+        <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">请选择月份</div>
+      </div>
+    </div>
+
+    <!-- 成本/利润报表 -->
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div class="card-title" style="margin-bottom:0">💰 成本 / 利润报表</div>
@@ -827,7 +843,7 @@
       <div id="profit-breakdown"></div>
     </div>
 
-    <!-- Cost editor: items without cost -->
+    <!-- Cost editor -->
     <div class="card">
       <div class="card-title">⚙️ 设置商品成本价</div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:10px">只有解锁状态下才会显示成本价输入栏</div>
@@ -838,21 +854,6 @@
         </select>
       </div>
       <div id="cost-editor-list"></div>
-    </div>
-
-    <!-- MONTHLY P&L -->
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div class="card-title" style="margin-bottom:0">📋 月度损益表</div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <input type="month" id="pnl-month-picker" style="padding:5px 8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderPnL()">
-          <button class="btn" style="font-size:11px;padding:4px 10px" onclick="exportPnL()">📄 导出</button>
-        </div>
-      </div>
-
-      <div id="pnl-body">
-        <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">请选择月份</div>
-      </div>
     </div>
 
   </div>
