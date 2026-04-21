@@ -291,7 +291,7 @@
     <div class="tab" onclick="switchTab('orders',this)">📦 订单</div>
     <div class="tab" onclick="switchTab('overview',this)">📊 总览</div>
     <div class="tab" id="tab-profit" style="display:none;color:#c0392b" onclick="switchTab('profit',this)">💰 利润</div>
-    <div class="tab" onclick="switchTab('finance',this)">📒 记账</div>
+    <div class="tab" onclick="promptFinanceUnlock(this)">📒 记账</div>
   </div>
 
   <!-- STOCK PAGE -->
@@ -877,12 +877,13 @@
 <div id="page-finance" class="page" style="max-width:860px;margin:0 auto">
 
   <!-- Sub-tabs -->
-  <div style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:12px">
+  <div style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:12px;align-items:center">
     <button id="ftab-overview" onclick="setFinanceTab('overview')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">📊 总览</button>
     <button id="ftab-accounts" onclick="setFinanceTab('accounts')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🏦 账户</button>
     <button id="ftab-txns" onclick="setFinanceTab('txns')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📋 收支</button>
     <button id="ftab-debts" onclick="setFinanceTab('debts')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🤝 欠款</button>
     <button id="ftab-report" onclick="setFinanceTab('report')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📄 报表</button>
+    <button onclick="lockFinance()" style="padding:7px 10px;font-size:11px;font-weight:600;border:none;border-left:1px solid var(--border);background:none;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0" title="锁定记账">🔒</button>
   </div>
 
   <!-- ── 总览 ── -->
@@ -1383,6 +1384,28 @@ function switchTab(t, el) {
     }
   }
   if(t==='finance') { initFinanceTab(); }
+}
+
+// ── FINANCE LOCK ───────────────────────────────────────────────────
+const FINANCE_PASSWORD = '960108';
+let _financeUnlocked = false;
+
+function promptFinanceUnlock(el) {
+  if(_financeUnlocked) { switchTab('finance', el); return; }
+  const pw = prompt('请输入密码：');
+  if(pw === null) return;
+  if(pw !== FINANCE_PASSWORD) { alert('密码错误'); return; }
+  _financeUnlocked = true;
+  switchTab('finance', el);
+}
+
+function lockFinance() {
+  _financeUnlocked = false;
+  // Switch back to stock tab
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelector('.tab').classList.add('active');
+  document.getElementById('page-stock').classList.add('active');
 }
 async function addItem() {
   const name = document.getElementById('new-name').value.trim();
