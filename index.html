@@ -839,6 +839,22 @@
       </div>
       <div id="cost-editor-list"></div>
     </div>
+
+    <!-- MONTHLY P&L -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📋 月度损益表</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="month" id="pnl-month-picker" style="padding:5px 8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderPnL()">
+          <button class="btn" style="font-size:11px;padding:4px 10px" onclick="exportPnL()">📄 导出</button>
+        </div>
+      </div>
+
+      <div id="pnl-body">
+        <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">请选择月份</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1132,7 +1148,17 @@ function switchTab(t, el) {
   if(t==='orders') { loadOrders(); setTimeout(() => setPayStatus(_payStatus), 100); }
   if(t==='instore') { renderInstoreHistory(); renderDashboard(); }
   if(t==='overview') renderOverview();
-  if(t==='profit') { renderProfitReport(); renderCostEditor(); }
+  if(t==='profit') {
+    renderProfitReport();
+    renderCostEditor();
+    // Auto-set P&L month to current month
+    const picker = document.getElementById('pnl-month-picker');
+    if(picker && !picker.value) {
+      const now = new Date();
+      picker.value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+      renderPnL();
+    }
+  }
 }
 
 // ── STOCK ──────────────────────────────────────────────────────────
@@ -3664,6 +3690,288 @@ async function saveCostPrice(itemId, val) {
   const it = items.find(i=>i.id===itemId);
   if(it) it.cost_price = cost;
   renderProfitReport();
+}
+
+// ── MONTHLY P&L ────────────────────────────────────────────────────
+// expenses stored in localStorage (no Supabase table needed)
+function getPnLKey(ym) { return 'pnl_expenses_' + ym; }
+
+function loadExpenses(ym) {
+  try { return JSON.parse(localStorage.getItem(getPnLKey(ym)) || '[]'); } catch { return []; }
+}
+function saveExpenses(ym, list) {
+  localStorage.setItem(getPnLKey(ym), JSON.stringify(list));
+}
+
+function renderPnL() {
+  const ym = document.getElementById('pnl-month-picker').value;
+  const el = document.getElementById('pnl-body');
+  if(!ym) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">请选择月份</div>'; return; }
+
+  const [y, m] = ym.split('-').map(Number);
+  const start = new Date(y, m-1, 1);
+  const end   = new Date(y, m, 1);
+
+  // ── Revenue & COGS from sales ──
+  const salesOrders = orders.filter(o => {
+    const dt = new Date(o.created_at);
+    return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
+  });
+  const revenue = salesOrders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const qrRev   = salesOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const cashRev = salesOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+
+  let cogs = 0;
+  salesOrders.forEach(o => {
+    const it = items.find(i=>i.id===o.item_id);
+    cogs += (it ? +(it.cost_price||0) : 0) * (+(o.qty||0));
+  });
+  const grossProfit = revenue - cogs;
+
+  // ── Operating expenses ──
+  const expenses = loadExpenses(ym);
+  const totalExp = expenses.reduce((s,e)=>s+(+(e.amount||0)),0);
+  const netProfit = grossProfit - totalExp;
+
+  const fmt = v => 'RM ' + (+v).toFixed(2);
+  const row = (label, val, bold, color, indent) =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px ${indent?'16px':'0'} 7px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:${bold?'13':'12'}px;font-weight:${bold?700:400};color:${color||'var(--text2)'}${indent?';padding-left:12px':''}">${label}</span>
+      <span style="font-size:${bold?'14':'13'}px;font-weight:${bold?700:500};font-family:'DM Mono',monospace;color:${color||'var(--text)'}">${fmt(val)}</span>
+    </div>`;
+
+  const expRows = expenses.map((e,i) => `
+    <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px;color:var(--text2);flex:1;padding-left:12px">${e.label||'未命名'}</span>
+      <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text)">RM ${(+(e.amount||0)).toFixed(2)}</span>
+      <button onclick="editExpense('${ym}',${i})" style="background:none;border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-size:11px;cursor:pointer;color:var(--text2)">✏️</button>
+      <button onclick="deleteExpense('${ym}',${i})" style="background:none;border:none;color:var(--text3);font-size:15px;cursor:pointer;padding:0 2px">✕</button>
+    </div>`).join('');
+
+  el.innerHTML = `
+    <div style="margin-bottom:14px">
+      ${row('营业额', revenue, true, '#2d6a4f')}
+      <div style="padding:3px 0 2px 12px;font-size:11px;color:var(--text3)">📲 QR: <b>RM ${qrRev.toFixed(2)}</b>　💵 Cash: <b>RM ${cashRev.toFixed(2)}</b></div>
+      ${row('商品成本 (COGS)', cogs, false, '#922b21')}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:2px solid var(--text)">
+        <span style="font-size:13px;font-weight:700">毛利润</span>
+        <span style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:${grossProfit>=0?'#1a5276':'#922b21'}">${fmt(grossProfit)}</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">营业开销</span>
+        <button onclick="addExpense('${ym}')" style="font-size:11px;padding:4px 10px;border:1.5px dashed var(--border);border-radius:6px;background:none;cursor:pointer;color:var(--text2)">＋ 添加项目</button>
+      </div>
+      ${expRows || '<div style="font-size:12px;color:var(--text3);padding:8px 0 4px 12px">还没有开销记录</div>'}
+      ${expenses.length ? `<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--border);margin-top:2px"><span style="font-size:12px;color:var(--text2)">开销合计</span><span style="font-size:13px;font-weight:600;font-family:'DM Mono',monospace;color:#922b21">${fmt(totalExp)}</span></div>` : ''}
+    </div>
+
+    <div style="background:${netProfit>=0?'#d8f3dc':'#fadbd8'};border-radius:var(--radius-sm);padding:14px;border:1px solid ${netProfit>=0?'#52be80':'#f1948a'}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:14px;font-weight:700;color:${netProfit>=0?'#2d6a4f':'#922b21'}">🏆 净利润</span>
+        <span style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:${netProfit>=0?'#2d6a4f':'#922b21'}">${fmt(netProfit)}</span>
+      </div>
+      ${revenue>0?`<div style="font-size:11px;color:${netProfit>=0?'#2d6a4f':'#922b21'};margin-top:4px">净利润率 ${(netProfit/revenue*100).toFixed(1)}%</div>`:''}
+    </div>`;
+}
+
+function addExpense(ym) {
+  const label  = prompt('开销项目名称：\n例：员工薪资、租金、水电、网费');
+  if(!label) return;
+  const amount = parseFloat(prompt('金额 (RM)：') || '0');
+  if(isNaN(amount) || amount < 0) { alert('请输入有效金额'); return; }
+  const list = loadExpenses(ym);
+  list.push({ label: label.trim(), amount });
+  saveExpenses(ym, list);
+  renderPnL();
+}
+
+function editExpense(ym, idx) {
+  const list = loadExpenses(ym);
+  const e = list[idx];
+  if(!e) return;
+  const label  = prompt('修改项目名称：', e.label);
+  if(label === null) return;
+  const amount = parseFloat(prompt('修改金额 (RM)：', e.amount) || e.amount);
+  if(isNaN(amount) || amount < 0) { alert('请输入有效金额'); return; }
+  list[idx] = { label: label.trim(), amount };
+  saveExpenses(ym, list);
+  renderPnL();
+}
+
+function deleteExpense(ym, idx) {
+  const list = loadExpenses(ym);
+  if(!confirm('删除"' + list[idx]?.label + '"？')) return;
+  list.splice(idx, 1);
+  saveExpenses(ym, list);
+  renderPnL();
+}
+
+function exportPnL() {
+  const ym = document.getElementById('pnl-month-picker').value;
+  if(!ym) { alert('请先选择月份'); return; }
+  const [y, m] = ym.split('-').map(Number);
+  const monthName = new Date(y, m-1, 1).toLocaleString('en-MY',{year:'numeric',month:'long'});
+  const start = new Date(y, m-1, 1), end = new Date(y, m, 1);
+
+  const salesOrders = orders.filter(o => {
+    const dt = new Date(o.created_at);
+    return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
+  });
+  const revenue  = salesOrders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const qrRev    = salesOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const cashRev  = salesOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  let cogs = 0;
+  salesOrders.forEach(o => {
+    const it = items.find(i=>i.id===o.item_id);
+    cogs += (it?+(it.cost_price||0):0)*(+(o.qty||0));
+  });
+  const grossProfit = revenue - cogs;
+  const expenses    = loadExpenses(ym);
+  const totalExp    = expenses.reduce((s,e)=>s+(+(e.amount||0)),0);
+  const netProfit   = grossProfit - totalExp;
+
+  // Load jsPDF dynamically
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  script.onload = () => generatePnLPdf({ ym, y, m, monthName, revenue, qrRev, cashRev, cogs, grossProfit, expenses, totalExp, netProfit });
+  document.head.appendChild(script);
+}
+
+function generatePnLPdf(d) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const W = 210, L = 20, R = 190, mid = 105;
+  let y = 20;
+
+  const fmt = v => 'RM ' + (+v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  const line  = (x1,y1,x2,y2,w=0.3) => { doc.setLineWidth(w); doc.line(x1,y1,x2,y2); };
+  const text  = (t,x,yy,size=10,style='normal',align='left') => {
+    doc.setFontSize(size); doc.setFont('helvetica',style);
+    doc.text(String(t), x, yy, {align});
+  };
+  const row   = (label, amt, yy, bold, indent, color) => {
+    if(color) doc.setTextColor(...color); else doc.setTextColor(30,30,30);
+    text(label, L+(indent?8:0), yy, 10, bold?'bold':'normal');
+    text(fmt(amt), R, yy, 10, bold?'bold':'normal', 'right');
+    doc.setTextColor(30,30,30);
+  };
+
+  // ── Header box ──────────────────────────────────────────────
+  doc.setFillColor(25, 55, 90);
+  doc.rect(0, 0, W, 38, 'F');
+  doc.setTextColor(255,255,255);
+  text('CFT GLOBAL ENTERPRISE', mid, 13, 15, 'bold', 'center');
+  text('(202203221872 / NS0273693-A)', mid, 20, 9, 'normal', 'center');
+  text('No 19, Bandar Baru Brinchang, 39100 Brinchang, Pahang.', mid, 26, 8, 'normal', 'center');
+  text('TIN: IG 56136759000', mid, 32, 8, 'normal', 'center');
+  doc.setTextColor(30,30,30);
+  y = 46;
+
+  // ── Title ───────────────────────────────────────────────────
+  text('PROFIT AND LOSS STATEMENT', mid, y, 13, 'bold', 'center');
+  y += 6;
+  text('For the month of ' + d.monthName, mid, y, 10, 'normal', 'center');
+  y += 4;
+  text('Currency: Malaysian Ringgit (MYR)', mid, y, 9, 'normal', 'center');
+  y += 8;
+  line(L, y, R, y, 0.5);
+  y += 8;
+
+  // ── Revenue ─────────────────────────────────────────────────
+  text('REVENUE', L, y, 10, 'bold');
+  y += 6;
+  row('Sales Revenue', d.revenue, y, false, true);
+  y += 5;
+  doc.setTextColor(120,120,120);
+  text('QR / Online Transfer: ' + fmt(d.qrRev), L+10, y, 8.5);
+  y += 4.5;
+  text('Cash: ' + fmt(d.cashRev), L+10, y, 8.5);
+  doc.setTextColor(30,30,30);
+  y += 7;
+  line(L, y, R, y);
+  y += 6;
+
+  // ── COGS ────────────────────────────────────────────────────
+  text('COST OF GOODS SOLD', L, y, 10, 'bold');
+  y += 6;
+  row('Direct Cost of Goods', d.cogs, y, false, true);
+  y += 7;
+  line(L, y, R, y);
+  y += 6;
+
+  // ── Gross Profit ────────────────────────────────────────────
+  row('GROSS PROFIT', d.grossProfit, y, true, false, d.grossProfit>=0?[27,94,32]:[146,34,34]);
+  y += 10;
+  line(L, y, R, y, 0.5);
+  y += 8;
+
+  // ── Operating Expenses ──────────────────────────────────────
+  text('OPERATING EXPENSES', L, y, 10, 'bold');
+  y += 6;
+  if(d.expenses.length === 0) {
+    doc.setTextColor(150,150,150);
+    text('No operating expenses recorded.', L+8, y, 9, 'normal');
+    doc.setTextColor(30,30,30);
+    y += 6;
+  } else {
+    d.expenses.forEach(e => {
+      row(e.label, +(e.amount||0), y, false, true);
+      y += 5.5;
+    });
+    y += 1;
+    line(L+8, y, R, y, 0.2);
+    y += 5;
+    row('Total Operating Expenses', d.totalExp, y, true, false, [146,34,34]);
+    y += 8;
+  }
+  line(L, y, R, y, 0.5);
+  y += 8;
+
+  // ── Net Profit box ──────────────────────────────────────────
+  const boxColor = d.netProfit >= 0 ? [213,244,220] : [253,213,208];
+  const txtColor = d.netProfit >= 0 ? [27,94,32]    : [146,34,34];
+  doc.setFillColor(...boxColor);
+  doc.roundedRect(L, y-5, R-L, 16, 2, 2, 'F');
+  doc.setTextColor(...txtColor);
+  text('NET PROFIT / (LOSS)', L+5, y+3, 11, 'bold');
+  text(fmt(d.netProfit), R-5, y+3, 13, 'bold', 'right');
+  if(d.revenue > 0) {
+    text('Net Profit Margin: ' + (d.netProfit/d.revenue*100).toFixed(1) + '%', L+5, y+9, 8.5, 'normal');
+  }
+  doc.setTextColor(30,30,30);
+  y += 26;
+
+  // ── Certification note ──────────────────────────────────────
+  line(L, y, R, y, 0.3);
+  y += 6;
+  doc.setTextColor(100,100,100);
+  text('This statement is prepared for internal reference purposes only.', mid, y, 7.5, 'normal', 'center');
+  y += 4.5;
+  text('For official tax submission (LHDN), this document must be verified and certified by a', mid, y, 7.5, 'normal', 'center');
+  y += 4.5;
+  text('registered tax agent or auditor in accordance with the Income Tax Act 1967.', mid, y, 7.5, 'normal', 'center');
+  y += 8;
+
+  // ── Signature lines ─────────────────────────────────────────
+  doc.setTextColor(30,30,30);
+  line(L, y, L+55, y);
+  line(R-55, y, R, y);
+  y += 5;
+  text('Prepared by', L, y, 8.5, 'normal');
+  text('Verified by', R-55, y, 8.5, 'normal');
+  y += 4;
+  text('(Authorised Signatory)', L, y, 7.5, 'normal');
+  text('(Tax Agent / Auditor)', R-55, y, 7.5, 'normal');
+
+  // ── Footer ──────────────────────────────────────────────────
+  const genDate = new Date().toLocaleDateString('en-MY',{day:'2-digit',month:'long',year:'numeric'});
+  doc.setFontSize(7.5); doc.setTextColor(150,150,150);
+  doc.text('Generated: ' + genDate + '  |  CFT Global Enterprise  |  TIN: IG 56136759000', mid, 288, {align:'center'});
+
+  doc.save('CFT_PnL_' + d.ym + '.pdf');
 }
 
 // ── CUSTOMER MODE ───────────────────────────────────────────────────
