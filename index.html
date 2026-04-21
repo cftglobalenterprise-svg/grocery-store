@@ -291,6 +291,7 @@
     <div class="tab" onclick="switchTab('orders',this)">📦 订单</div>
     <div class="tab" onclick="switchTab('overview',this)">📊 总览</div>
     <div class="tab" id="tab-profit" style="display:none;color:#c0392b" onclick="switchTab('profit',this)">💰 利润</div>
+    <div class="tab" onclick="switchTab('finance',this)">📒 记账</div>
   </div>
 
   <!-- STOCK PAGE -->
@@ -872,6 +873,214 @@
   </div>
 </div>
 
+<!-- FINANCE PAGE ═══════════════════════════════════════════════════ -->
+<div id="page-finance" class="page" style="max-width:860px;margin:0 auto">
+
+  <!-- Sub-tabs -->
+  <div style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:12px">
+    <button id="ftab-overview" onclick="setFinanceTab('overview')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">📊 总览</button>
+    <button id="ftab-accounts" onclick="setFinanceTab('accounts')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🏦 账户</button>
+    <button id="ftab-txns" onclick="setFinanceTab('txns')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📋 收支</button>
+    <button id="ftab-debts" onclick="setFinanceTab('debts')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🤝 欠款</button>
+    <button id="ftab-report" onclick="setFinanceTab('report')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📄 报表</button>
+  </div>
+
+  <!-- ── 总览 ── -->
+  <div id="fpage-overview">
+    <!-- 净资产 -->
+    <div class="card" style="background:var(--text);color:#fff;border:none;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:600;opacity:0.55;margin-bottom:5px;letter-spacing:0.5px">NET WORTH · 净资产</div>
+      <div style="font-size:30px;font-weight:700;font-family:'DM Mono',monospace" id="fn-networth">RM 0.00</div>
+      <div style="font-size:10px;opacity:0.45;margin-top:5px">所有账户总和</div>
+    </div>
+    <!-- 账户快照 -->
+    <div class="card">
+      <div class="card-title">🏦 账户快照</div>
+      <div id="fn-acc-snapshot"><div class="empty">还没有账户</div></div>
+    </div>
+    <!-- 本月收支 -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">📅 月度收支</div>
+        <input type="month" id="fn-ov-month" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnOverview()">
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+        <div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #52be80">
+          <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:#2d6a4f" id="fn-income">RM 0</div>
+          <div style="font-size:10px;color:#2d6a4f;font-weight:600;margin-top:3px">收入</div>
+        </div>
+        <div style="background:#fadbd8;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #f1948a">
+          <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:#922b21" id="fn-expense">RM 0</div>
+          <div style="font-size:10px;color:#922b21;font-weight:600;margin-top:3px">支出</div>
+        </div>
+        <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #5dade2">
+          <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="fn-surplus">RM 0</div>
+          <div style="font-size:10px;color:#1a5276;font-weight:600;margin-top:3px">结余</div>
+        </div>
+      </div>
+      <div id="fn-cat-chart"></div>
+    </div>
+    <!-- 欠款摘要 -->
+    <div class="card">
+      <div class="card-title">🤝 欠款摘要</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #5dade2">
+          <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="fn-oweme-total">RM 0</div>
+          <div style="font-size:10px;color:#1a5276;font-weight:600;margin-top:3px">别人欠我</div>
+        </div>
+        <div style="background:#fef3cd;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #f0c040">
+          <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:#7d4e00" id="fn-iowe-total">RM 0</div>
+          <div style="font-size:10px;color:#7d4e00;font-weight:600;margin-top:3px">我欠别人</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 账户 ── -->
+  <div id="fpage-accounts" style="display:none">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">🏦 我的账户</div>
+        <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="openFnAccModal()">＋ 添加</button>
+      </div>
+      <div id="fn-acc-list"><div class="empty">还没有账户</div></div>
+    </div>
+  </div>
+
+  <!-- ── 收支 ── -->
+  <div id="fpage-txns" style="display:none">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">📋 收支记录</div>
+        <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="openFnTxnModal()">＋ 添加</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <input type="month" id="fn-txn-month" style="flex:1;padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnTxns()">
+        <select id="fn-txn-type" style="padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnTxns()">
+          <option value="">全部</option><option value="income">收入</option><option value="expense">支出</option>
+        </select>
+      </div>
+      <div id="fn-txn-list"><div class="empty">暂无记录</div></div>
+    </div>
+  </div>
+
+  <!-- ── 欠款 ── -->
+  <div id="fpage-debts" style="display:none">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📥 别人欠我</div>
+        <button class="btn" style="background:#1a5276;color:#fff;border-color:#1a5276" onclick="openFnDebtModal('owe_me')">＋ 添加</button>
+      </div>
+      <div id="fn-debt-oweme"><div class="empty">没有人欠你钱 👍</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📤 我欠别人</div>
+        <button class="btn" style="background:#7d4e00;color:#fff;border-color:#7d4e00" onclick="openFnDebtModal('i_owe')">＋ 添加</button>
+      </div>
+      <div id="fn-debt-iowe"><div class="empty">你没有欠任何人 👍</div></div>
+    </div>
+    <div class="card" style="background:var(--surface2)">
+      <div class="card-title">✅ 已结清</div>
+      <div id="fn-debt-settled"><div class="empty">暂无</div></div>
+    </div>
+  </div>
+
+  <!-- ── 月度报表 ── -->
+  <div id="fpage-report" style="display:none">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📄 月度财务报表</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="month" id="fn-report-month" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnReport()">
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--text);color:#fff;border-color:var(--text)" onclick="exportFnReport()">📥 导出</button>
+        </div>
+      </div>
+      <div id="fn-report-body"><div class="empty">请选择月份</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FN ACCOUNT MODAL -->
+<div class="modal-overlay" id="fn-acc-modal">
+  <div class="modal" onwheel="event.stopPropagation()">
+    <h3 id="fn-acc-modal-title">添加账户</h3>
+    <div class="form-row"><label>账户名</label><input type="text" id="fn-acc-name" placeholder="例：Maybank, TNG, Cash"></div>
+    <div class="form-row"><label>类型</label>
+      <select id="fn-acc-type">
+        <option value="bank">🏦 银行账户</option>
+        <option value="cash">💵 现金</option>
+        <option value="ewallet">📱 电子钱包 (TNG/GrabPay)</option>
+        <option value="stock">📈 股票/投资</option>
+        <option value="crypto">🪙 加密货币</option>
+        <option value="other">📂 其他</option>
+      </select>
+    </div>
+    <div class="form-row"><label>余额 (RM)</label><input type="number" id="fn-acc-balance" step="0.01" placeholder="0.00"></div>
+    <div class="form-row"><label>备注</label><input type="text" id="fn-acc-note" placeholder="可选"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeFnAccModal()">取消</button>
+      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveFnAcc()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- FN TXN MODAL -->
+<div class="modal-overlay" id="fn-txn-modal">
+  <div class="modal" onwheel="event.stopPropagation()">
+    <h3 id="fn-txn-modal-title">添加收支</h3>
+    <div class="form-row"><label>类型</label>
+      <div style="display:flex;gap:6px;flex:1">
+        <button id="fn-btn-income" onclick="setFnTxnType('income')" style="flex:1;padding:7px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #52be80;background:#d8f3dc;color:#2d6a4f;cursor:pointer">收入</button>
+        <button id="fn-btn-expense" onclick="setFnTxnType('expense')" style="flex:1;padding:7px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text3);cursor:pointer">支出</button>
+      </div>
+    </div>
+    <div class="form-row"><label>金额 (RM)</label><input type="number" id="fn-txn-amount" step="0.01" placeholder="0.00"></div>
+    <div class="form-row"><label>分类</label>
+      <select id="fn-txn-cat">
+        <option value="">-- 选择 --</option>
+        <optgroup label="💰 收入">
+          <option>工资</option><option>生意收入</option><option>投资回报</option><option>其他收入</option>
+        </optgroup>
+        <optgroup label="🍜 生活">
+          <option>饮食</option><option>交通/油费</option><option>购物</option><option>娱乐</option><option>医疗</option>
+        </optgroup>
+        <optgroup label="🏠 固定支出">
+          <option>租金</option><option>水电</option><option>网络/电话</option><option>保险</option>
+        </optgroup>
+        <optgroup label="🏪 生意">
+          <option>进货</option><option>员工薪资</option><option>生意杂费</option>
+        </optgroup>
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="form-row"><label>账户</label>
+      <select id="fn-txn-acc"><option value="">-- 不指定 --</option></select>
+    </div>
+    <div class="form-row"><label>日期</label><input type="date" id="fn-txn-date"></div>
+    <div class="form-row"><label>备注</label><input type="text" id="fn-txn-note" placeholder="可选"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeFnTxnModal()">取消</button>
+      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveFnTxn()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- FN DEBT MODAL -->
+<div class="modal-overlay" id="fn-debt-modal">
+  <div class="modal" onwheel="event.stopPropagation()">
+    <h3 id="fn-debt-modal-title">添加欠款</h3>
+    <div class="form-row"><label>姓名</label><input type="text" id="fn-debt-person" placeholder="对方姓名"></div>
+    <div class="form-row"><label>金额 (RM)</label><input type="number" id="fn-debt-amount" step="0.01" placeholder="0.00"></div>
+    <div class="form-row"><label>备注</label><input type="text" id="fn-debt-note" placeholder="例：借买手机、欠饭钱"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeFnDebtModal()">取消</button>
+      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveFnDebt()">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- CUSTOMER MODE OVERLAY -->
 <div id="customer-overlay">
   <div class="cust-topbar">
@@ -1173,9 +1382,8 @@ function switchTab(t, el) {
       renderPnL();
     }
   }
+  if(t==='finance') { initFinanceTab(); }
 }
-
-// ── STOCK ──────────────────────────────────────────────────────────
 async function addItem() {
   const name = document.getElementById('new-name').value.trim();
   if(!name) { alert('请输入商品名'); return; }
@@ -5237,6 +5445,369 @@ async function confirmTransfer() {
     if(t === 'stock') setTimeout(setupColumnScroll, 50);
   };
 })();
+
+// ══ FINANCE MODULE ═══════════════════════════════════════════════
+let fnAccounts = [], fnTxns = [], fnDebts = [];
+let _fnEditAccId=null, _fnEditTxnId=null, _fnEditDebtId=null;
+let _fnTxnType='income', _fnDebtDir='owe_me', _fnTab='overview';
+
+const fnFmt  = v => 'RM ' + Math.abs(+(v||0)).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+const fnToday = () => new Date().toISOString().slice(0,10);
+const fnThisMonth = () => { const n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); };
+const FN_ACC_ICONS = {bank:'🏦',cash:'💵',ewallet:'📱',stock:'📈',crypto:'🪙',other:'📂'};
+const FN_ACC_LABELS = {bank:'银行',cash:'现金',ewallet:'电子钱包',stock:'股票/投资',crypto:'加密货币',other:'其他'};
+const FN_CAT_ICONS = {'工资':'💼','生意收入':'🏪','投资回报':'📈','其他收入':'💰','饮食':'🍜','交通/油费':'⛽','购物':'🛍','娱乐':'🎮','医疗':'🏥','租金':'🏠','水电':'💡','网络/电话':'📱','保险':'🛡','进货':'📦','员工薪资':'👥','生意杂费':'🔧','其他':'📂'};
+
+async function loadFnData() {
+  const [a,t,d] = await Promise.all([
+    sb.from('finance_accounts').select('*').order('created_at'),
+    sb.from('finance_txns').select('*').order('txn_date',{ascending:false}),
+    sb.from('finance_debts').select('*').order('created_at',{ascending:false}),
+  ]);
+  fnAccounts = a.data||[]; fnTxns = t.data||[]; fnDebts = d.data||[];
+}
+
+function initFinanceTab() {
+  if(!document.getElementById('fn-ov-month').value) {
+    document.getElementById('fn-ov-month').value = fnThisMonth();
+    document.getElementById('fn-txn-month').value = fnThisMonth();
+    document.getElementById('fn-report-month').value = fnThisMonth();
+  }
+  loadFnData().then(() => { renderFnOverview(); renderFnAccounts(); renderFnTxns(); renderFnDebts(); renderFnReport(); });
+}
+
+// ── Sub-tabs ──────────────────────────────────────────────────────
+function setFinanceTab(t) {
+  _fnTab = t;
+  ['overview','accounts','txns','debts','report'].forEach(x => {
+    const btn = document.getElementById('ftab-'+x);
+    const pg  = document.getElementById('fpage-'+x);
+    if(btn) btn.style.background = x===t ? 'var(--text)' : 'var(--surface)';
+    if(btn) btn.style.color = x===t ? '#fff' : 'var(--text2)';
+    if(pg)  pg.style.display = x===t ? '' : 'none';
+  });
+  if(t==='overview') renderFnOverview();
+  if(t==='accounts') renderFnAccounts();
+  if(t==='txns')     renderFnTxns();
+  if(t==='debts')    renderFnDebts();
+  if(t==='report')   renderFnReport();
+}
+
+// ── Overview ──────────────────────────────────────────────────────
+function renderFnOverview() {
+  const ym = document.getElementById('fn-ov-month')?.value || fnThisMonth();
+  const [y,m] = ym.split('-').map(Number);
+  const start = new Date(y,m-1,1), end = new Date(y,m,1);
+
+  const netWorth = fnAccounts.reduce((s,a)=>s+(+(a.balance||0)),0);
+  const nwEl = document.getElementById('fn-networth');
+  if(nwEl) { nwEl.textContent = fnFmt(netWorth); nwEl.style.color = netWorth>=0?'#fff':'#f1948a'; }
+
+  // Accounts snapshot
+  const snap = document.getElementById('fn-acc-snapshot');
+  if(snap) snap.innerHTML = fnAccounts.length ? fnAccounts.map(a=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:20px">${FN_ACC_ICONS[a.type]||'📂'}</span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600">${a.name}</div><div style="font-size:11px;color:var(--text3)">${FN_ACC_LABELS[a.type]||''}</div></div>
+      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${+a.balance>=0?'var(--green)':'var(--red)'}">${fnFmt(a.balance)}</span>
+    </div>`).join('') : '<div class="empty">还没有账户</div>';
+
+  // Monthly
+  const mt = fnTxns.filter(t=>{ const d=new Date(t.txn_date); return d>=start&&d<end; });
+  const income  = mt.filter(t=>t.type==='income').reduce((s,t)=>s+(+(t.amount||0)),0);
+  const expense = mt.filter(t=>t.type==='expense').reduce((s,t)=>s+(+(t.amount||0)),0);
+  const surplus = income - expense;
+  const incEl=document.getElementById('fn-income'), expEl=document.getElementById('fn-expense'), surEl=document.getElementById('fn-surplus');
+  if(incEl) incEl.textContent=fnFmt(income);
+  if(expEl) expEl.textContent=fnFmt(expense);
+  if(surEl) { surEl.textContent=fnFmt(surplus); surEl.style.color=surplus>=0?'#1a5276':'#922b21'; }
+
+  // Category chart
+  const cats={};
+  mt.filter(t=>t.type==='expense').forEach(t=>{ const c=t.category||'其他'; cats[c]=(cats[c]||0)+(+(t.amount||0)); });
+  const sorted=Object.entries(cats).sort((a,b)=>b[1]-a[1]);
+  const maxC=sorted[0]?.[1]||1;
+  const chartEl=document.getElementById('fn-cat-chart');
+  if(chartEl) chartEl.innerHTML = sorted.length ? `<div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:8px">支出分类</div>`+sorted.map(([cat,amt])=>`
+    <div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+        <span>${FN_CAT_ICONS[cat]||'📂'} ${cat}</span>
+        <span style="font-family:'DM Mono',monospace;color:var(--red)">${fnFmt(amt)}</span>
+      </div>
+      <div style="height:5px;background:var(--border);border-radius:3px"><div style="height:5px;border-radius:3px;background:#f1948a;width:${Math.round(amt/maxC*100)}%;transition:width 0.4s"></div></div>
+    </div>`).join('') : '';
+
+  // Debts
+  const oweme=fnDebts.filter(d=>d.direction==='owe_me'&&!d.settled).reduce((s,d)=>s+(+(d.amount||0)),0);
+  const iowe =fnDebts.filter(d=>d.direction==='i_owe'&&!d.settled).reduce((s,d)=>s+(+(d.amount||0)),0);
+  const omeEl=document.getElementById('fn-oweme-total'), ioEl=document.getElementById('fn-iowe-total');
+  if(omeEl) omeEl.textContent=fnFmt(oweme);
+  if(ioEl)  ioEl.textContent=fnFmt(iowe);
+}
+
+// ── Accounts ──────────────────────────────────────────────────────
+function renderFnAccounts() {
+  const el=document.getElementById('fn-acc-list');
+  if(!el) return;
+  el.innerHTML = fnAccounts.length ? fnAccounts.map(a=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:22px">${FN_ACC_ICONS[a.type]||'📂'}</span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600">${a.name}</div><div style="font-size:11px;color:var(--text3)">${FN_ACC_LABELS[a.type]||''}${a.note?' · '+a.note:''}</div></div>
+      <span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${+a.balance>=0?'var(--green)':'var(--red)'}">${fnFmt(a.balance)}</span>
+      <button onclick="openFnAccModal(${a.id})" style="background:none;border:none;font-size:14px;cursor:pointer;color:var(--text3)">✏️</button>
+      <button onclick="deleteFnAcc(${a.id})" style="background:none;border:none;font-size:15px;cursor:pointer;color:var(--text3)">✕</button>
+    </div>`).join('') : '<div class="empty">还没有账户<br><small>添加你的银行、现金、TNG 等账户</small></div>';
+}
+
+function openFnAccModal(id) {
+  _fnEditAccId=id||null;
+  document.getElementById('fn-acc-modal-title').textContent = id?'编辑账户':'添加账户';
+  const a=id?fnAccounts.find(x=>x.id===id):null;
+  document.getElementById('fn-acc-name').value    = a?.name||'';
+  document.getElementById('fn-acc-type').value    = a?.type||'bank';
+  document.getElementById('fn-acc-balance').value = a?.balance||'';
+  document.getElementById('fn-acc-note').value    = a?.note||'';
+  document.getElementById('fn-acc-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+function closeFnAccModal() { document.getElementById('fn-acc-modal').classList.remove('open'); document.body.classList.remove('modal-open'); }
+
+async function saveFnAcc() {
+  const name=document.getElementById('fn-acc-name').value.trim();
+  const type=document.getElementById('fn-acc-type').value;
+  const balance=parseFloat(document.getElementById('fn-acc-balance').value)||0;
+  const note=document.getElementById('fn-acc-note').value.trim();
+  if(!name){alert('请输入账户名');return;}
+  if(_fnEditAccId) await sb.from('finance_accounts').update({name,type,balance,note}).eq('id',_fnEditAccId);
+  else await sb.from('finance_accounts').insert({name,type,balance,note});
+  closeFnAccModal();
+  await loadFnData();
+  renderFnOverview(); renderFnAccounts();
+}
+
+async function deleteFnAcc(id) {
+  if(!confirm('删除这个账户？')) return;
+  await sb.from('finance_accounts').delete().eq('id',id);
+  await loadFnData(); renderFnOverview(); renderFnAccounts();
+}
+
+// ── Txns ──────────────────────────────────────────────────────────
+function renderFnTxns() {
+  const ym  = document.getElementById('fn-txn-month')?.value||'';
+  const typ = document.getElementById('fn-txn-type')?.value||'';
+  let list  = [...fnTxns];
+  if(ym) { const [y,m]=ym.split('-').map(Number); const s=new Date(y,m-1,1),e=new Date(y,m,1); list=list.filter(t=>{const d=new Date(t.txn_date);return d>=s&&d<e;}); }
+  if(typ) list=list.filter(t=>t.type===typ);
+  const el=document.getElementById('fn-txn-list');
+  if(!el) return;
+  el.innerHTML = list.length ? list.map(t=>{
+    const acc=fnAccounts.find(a=>a.id===t.account_id);
+    const isIn=t.type==='income';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;background:${isIn?'#d8f3dc':'#fadbd8'}">${FN_CAT_ICONS[t.category]||'📂'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600">${t.category||'未分类'}${t.note?` <span style="font-weight:400;color:var(--text3)">· ${t.note}</span>`:''}</div>
+        <div style="font-size:11px;color:var(--text3)">${t.txn_date}${acc?' · '+acc.name:''}</div>
+      </div>
+      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${isIn?'var(--green)':'var(--red)'};flex-shrink:0">${isIn?'+':'-'}${fnFmt(t.amount)}</span>
+      <button onclick="openFnTxnModal(${t.id})" style="background:none;border:none;font-size:13px;cursor:pointer;color:var(--text3)">✏️</button>
+      <button onclick="deleteFnTxn(${t.id})" style="background:none;border:none;font-size:15px;cursor:pointer;color:var(--text3)">✕</button>
+    </div>`}).join('') : '<div class="empty">该月暂无记录</div>';
+}
+
+function setFnTxnType(t) {
+  _fnTxnType=t;
+  document.getElementById('fn-btn-income').style.cssText  = t==='income'  ? 'flex:1;padding:7px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #52be80;background:#d8f3dc;color:#2d6a4f;cursor:pointer' : 'flex:1;padding:7px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text3);cursor:pointer';
+  document.getElementById('fn-btn-expense').style.cssText = t==='expense' ? 'flex:1;padding:7px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #f1948a;background:#fadbd8;color:#922b21;cursor:pointer' : 'flex:1;padding:7px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text3);cursor:pointer';
+}
+
+function openFnTxnModal(id) {
+  _fnEditTxnId=id||null;
+  document.getElementById('fn-txn-modal-title').textContent=id?'编辑记录':'添加收支';
+  const t=id?fnTxns.find(x=>x.id===id):null;
+  setFnTxnType(t?.type||'income');
+  document.getElementById('fn-txn-amount').value = t?.amount||'';
+  document.getElementById('fn-txn-cat').value    = t?.category||'';
+  document.getElementById('fn-txn-date').value   = t?.txn_date||fnToday();
+  document.getElementById('fn-txn-note').value   = t?.note||'';
+  const sel=document.getElementById('fn-txn-acc');
+  sel.innerHTML='<option value="">-- 不指定 --</option>'+fnAccounts.map(a=>`<option value="${a.id}"${t?.account_id===a.id?' selected':''}>${FN_ACC_ICONS[a.type]} ${a.name}</option>`).join('');
+  document.getElementById('fn-txn-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+function closeFnTxnModal() { document.getElementById('fn-txn-modal').classList.remove('open'); document.body.classList.remove('modal-open'); }
+
+async function saveFnTxn() {
+  const amount=parseFloat(document.getElementById('fn-txn-amount').value);
+  const category=document.getElementById('fn-txn-cat').value;
+  const account_id=parseInt(document.getElementById('fn-txn-acc').value)||null;
+  const txn_date=document.getElementById('fn-txn-date').value;
+  const note=document.getElementById('fn-txn-note').value.trim();
+  if(!amount||amount<=0){alert('请输入有效金额');return;}
+  if(!txn_date){alert('请选择日期');return;}
+  const payload={type:_fnTxnType,amount,category,account_id,txn_date,note};
+  if(_fnEditTxnId) await sb.from('finance_txns').update(payload).eq('id',_fnEditTxnId);
+  else await sb.from('finance_txns').insert(payload);
+  closeFnTxnModal();
+  await loadFnData(); renderFnTxns(); renderFnOverview();
+}
+
+async function deleteFnTxn(id) {
+  if(!confirm('删除这条记录？')) return;
+  await sb.from('finance_txns').delete().eq('id',id);
+  await loadFnData(); renderFnTxns(); renderFnOverview();
+}
+
+// ── Debts ─────────────────────────────────────────────────────────
+function renderFnDebts() {
+  const debtRow = d => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:22px">${d.direction==='owe_me'?'🙋':'🤲'}</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${d.person}</div>
+        <div style="font-size:11px;color:var(--text3)">${d.note||''}${d.created_at?' · '+new Date(d.created_at).toLocaleDateString('zh-CN'):''}</div>
+      </div>
+      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${d.direction==='owe_me'?'#1a5276':'#7d4e00'}">${fnFmt(d.amount)}</span>
+      ${!d.settled?`<button onclick="settleFnDebt(${d.id})" style="font-size:11px;padding:3px 8px;border:1px solid #52be80;border-radius:6px;background:#d8f3dc;color:#2d6a4f;cursor:pointer;font-weight:600;white-space:nowrap">✓ 结清</button>`:''}
+      <button onclick="deleteFnDebt(${d.id})" style="background:none;border:none;font-size:15px;cursor:pointer;color:var(--text3)">✕</button>
+    </div>`;
+  const oweme=fnDebts.filter(d=>d.direction==='owe_me'&&!d.settled);
+  const iowe =fnDebts.filter(d=>d.direction==='i_owe'&&!d.settled);
+  const settled=fnDebts.filter(d=>d.settled);
+  const el1=document.getElementById('fn-debt-oweme'), el2=document.getElementById('fn-debt-iowe'), el3=document.getElementById('fn-debt-settled');
+  if(el1) el1.innerHTML=oweme.length?oweme.map(debtRow).join(''):'<div class="empty">没有人欠你钱 👍</div>';
+  if(el2) el2.innerHTML=iowe.length?iowe.map(debtRow).join(''):'<div class="empty">你没有欠任何人 👍</div>';
+  if(el3) el3.innerHTML=settled.length?settled.map(debtRow).join(''):'<div class="empty">暂无</div>';
+}
+
+function openFnDebtModal(dir) {
+  _fnDebtDir=dir; _fnEditDebtId=null;
+  document.getElementById('fn-debt-modal-title').textContent=dir==='owe_me'?'添加：别人欠我':'添加：我欠别人';
+  document.getElementById('fn-debt-person').value='';
+  document.getElementById('fn-debt-amount').value='';
+  document.getElementById('fn-debt-note').value='';
+  document.getElementById('fn-debt-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+function closeFnDebtModal() { document.getElementById('fn-debt-modal').classList.remove('open'); document.body.classList.remove('modal-open'); }
+
+async function saveFnDebt() {
+  const person=document.getElementById('fn-debt-person').value.trim();
+  const amount=parseFloat(document.getElementById('fn-debt-amount').value);
+  const note=document.getElementById('fn-debt-note').value.trim();
+  if(!person){alert('请输入姓名');return;}
+  if(!amount||amount<=0){alert('请输入有效金额');return;}
+  await sb.from('finance_debts').insert({person,direction:_fnDebtDir,amount,note,settled:false});
+  closeFnDebtModal();
+  await loadFnData(); renderFnDebts(); renderFnOverview();
+}
+
+async function settleFnDebt(id) {
+  if(!confirm('标记为已结清？')) return;
+  await sb.from('finance_debts').update({settled:true}).eq('id',id);
+  await loadFnData(); renderFnDebts(); renderFnOverview();
+}
+
+async function deleteFnDebt(id) {
+  if(!confirm('删除这条欠款记录？')) return;
+  await sb.from('finance_debts').delete().eq('id',id);
+  await loadFnData(); renderFnDebts(); renderFnOverview();
+}
+
+// ── Monthly Report ────────────────────────────────────────────────
+function renderFnReport() {
+  const ym=document.getElementById('fn-report-month')?.value;
+  const el=document.getElementById('fn-report-body');
+  if(!el) return;
+  if(!ym){el.innerHTML='<div class="empty">请选择月份</div>';return;}
+  const [y,m]=ym.split('-').map(Number);
+  const monthName=new Date(y,m-1,1).toLocaleString('zh-CN',{year:'numeric',month:'long'});
+  const start=new Date(y,m-1,1),end=new Date(y,m,1);
+  const mt=fnTxns.filter(t=>{const d=new Date(t.txn_date);return d>=start&&d<end;});
+  const income  = mt.filter(t=>t.type==='income').reduce((s,t)=>s+(+(t.amount||0)),0);
+  const expense = mt.filter(t=>t.type==='expense').reduce((s,t)=>s+(+(t.amount||0)),0);
+  const surplus = income - expense;
+  const oweme=fnDebts.filter(d=>d.direction==='owe_me'&&!d.settled).reduce((s,d)=>s+(+(d.amount||0)),0);
+  const iowe =fnDebts.filter(d=>d.direction==='i_owe'&&!d.settled).reduce((s,d)=>s+(+(d.amount||0)),0);
+  const netWorth=fnAccounts.reduce((s,a)=>s+(+(a.balance||0)),0);
+
+  // Group expenses by category
+  const expCats={};
+  mt.filter(t=>t.type==='expense').forEach(t=>{const c=t.category||'其他';expCats[c]=(expCats[c]||0)+(+(t.amount||0));});
+  const incCats={};
+  mt.filter(t=>t.type==='income').forEach(t=>{const c=t.category||'其他';incCats[c]=(incCats[c]||0)+(+(t.amount||0));});
+
+  const secRow=(l,v,color,bold)=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-size:${bold?'13':'12'}px;font-weight:${bold?700:400};color:var(--text2)">${l}</span><span style="font-family:'DM Mono',monospace;font-size:${bold?'14':'13'}px;font-weight:${bold?700:500};color:${color||'var(--text)'}">${fnFmt(v)}</span></div>`;
+
+  el.innerHTML = `
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--text)">${monthName} 财务报告</div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.5px;margin-bottom:6px">📈 收入</div>
+      ${Object.entries(incCats).map(([c,v])=>secRow(`${FN_CAT_ICONS[c]||'📂'} ${c}`,v,'var(--green)')).join('')}
+      ${secRow('收入合计',income,'var(--green)',true)}
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.5px;margin-bottom:6px">📉 支出</div>
+      ${Object.entries(expCats).map(([c,v])=>secRow(`${FN_CAT_ICONS[c]||'📂'} ${c}`,v,'var(--red)')).join('')}
+      ${secRow('支出合计',expense,'var(--red)',true)}
+    </div>
+    <div style="background:${surplus>=0?'#d8f3dc':'#fadbd8'};border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;border:1px solid ${surplus>=0?'#52be80':'#f1948a'}">
+      <span style="font-size:14px;font-weight:700;color:${surplus>=0?'var(--green)':'var(--red)'}">本月结余</span>
+      <span style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:${surplus>=0?'var(--green)':'var(--red)'}">${surplus>=0?'+':''}${fnFmt(surplus)}</span>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.5px;margin-bottom:6px">🏦 账户余额</div>
+      ${fnAccounts.map(a=>secRow(`${FN_ACC_ICONS[a.type]||'📂'} ${a.name}`,a.balance,+a.balance>=0?'var(--green)':'var(--red)')).join('')}
+      ${secRow('净资产',netWorth,'var(--text)',true)}
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.5px;margin-bottom:6px">🤝 未结清欠款</div>
+      ${secRow('别人欠我',oweme,'#1a5276')}
+      ${secRow('我欠别人',iowe,'#7d4e00')}
+    </div>`;
+}
+
+function exportFnReport() {
+  const ym=document.getElementById('fn-report-month')?.value;
+  if(!ym){alert('请先选择月份');return;}
+  const [y,m]=ym.split('-').map(Number);
+  const monthName=new Date(y,m-1,1).toLocaleString('zh-CN',{year:'numeric',month:'long'});
+  const start=new Date(y,m-1,1),end=new Date(y,m,1);
+  const mt=fnTxns.filter(t=>{const d=new Date(t.txn_date);return d>=start&&d<end;});
+  const income  = mt.filter(t=>t.type==='income').reduce((s,t)=>s+(+(t.amount||0)),0);
+  const expense = mt.filter(t=>t.type==='expense').reduce((s,t)=>s+(+(t.amount||0)),0);
+  const netWorth=fnAccounts.reduce((s,a)=>s+(+(a.balance||0)),0);
+  const oweme=fnDebts.filter(d=>d.direction==='owe_me'&&!d.settled).reduce((s,d)=>s+(+(d.amount||0)),0);
+  const iowe =fnDebts.filter(d=>d.direction==='i_owe'&&!d.settled).reduce((s,d)=>s+(+(d.amount||0)),0);
+  const expCats={};
+  mt.filter(t=>t.type==='expense').forEach(t=>{const c=t.category||'其他';expCats[c]=(expCats[c]||0)+(+(t.amount||0));});
+  const incCats={};
+  mt.filter(t=>t.type==='income').forEach(t=>{const c=t.category||'其他';incCats[c]=(incCats[c]||0)+(+(t.amount||0));});
+
+  const lines=[
+    `个人财务报告 - ${monthName}`,
+    `生成日期: ${new Date().toLocaleDateString('zh-CN')}`, '',
+    `══════════════════════════`,
+    `收入`,
+    ...Object.entries(incCats).map(([c,v])=>`  ${c}  RM ${v.toFixed(2)}`),
+    `  收入合计  RM ${income.toFixed(2)}`, '',
+    `支出`,
+    ...Object.entries(expCats).map(([c,v])=>`  ${c}  RM ${v.toFixed(2)}`),
+    `  支出合计  RM ${expense.toFixed(2)}`, '',
+    `══════════════════════════`,
+    `本月结余  RM ${(income-expense).toFixed(2)}`, '',
+    `账户余额`,
+    ...fnAccounts.map(a=>`  ${a.name}  RM ${(+(a.balance||0)).toFixed(2)}`),
+    `  净资产  RM ${netWorth.toFixed(2)}`, '',
+    `欠款`,
+    `  别人欠我  RM ${oweme.toFixed(2)}`,
+    `  我欠别人  RM ${iowe.toFixed(2)}`,
+  ];
+  const blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`财务报告_${ym}.txt`; a.click();
+}
 
 init();
 </script>
