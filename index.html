@@ -1320,7 +1320,7 @@ function setSync(state, msg) {
 
 async function init() {
   try {
-    await loadItems(); await loadOrders(); await loadBundleRules();
+    await loadItems(); await loadOrders(); await loadBundleRules(); await loadPnlExpenses();
     subscribeRealtime();
     document.getElementById('loading').style.display = 'none';
     document.getElementById('app').style.display = 'block';
@@ -3962,14 +3962,37 @@ async function saveCostPrice(itemId, val) {
 }
 
 // ── MONTHLY P&L ────────────────────────────────────────────────────
-// expenses stored in localStorage (no Supabase table needed)
-function getPnLKey(ym) { return 'pnl_expenses_' + ym; }
+// Fixed expenses in Supabase (pnl_expenses), monthly overrides in localStorage
+let _pnlExpenses = []; // loaded from Supabase
 
-function loadExpenses(ym) {
-  try { return JSON.parse(localStorage.getItem(getPnLKey(ym)) || '[]'); } catch { return []; }
+async function loadPnlExpenses() {
+  const { data } = await sb.from('pnl_expenses').select('*').order('created_at');
+  _pnlExpenses = data || [];
 }
-function saveExpenses(ym, list) {
-  localStorage.setItem(getPnLKey(ym), JSON.stringify(list));
+
+// Monthly overrides: { [ym]: { [id]: amount } }
+function getMonthOverrides(ym) {
+  try { return JSON.parse(localStorage.getItem('pnl_ovr_' + ym) || '{}'); } catch { return {}; }
+}
+function setMonthOverride(ym, id, amount) {
+  const ovr = getMonthOverrides(ym);
+  ovr[id] = amount;
+  localStorage.setItem('pnl_ovr_' + ym, JSON.stringify(ovr));
+}
+function removeMonthOverride(ym, id) {
+  const ovr = getMonthOverrides(ym);
+  delete ovr[id];
+  localStorage.setItem('pnl_ovr_' + ym, JSON.stringify(ovr));
+}
+
+// Get effective expenses for a month (base + overrides)
+function getEffectiveExpenses(ym) {
+  const ovr = getMonthOverrides(ym);
+  return _pnlExpenses.map(e => ({
+    ...e,
+    amount: ovr[e.id] !== undefined ? ovr[e.id] : e.amount,
+    overridden: ovr[e.id] !== undefined,
+  }));
 }
 
 function renderPnL() {
@@ -3981,7 +4004,7 @@ function renderPnL() {
   const start = new Date(y, m-1, 1);
   const end   = new Date(y, m, 1);
 
-  // ── Revenue & COGS from sales ──
+  // ── Revenue & COGS ──
   const salesOrders = orders.filter(o => {
     const dt = new Date(o.created_at);
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
@@ -3989,7 +4012,6 @@ function renderPnL() {
   const revenue = salesOrders.reduce((s,o)=>s+(+(o.total_price||0)),0);
   const qrRev   = salesOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
   const cashRev = salesOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
-
   let cogs = 0;
   salesOrders.forEach(o => {
     const it = items.find(i=>i.id===o.item_id);
@@ -3997,8 +4019,8 @@ function renderPnL() {
   });
   const grossProfit = revenue - cogs;
 
-  // ── Operating expenses ──
-  const expenses = loadExpenses(ym);
+  // ── Expenses ──
+  const expenses = getEffectiveExpenses(ym);
   const totalExp = expenses.reduce((s,e)=>s+(+(e.amount||0)),0);
   const netProfit = grossProfit - totalExp;
 
@@ -4009,12 +4031,15 @@ function renderPnL() {
       <span style="font-size:${bold?'14':'13'}px;font-weight:${bold?700:500};font-family:'DM Mono',monospace;color:${color||'var(--text)'}">${fmt(val)}</span>
     </div>`;
 
-  const expRows = expenses.map((e,i) => `
-    <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border)">
-      <span style="font-size:12px;color:var(--text2);flex:1;padding-left:12px">${e.label||'未命名'}</span>
-      <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text)">RM ${(+(e.amount||0)).toFixed(2)}</span>
-      <button onclick="editExpense('${ym}',${i})" style="background:none;border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-size:11px;cursor:pointer;color:var(--text2)">✏️</button>
-      <button onclick="deleteExpense('${ym}',${i})" style="background:none;border:none;color:var(--text3);font-size:15px;cursor:pointer;padding:0 2px">✕</button>
+  const expRows = expenses.map(e => `
+    <div style="display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px;color:var(--text2);flex:1;padding-left:12px">${e.label}</span>
+      <input type="number" min="0" step="0.01" value="${(+(e.amount||0)).toFixed(2)}"
+        style="width:90px;padding:4px 6px;font-size:12px;border:1px solid ${e.overridden?'var(--amber-border)':'var(--border)'};border-radius:6px;background:${e.overridden?'var(--amber-bg)':'var(--bg)'};text-align:right;font-family:'DM Mono',monospace;color:var(--text)"
+        onchange="overrideExpenseAmount('${ym}',${e.id},this.value)"
+        title="${e.overridden?'本月已修改（点✕还原默认）':'默认金额'}">
+      ${e.overridden ? `<button onclick="resetExpenseOverride('${ym}',${e.id})" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:0" title="还原默认金额">↩</button>` : '<span style="width:16px"></span>'}
+      <button onclick="deleteFixedExpense(${e.id})" style="background:none;border:none;color:var(--text3);font-size:15px;cursor:pointer;padding:0 2px">✕</button>
     </div>`).join('');
 
   el.innerHTML = `
@@ -4030,10 +4055,13 @@ function renderPnL() {
 
     <div style="margin-bottom:14px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:13px;font-weight:600;color:var(--text)">营业开销</span>
-        <button onclick="addExpense('${ym}')" style="font-size:11px;padding:4px 10px;border:1.5px dashed var(--border);border-radius:6px;background:none;cursor:pointer;color:var(--text2)">＋ 添加项目</button>
+        <div>
+          <span style="font-size:13px;font-weight:600;color:var(--text)">营业开销</span>
+          <span style="font-size:10px;color:var(--text3);margin-left:6px">固定项目，金额可按月调整</span>
+        </div>
+        <button onclick="addFixedExpense()" style="font-size:11px;padding:4px 10px;border:1.5px dashed var(--border);border-radius:6px;background:none;cursor:pointer;color:var(--text2)">＋ 添加固定项目</button>
       </div>
-      ${expRows || '<div style="font-size:12px;color:var(--text3);padding:8px 0 4px 12px">还没有开销记录</div>'}
+      ${expRows || '<div style="font-size:12px;color:var(--text3);padding:8px 0 4px 12px">还没有固定开销，点右上角添加</div>'}
       ${expenses.length ? `<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--border);margin-top:2px"><span style="font-size:12px;color:var(--text2)">开销合计</span><span style="font-size:13px;font-weight:600;font-family:'DM Mono',monospace;color:#922b21">${fmt(totalExp)}</span></div>` : ''}
     </div>
 
@@ -4046,35 +4074,39 @@ function renderPnL() {
     </div>`;
 }
 
-function addExpense(ym) {
-  const label  = prompt('开销项目名称：\n例：员工薪资、租金、水电、网费');
+async function addFixedExpense() {
+  const label  = prompt('固定开销名称：\n例：租金、员工薪资、水电、网费');
   if(!label) return;
-  const amount = parseFloat(prompt('金额 (RM)：') || '0');
+  const amount = parseFloat(prompt('默认金额 (RM)：') || '0');
   if(isNaN(amount) || amount < 0) { alert('请输入有效金额'); return; }
-  const list = loadExpenses(ym);
-  list.push({ label: label.trim(), amount });
-  saveExpenses(ym, list);
+  const { data, error } = await sb.from('pnl_expenses').insert({ label: label.trim(), amount }).select().single();
+  if(error) { alert('保存失败：' + error.message); return; }
+  _pnlExpenses.push(data);
   renderPnL();
 }
 
-function editExpense(ym, idx) {
-  const list = loadExpenses(ym);
-  const e = list[idx];
-  if(!e) return;
-  const label  = prompt('修改项目名称：', e.label);
-  if(label === null) return;
-  const amount = parseFloat(prompt('修改金额 (RM)：', e.amount) || e.amount);
-  if(isNaN(amount) || amount < 0) { alert('请输入有效金额'); return; }
-  list[idx] = { label: label.trim(), amount };
-  saveExpenses(ym, list);
+async function deleteFixedExpense(id) {
+  if(!confirm('删除这个固定开销项目？（所有月份都会移除）')) return;
+  await sb.from('pnl_expenses').delete().eq('id', id);
+  _pnlExpenses = _pnlExpenses.filter(e => e.id !== id);
   renderPnL();
 }
 
-function deleteExpense(ym, idx) {
-  const list = loadExpenses(ym);
-  if(!confirm('删除"' + list[idx]?.label + '"？')) return;
-  list.splice(idx, 1);
-  saveExpenses(ym, list);
+function overrideExpenseAmount(ym, id, val) {
+  const amount = parseFloat(val);
+  if(isNaN(amount) || amount < 0) return;
+  // Check if same as default
+  const base = _pnlExpenses.find(e=>e.id===id);
+  if(base && Math.abs(amount - base.amount) < 0.001) {
+    removeMonthOverride(ym, id);
+  } else {
+    setMonthOverride(ym, id, amount);
+  }
+  renderPnL();
+}
+
+function resetExpenseOverride(ym, id) {
+  removeMonthOverride(ym, id);
   renderPnL();
 }
 
@@ -4098,7 +4130,7 @@ function exportPnL() {
     cogs += (it?+(it.cost_price||0):0)*(+(o.qty||0));
   });
   const grossProfit = revenue - cogs;
-  const expenses    = loadExpenses(ym);
+  const expenses    = getEffectiveExpenses(ym);
   const totalExp    = expenses.reduce((s,e)=>s+(+(e.amount||0)),0);
   const netProfit   = grossProfit - totalExp;
 
