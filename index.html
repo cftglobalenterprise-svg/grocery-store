@@ -950,9 +950,26 @@
 
   <!-- ── 收支 ── -->
   <div id="fpage-txns" style="display:none">
+
+    <!-- 生意收入（自动从库存系统） -->
+    <div class="card" style="border:1.5px solid #52be80">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div class="card-title" style="margin-bottom:2px">🏪 生意收入（自动）</div>
+          <div style="font-size:11px;color:var(--text3)">直接从门市和订单系统拉取，无需手动输入</div>
+        </div>
+        <input type="month" id="fn-biz-month" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnBizIncome()">
+      </div>
+      <div id="fn-biz-income-body"></div>
+    </div>
+
+    <!-- 其他收支（手动） -->
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div class="card-title" style="margin-bottom:0">📋 收支记录</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div class="card-title" style="margin-bottom:2px">📋 其他收支（手动）</div>
+          <div style="font-size:11px;color:var(--text3)">个人开销、非生意收入等</div>
+        </div>
         <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="openFnTxnModal()">＋ 添加</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
@@ -5528,7 +5545,13 @@ function initFinanceTab() {
     document.getElementById('fn-txn-month').value = fnThisMonth();
     document.getElementById('fn-report-month').value = fnThisMonth();
   }
-  loadFnData().then(() => { renderFnOverview(); renderFnAccounts(); renderFnTxns(); renderFnDebts(); renderFnReport(); });
+  if(!document.getElementById('fn-biz-month').value) {
+    document.getElementById('fn-biz-month').value = fnThisMonth();
+  }
+  loadFnData().then(() => {
+    renderFnOverview(); renderFnAccounts(); renderFnTxns();
+    renderFnDebts(); renderFnReport(); renderFnBizIncome();
+  });
 }
 
 // ── Sub-tabs ──────────────────────────────────────────────────────
@@ -5567,10 +5590,12 @@ function renderFnOverview() {
       <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${+a.balance>=0?'var(--green)':'var(--red)'}">${fnFmt(a.balance)}</span>
     </div>`).join('') : '<div class="empty">还没有账户</div>';
 
-  // Monthly
+  // Monthly — manual txns + biz income
   const mt = fnTxns.filter(t=>{ const d=new Date(t.txn_date); return d>=start&&d<end; });
-  const income  = mt.filter(t=>t.type==='income').reduce((s,t)=>s+(+(t.amount||0)),0);
+  const manualIncome  = mt.filter(t=>t.type==='income').reduce((s,t)=>s+(+(t.amount||0)),0);
   const expense = mt.filter(t=>t.type==='expense').reduce((s,t)=>s+(+(t.amount||0)),0);
+  const biz = getFnBizIncome(ym);
+  const income = manualIncome + biz.total;
   const surplus = income - expense;
   const incEl=document.getElementById('fn-income'), expEl=document.getElementById('fn-expense'), surEl=document.getElementById('fn-surplus');
   if(incEl) incEl.textContent=fnFmt(income);
@@ -5644,6 +5669,146 @@ async function deleteFnAcc(id) {
   if(!confirm('删除这个账户？')) return;
   await sb.from('finance_accounts').delete().eq('id',id);
   await loadFnData(); renderFnOverview(); renderFnAccounts();
+}
+
+// ── Biz income auto-pull from orders ─────────────────────────────
+function getFnBizIncome(ym) {
+  if(!ym) return { total:0, qr:0, cash:0, instore:0, orderIncome:0 };
+  const [y,m] = ym.split('-').map(Number);
+  const start = new Date(y,m-1,1), end = new Date(y,m,1);
+  const sold = orders.filter(o=>{
+    const dt=new Date(o.created_at);
+    return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
+  });
+  const total       = sold.reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const qr          = sold.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const cash        = sold.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const instore     = sold.filter(o=>o.status==='instore').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const orderIncome = sold.filter(o=>o.status==='collected').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  return { total, qr, cash, instore, orderIncome };
+}
+
+function renderFnBizIncome() {
+  const ym = document.getElementById('fn-biz-month')?.value || '';
+  const el = document.getElementById('fn-biz-income-body');
+  if(!el) return;
+  if(!ym) { el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">请选择月份</div>'; return; }
+  const d = getFnBizIncome(ym);
+
+  // Check if already synced this month
+  const syncKey = 'biz_synced_' + ym;
+  const synced = JSON.parse(localStorage.getItem(syncKey) || 'null');
+
+  const accOpts = fnAccounts.length
+    ? fnAccounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')
+    : '<option value="">（先添加账户）</option>';
+
+  const syncedBadge = synced
+    ? `<div style="font-size:11px;color:#2d6a4f;background:#d8f3dc;border:1px solid #52be80;border-radius:6px;padding:4px 10px;margin-top:8px">
+        ✅ 已同步 — QR → ${synced.qrAccName}，Cash → ${synced.cashAccName}
+        <button onclick="undoBizSync('${ym}')" style="margin-left:8px;background:none;border:none;color:#922b21;cursor:pointer;font-size:11px;font-weight:600">↩ 撤销</button>
+       </div>`
+    : `<div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">📥 同步到账户余额</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">📲 QR (${fnFmt(d.qr)}) 存入</div>
+            <select id="biz-sync-qr-acc" style="width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif">
+              <option value="">-- 选账户 --</option>${accOpts}
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">💵 Cash (${fnFmt(d.cash)}) 存入</div>
+            <select id="biz-sync-cash-acc" style="width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif">
+              <option value="">-- 选账户 --</option>${accOpts}
+            </select>
+          </div>
+        </div>
+        <button onclick="doBizSync('${ym}')" style="width:100%;padding:9px;font-size:13px;font-weight:600;background:#2d6a4f;color:#fff;border:none;border-radius:8px;cursor:pointer">
+          ➕ 把这个月的生意收入加进账户余额
+        </button>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px;text-align:center">不选的部分不会同步</div>
+      </div>`;
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid #52be80">
+        <div style="font-size:11px;color:#2d6a4f;font-weight:600;margin-bottom:3px">总营业额</div>
+        <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:#2d6a4f">${fnFmt(d.total)}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px;border:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:6px">付款方式</div>
+        <div style="font-size:12px;display:flex;justify-content:space-between;margin-bottom:3px">
+          <span>📲 QR</span><b style="font-family:'DM Mono',monospace">${fnFmt(d.qr)}</b>
+        </div>
+        <div style="font-size:12px;display:flex;justify-content:space-between">
+          <span>💵 Cash</span><b style="font-family:'DM Mono',monospace">${fnFmt(d.cash)}</b>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px;border:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:3px">🏪 门市</div>
+        <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace">${fnFmt(d.instore)}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px;border:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:3px">📦 订单</div>
+        <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace">${fnFmt(d.orderIncome)}</div>
+      </div>
+    </div>
+    ${syncedBadge}`;
+}
+
+async function doBizSync(ym) {
+  const qrAccId   = parseInt(document.getElementById('biz-sync-qr-acc')?.value) || null;
+  const cashAccId = parseInt(document.getElementById('biz-sync-cash-acc')?.value) || null;
+  if(!qrAccId && !cashAccId) { alert('请至少选择一个账户'); return; }
+  const d = getFnBizIncome(ym);
+  if(!confirm(`确认把以下金额加进账户余额？\n\n${qrAccId ? `📲 QR ${fnFmt(d.qr)} → ${fnAccounts.find(a=>a.id===qrAccId)?.name}\n` : ''}${cashAccId ? `💵 Cash ${fnFmt(d.cash)} → ${fnAccounts.find(a=>a.id===cashAccId)?.name}` : ''}`)) return;
+
+  let qrAccName = '', cashAccName = '';
+  if(qrAccId && d.qr > 0) {
+    const acc = fnAccounts.find(a=>a.id===qrAccId);
+    if(acc) {
+      const newBal = +(acc.balance||0) + d.qr;
+      await sb.from('finance_accounts').update({balance: newBal}).eq('id', qrAccId);
+      acc.balance = newBal;
+      qrAccName = acc.name;
+    }
+  }
+  if(cashAccId && d.cash > 0) {
+    const acc = fnAccounts.find(a=>a.id===cashAccId);
+    if(acc) {
+      const newBal = +(acc.balance||0) + d.cash;
+      await sb.from('finance_accounts').update({balance: newBal}).eq('id', cashAccId);
+      acc.balance = newBal;
+      cashAccName = acc.name;
+    }
+  }
+
+  // Record sync
+  localStorage.setItem('biz_synced_' + ym, JSON.stringify({ qrAccId, cashAccId, qrAccName, cashAccName, qr: d.qr, cash: d.cash }));
+  renderFnBizIncome();
+  renderFnAccounts();
+  renderFnOverview();
+}
+
+async function undoBizSync(ym) {
+  const synced = JSON.parse(localStorage.getItem('biz_synced_' + ym) || 'null');
+  if(!synced) return;
+  if(!confirm('撤销这个月的同步？账户余额会扣回去。')) return;
+  if(synced.qrAccId && synced.qr) {
+    const acc = fnAccounts.find(a=>a.id===synced.qrAccId);
+    if(acc) { const newBal = +(acc.balance||0) - synced.qr; await sb.from('finance_accounts').update({balance:newBal}).eq('id',acc.id); acc.balance=newBal; }
+  }
+  if(synced.cashAccId && synced.cash) {
+    const acc = fnAccounts.find(a=>a.id===synced.cashAccId);
+    if(acc) { const newBal = +(acc.balance||0) - synced.cash; await sb.from('finance_accounts').update({balance:newBal}).eq('id',acc.id); acc.balance=newBal; }
+  }
+  localStorage.removeItem('biz_synced_' + ym);
+  renderFnBizIncome();
+  renderFnAccounts();
+  renderFnOverview();
 }
 
 // ── Txns ──────────────────────────────────────────────────────────
