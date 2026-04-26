@@ -38,13 +38,13 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .sync-dot.err { background: #f44336; }
 
 /* ── APP SHELL ───────────────────────────────────── */
-#app { height: 100vh; height: 100dvh; overflow: hidden; display: none; flex-direction: column; }
+#app { height: 100vh; height: 100dvh; overflow: clip; display: none; flex-direction: column; }
 .topbar { height: var(--nav-h); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; padding: 0 16px; flex-shrink: 0; }
 .topbar-logo { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
 .topbar-action-btn { padding: 6px 11px; font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--surface2); color: var(--text2); cursor: pointer; transition: background 0.12s; white-space: nowrap; }
 .topbar-action-btn:hover { background: var(--surface3); color: var(--text); }
 .sync-msg { font-size: 11px; color: var(--text3); }
-.app-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+.app-body { display: flex; flex: 1; overflow: clip; min-height: 0; }
 
 /* ── SIDEBAR ─────────────────────────────────────── */
 .sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
@@ -61,12 +61,12 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .nav-action-btn:hover { background: var(--surface3); color: var(--text); }
 
 /* ── PAGES ───────────────────────────────────────── */
-.pages { flex: 1; overflow: hidden; position: relative; min-width: 0; }
+.pages { flex: 1; overflow: clip; position: relative; min-width: 0; }
 .page { display: none !important; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 18px; overscroll-behavior: contain; }
 .page.active { display: block !important; }
 .page::-webkit-scrollbar { width: 4px; }
 .page::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
-#page-instore { padding: 0 !important; overflow: hidden !important; display: none !important; height: 100%; }
+#page-instore { padding: 0 !important; overflow: clip !important; display: none !important; height: 100%; }
 #page-instore.active { display: flex !important; }
 /* Ensure scroll events bubble through all content children */
 #page-stock *, #page-orders *, #page-overview *, #page-profit *, #page-finance * {
