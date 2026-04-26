@@ -6230,7 +6230,19 @@ function posSwitchTab(t) {
   const page = document.getElementById('page-' + t);
   if(page) page.classList.add('active');
   if(t === 'instore') { renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard(); }
-  else if(t === 'orders') loadOrders();
+  else if(t === 'orders') {
+    loadOrders();
+    // Hide new order form for branch role
+    const unlockedView = document.getElementById('order-unlocked-view');
+    const lockedView = document.getElementById('order-locked-view');
+    const lockBtn = document.getElementById('order-lock-btn');
+    if(_branchRole) {
+      if(unlockedView) unlockedView.style.display = 'none';
+      if(lockedView) lockedView.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)"><div style="font-size:32px;margin-bottom:8px">🔒</div><div style="font-size:13px">新增订单功能仅限总部使用</div></div>';
+      if(lockedView) lockedView.style.display = '';
+      if(lockBtn) lockBtn.style.display = 'none';
+    }
+  }
   else if(t === 'overview') renderOverview();
   else if(t === 'profit') { renderProfitReport(); renderCostEditor(); }
   else if(t === 'finance') { initFinanceTab(); }
@@ -6343,6 +6355,7 @@ const BRANCH_PASSWORD = '1234';  // 分店密码 - 改成你要的
 const HQ_PASSWORD = '960108';    // 总部密码 - 改成你要的
 let _loginRole = 'branch';       // 'branch' or 'hq'
 let _currentRole = null;
+let _branchRole = false;
 
 function selectLoginRole(role) {
   _loginRole = role;
@@ -6408,14 +6421,22 @@ function applyRolePermissions(role) {
   });
 
   if(role === 'branch') {
-    // 分店: 门市收银、库存管理、订单、总览
-    ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-overview'].forEach(id => {
+    // 分店: 门市收银、库存管理、订单（只看，不能新增）
+    ['navbtn-instore','navbtn-stock','navbtn-orders'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
-    // 隐藏老板模式按钮
+    // 隐藏: 总览、利润、记账、总部报表、老板模式、套餐
+    ['navbtn-overview','navbtn-profit','navbtn-finance','navbtn-hq'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.style.display = 'none';
+    });
     const bossBtn = document.getElementById('profit-unlock-topbar');
     if(bossBtn) bossBtn.style.display = 'none';
+    const bundleBtn = document.getElementById('btn-bundle');
+    if(bundleBtn) bundleBtn.style.display = 'none';
+    // 隐藏订单页的新增订单区域
+    _branchRole = true;
     // Start on POS
     posSwitchTab('instore');
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -6429,6 +6450,9 @@ function applyRolePermissions(role) {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
+    // 总部显示套餐按钮
+    const bundleBtn = document.getElementById('btn-bundle');
+    if(bundleBtn) bundleBtn.style.display = '';
     _profitUnlocked = true;
     // Start on HQ dashboard
     setTimeout(() => {
@@ -6589,6 +6613,7 @@ function renderHqDashboard() {
 function doLogout() {
   if(!confirm('确认登出？')) return;
   _currentRole = null;
+  _branchRole = false;
   // Reset UI
   const logo = document.querySelector('.topbar-logo');
   if(logo) logo.innerHTML = '🛒 杂货店 POS';
