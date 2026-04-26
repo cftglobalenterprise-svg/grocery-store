@@ -6232,15 +6232,15 @@ function posSwitchTab(t) {
   if(t === 'instore') { renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard(); }
   else if(t === 'orders') {
     loadOrders();
-    // Hide new order form for branch role
-    const unlockedView = document.getElementById('order-unlocked-view');
-    const lockedView = document.getElementById('order-locked-view');
-    const lockBtn = document.getElementById('order-lock-btn');
+    // Branch role: hide new order card + order dashboard
+    const newOrderCard = document.querySelector('#page-orders .orders-right .card:first-child');
+    const ordDashboard = document.getElementById('ord-dashboard');
     if(_branchRole) {
-      if(unlockedView) unlockedView.style.display = 'none';
-      if(lockedView) lockedView.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)"><div style="font-size:32px;margin-bottom:8px">🔒</div><div style="font-size:13px">新增订单功能仅限总部使用</div></div>';
-      if(lockedView) lockedView.style.display = '';
-      if(lockBtn) lockBtn.style.display = 'none';
+      if(newOrderCard) newOrderCard.style.display = 'none';
+      if(ordDashboard) ordDashboard.style.display = 'none';
+    } else {
+      if(newOrderCard) newOrderCard.style.display = '';
+      if(ordDashboard) ordDashboard.style.display = '';
     }
   }
   else if(t === 'overview') renderOverview();
