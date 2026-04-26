@@ -356,33 +356,42 @@ body.modal-open { overflow: hidden; }
 <body>
 
 <!-- LOGIN SCREEN -->
-<div id="login-screen">
-  <div class="login-card">
-    <div class="login-logo">
-      <div class="login-logo-icon">🛒</div>
-      <div class="login-logo-name">杂货店 POS</div>
-      <div class="login-logo-sub">快速收银管理系统</div>
+<div id="login-screen" style="position:fixed;inset:0;z-index:9999;background:#f5f2ee;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif">
+  <div style="background:#fff;border:1px solid #ddd8d0;border-radius:20px;padding:36px 32px 28px;width:360px;box-shadow:0 4px 40px rgba(0,0,0,0.08)">
+    
+    <!-- Logo -->
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="width:60px;height:60px;background:#1e6641;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 12px">🛒</div>
+      <div style="font-size:19px;font-weight:700;color:#1a1814;letter-spacing:-0.3px">杂货店 POS</div>
+      <div style="font-size:12px;color:#9e9890;margin-top:4px">快速收银管理系统</div>
     </div>
 
-    <div class="login-tabs">
-      <div class="login-tab active" id="login-tab-branch" onclick="selectLoginRole('branch')">
-        <div class="login-tab-icon">🏪</div>
-        <div class="login-tab-label">分店登入</div>
-        <div class="login-tab-desc">POS 收银 · 库存管理</div>
+    <!-- Role tabs -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:22px">
+      <div id="login-tab-branch" onclick="selectLoginRole('branch')" style="padding:14px 10px;border:2px solid #1e6641;border-radius:12px;cursor:pointer;text-align:center;background:#d4f0dc;transition:all 0.15s">
+        <div style="font-size:22px;margin-bottom:6px">🏪</div>
+        <div style="font-size:14px;font-weight:700;color:#1e6641">分店登入</div>
+        <div style="font-size:10px;color:#1e6641;margin-top:3px;opacity:0.8">POS 收银 · 库存管理</div>
       </div>
-      <div class="login-tab" id="login-tab-hq" onclick="selectLoginRole('hq')">
-        <div class="login-tab-icon">📊</div>
-        <div class="login-tab-label">总部登入</div>
-        <div class="login-tab-desc">报表 · 财务 · 总览</div>
+      <div id="login-tab-hq" onclick="selectLoginRole('hq')" style="padding:14px 10px;border:2px solid #ddd8d0;border-radius:12px;cursor:pointer;text-align:center;background:#f5f2ee;transition:all 0.15s">
+        <div style="font-size:22px;margin-bottom:6px">🏢</div>
+        <div style="font-size:14px;font-weight:700;color:#6b6560">总部登入</div>
+        <div style="font-size:10px;color:#9e9890;margin-top:3px">报表 · 财务 · 总览</div>
       </div>
     </div>
 
-    <div class="login-field-label">密码</div>
-    <input class="login-input" type="password" id="login-password"
-      placeholder="••••••••"
-      onkeydown="if(event.key==='Enter') doLogin()">
-    <button class="login-btn" onclick="doLogin()">进入系统</button>
-    <div class="login-error" id="login-error"></div>
+    <!-- Password -->
+    <div style="font-size:11px;font-weight:600;color:#9e9890;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">密码</div>
+    <input type="password" id="login-password" placeholder="••••••••"
+      onkeydown="if(event.key==='Enter') doLogin()"
+      onfocus="this.style.borderColor='#1e6641';this.style.background='#fff'"
+      onblur="this.style.borderColor='#ddd8d0';this.style.background='#f5f2ee'" 
+      style="width:100%;padding:12px 14px;border:1.5px solid #ddd8d0;border-radius:10px;font-size:15px;font-family:'DM Sans',sans-serif;background:#f5f2ee;color:#1a1814;outline:none;letter-spacing:3px;margin-bottom:14px;box-sizing:border-box">
+    
+    <button onclick="doLogin()" style="width:100%;padding:14px;background:#1e6641;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;letter-spacing:0.3px">
+      进入系统
+    </button>
+    <div id="login-error" style="font-size:12px;color:#8b2318;text-align:center;margin-top:10px;min-height:18px"></div>
   </div>
 </div>
 
@@ -401,13 +410,14 @@ body.modal-open { overflow: hidden; }
   <div class="topbar">
     <div class="topbar-logo">🛒 杂货店 POS</div>
     <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
-      <button class="topbar-action-btn" onclick="posOpenBundle()" title="套餐规则">🎁 套餐</button>
-      <button class="topbar-action-btn" onclick="posOpenCustomer()" title="顾客展示">📱 展示</button>
+      <button class="topbar-action-btn" id="btn-bundle" onclick="posOpenBundle()" title="套餐规则">🎁 套餐</button>
+      <button class="topbar-action-btn" id="btn-customer" onclick="posOpenCustomer()" title="顾客展示">📱 展示</button>
       <button class="topbar-action-btn" id="profit-unlock-topbar" onclick="posSidebarProfitUnlock()" title="老板模式">🔒 老板</button>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-left:8px;padding-left:8px;border-left:1px solid var(--border)">
       <div class="sync-dot" id="sync-dot"></div>
       <span class="sync-msg" id="sync-msg">连接中</span>
+      <button class="topbar-action-btn" id="btn-logout" onclick="doLogout()" style="margin-left:4px;color:var(--red);border-color:var(--red-border);display:none">⎋ 登出</button>
     </div>
   </div>
   <div class="app-body">
@@ -434,6 +444,9 @@ body.modal-open { overflow: hidden; }
       </button>
       <button class="nav-btn" id="navbtn-finance" onclick="posSidebarFinanceUnlock()">
         <span class="nav-icon">📒</span> 记账
+      </button>
+      <button class="nav-btn" id="navbtn-hq" onclick="posSwitchTab('hq')" style="display:none">
+        <span class="nav-icon">🏢</span> 总部报表
       </button>
 
     </div>
@@ -888,6 +901,73 @@ body.modal-open { overflow: hidden; }
         </div>
       </div>
       
+
+      <!-- ══ HQ TOTAL PAGE ══════════════════════════════ -->
+      <div id="page-hq" class="page">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div>
+            <div style="font-size:20px;font-weight:700;color:var(--text)">🏢 总部报表</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">实时数据 · 全店概览</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="hq-period" onchange="renderHqDashboard()" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif">
+              <option value="today">今天</option>
+              <option value="week">本周</option>
+              <option value="month" selected>本月</option>
+              <option value="all">全部</option>
+            </select>
+            <input type="date" id="hq-date-from" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderHqDashboard()">
+            <span style="font-size:12px;color:var(--text3)">至</span>
+            <input type="date" id="hq-date-to" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderHqDashboard()">
+          </div>
+        </div>
+
+        <!-- KPI cards -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+          <div class="card" style="margin-bottom:0;text-align:center;padding:16px">
+            <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px">总营业额</div>
+            <div style="font-size:26px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)" id="hq-total-rev">RM 0</div>
+          </div>
+          <div class="card" style="margin-bottom:0;text-align:center;padding:16px">
+            <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px">QR 支付</div>
+            <div style="font-size:26px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)" id="hq-qr-rev">RM 0</div>
+          </div>
+          <div class="card" style="margin-bottom:0;text-align:center;padding:16px">
+            <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px">现金</div>
+            <div style="font-size:26px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)" id="hq-cash-rev">RM 0</div>
+          </div>
+          <div class="card" style="margin-bottom:0;text-align:center;padding:16px">
+            <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px">总单数</div>
+            <div style="font-size:26px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text)" id="hq-total-orders">0</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <!-- Top selling items -->
+          <div class="card">
+            <div class="card-title">🔥 热销排行</div>
+            <div id="hq-top-items"><div class="empty">暂无数据</div></div>
+          </div>
+          <!-- Sales by payment -->
+          <div class="card">
+            <div class="card-title">💳 付款方式分布</div>
+            <div id="hq-payment-breakdown"><div class="empty">暂无数据</div></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <div class="card-title">📋 门市收银记录</div>
+          <div id="hq-instore-list"><div class="empty">暂无数据</div></div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div class="card-title" style="margin-bottom:0">⚠️ 低库存预警</div>
+            <span style="font-size:11px;color:var(--text3)">店里库存不足 / 需订货</span>
+          </div>
+          <div id="hq-low-stock"><div class="empty">暂无数据</div></div>
+        </div>
+      </div>
 
     </div><!-- end pages -->
   </div><!-- end app-body -->
@@ -6154,6 +6234,7 @@ function posSwitchTab(t) {
   else if(t === 'overview') renderOverview();
   else if(t === 'profit') { renderProfitReport(); renderCostEditor(); }
   else if(t === 'finance') { initFinanceTab(); }
+  else if(t === 'hq') { renderHqDashboard(); }
 }
 
 function posSidebarFinanceUnlock() {
@@ -6265,8 +6346,23 @@ let _currentRole = null;
 
 function selectLoginRole(role) {
   _loginRole = role;
-  document.getElementById('login-tab-branch').classList.toggle('active', role === 'branch');
-  document.getElementById('login-tab-hq').classList.toggle('active', role === 'hq');
+  const branchTab = document.getElementById('login-tab-branch');
+  const hqTab = document.getElementById('login-tab-hq');
+  if(role === 'branch') {
+    branchTab.style.border = '2px solid #1e6641';
+    branchTab.style.background = '#d4f0dc';
+    branchTab.querySelector('div:nth-child(2)').style.color = '#1e6641';
+    hqTab.style.border = '2px solid #ddd8d0';
+    hqTab.style.background = '#f5f2ee';
+    hqTab.querySelector('div:nth-child(2)').style.color = '#6b6560';
+  } else {
+    hqTab.style.border = '2px solid #1a4d7a';
+    hqTab.style.background = '#d6eaf8';
+    hqTab.querySelector('div:nth-child(2)').style.color = '#1a4d7a';
+    branchTab.style.border = '2px solid #ddd8d0';
+    branchTab.style.background = '#f5f2ee';
+    branchTab.querySelector('div:nth-child(2)').style.color = '#6b6560';
+  }
   document.getElementById('login-password').value = '';
   document.getElementById('login-error').textContent = '';
   document.getElementById('login-password').focus();
@@ -6293,37 +6389,217 @@ function doLogin() {
 }
 
 function applyRolePermissions(role) {
-  // Show role badge in topbar
+  // Show role badge + logout button
   const logo = document.querySelector('.topbar-logo');
   if(logo) {
     const badge = role === 'branch'
       ? '<span class="login-branch-badge branch">🏪 分店</span>'
-      : '<span class="login-branch-badge hq">📊 总部</span>';
+      : '<span class="login-branch-badge hq">🏢 总部</span>';
     logo.innerHTML = '🛒 杂货店 POS &nbsp;' + badge;
   }
+  const logoutBtn = document.getElementById('btn-logout');
+  if(logoutBtn) logoutBtn.style.display = '';
+
+  // Reset all nav buttons visibility first
+  ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-overview',
+   'navbtn-profit','navbtn-finance','navbtn-hq'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
 
   if(role === 'branch') {
-    // 分店: 门市收银、库存管理、订单
-    // 隐藏: 利润、记账 (总部才能看)
-    const profitBtn = document.getElementById('navbtn-profit');
-    const financeBtn = document.getElementById('navbtn-finance');
-    if(profitBtn) profitBtn.style.display = 'none';
-    if(financeBtn) financeBtn.style.display = 'none';
+    // 分店: 门市收银、库存管理、订单、总览
+    ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-overview'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.style.display = '';
+    });
     // 隐藏老板模式按钮
     const bossBtn = document.getElementById('profit-unlock-topbar');
     if(bossBtn) bossBtn.style.display = 'none';
-  } else {
-    // 总部: 全部功能
-    // 显示所有功能，总部直接解锁利润
-    _profitUnlocked = true;
-    const profitBtn = document.getElementById('navbtn-profit');
-    if(profitBtn) profitBtn.style.display = '';
-    // 直接跳到总览页面
-    posSwitchTab('overview');
+    // Start on POS
+    posSwitchTab('instore');
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    const ovBtn = document.getElementById('navbtn-overview');
-    if(ovBtn) ovBtn.classList.add('active');
+    const instoreBtn = document.getElementById('navbtn-instore');
+    if(instoreBtn) instoreBtn.classList.add('active');
+
+  } else {
+    // 总部: 全部功能 + 总部报表
+    ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-overview',
+     'navbtn-profit','navbtn-finance','navbtn-hq'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.style.display = '';
+    });
+    _profitUnlocked = true;
+    // Start on HQ dashboard
+    setTimeout(() => {
+      posSwitchTab('hq');
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      const hqBtn = document.getElementById('navbtn-hq');
+      if(hqBtn) hqBtn.classList.add('active');
+      renderHqDashboard();
+    }, 500);
   }
+}
+
+// ── HQ DASHBOARD ─────────────────────────────────────
+function renderHqDashboard() {
+  const period = document.getElementById('hq-period')?.value || 'month';
+  const dateFrom = document.getElementById('hq-date-from')?.value;
+  const dateTo = document.getElementById('hq-date-to')?.value;
+
+  // Filter orders by period
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let startDate, endDate = now;
+
+  if(dateFrom && dateTo) {
+    startDate = new Date(dateFrom);
+    endDate = new Date(dateTo + 'T23:59:59');
+  } else {
+    switch(period) {
+      case 'today': startDate = todayStart; break;
+      case 'week':
+        startDate = new Date(todayStart);
+        startDate.setDate(startDate.getDate() - startDate.getDay());
+        break;
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      default: startDate = new Date(0);
+    }
+  }
+
+  // All completed instore + order sales
+  const instoreOrders = orders.filter(o => {
+    const d = new Date(o.created_at);
+    return o.status === 'instore' && d >= startDate && d <= endDate;
+  });
+  const completedOrders = orders.filter(o => {
+    const d = new Date(o.created_at);
+    return o.status !== 'pending' && o.status !== 'instore' && d >= startDate && d <= endDate;
+  });
+  const allSales = [...instoreOrders, ...completedOrders];
+
+  // KPIs
+  const totalRev = allSales.reduce((s,o) => s + +(o.total_price||0), 0);
+  const qrRev = allSales.filter(o => o.payment_status === 'paid_qr').reduce((s,o) => s + +(o.total_price||0), 0);
+  const cashRev = allSales.filter(o => o.payment_status === 'paid_cash').reduce((s,o) => s + +(o.total_price||0), 0);
+
+  const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
+  setEl('hq-total-rev', 'RM ' + totalRev.toFixed(2));
+  setEl('hq-qr-rev', 'RM ' + qrRev.toFixed(2));
+  setEl('hq-cash-rev', 'RM ' + cashRev.toFixed(2));
+  setEl('hq-total-orders', allSales.length + ' 单');
+
+  // Top items
+  const itemTotals = {};
+  allSales.forEach(o => {
+    const key = o.item_name || '未知商品';
+    itemTotals[key] = itemTotals[key] || { qty: 0, rev: 0 };
+    itemTotals[key].qty += +(o.qty||1);
+    itemTotals[key].rev += +(o.total_price||0);
+  });
+  const topItems = Object.entries(itemTotals).sort((a,b) => b[1].rev - a[1].rev).slice(0, 8);
+  const maxRev = topItems[0]?.[1].rev || 1;
+  const topEl = document.getElementById('hq-top-items');
+  if(topEl) {
+    if(!topItems.length) { topEl.innerHTML = '<div class="empty">暂无数据</div>'; }
+    else topEl.innerHTML = topItems.map(([name, d], i) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="width:20px;height:20px;border-radius:50%;background:${i<3?'var(--green)':'var(--surface2)'};color:${i<3?'#fff':'var(--text3)'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+          <div style="height:4px;background:var(--surface2);border-radius:2px;margin-top:4px"><div style="height:100%;width:${(d.rev/maxRev*100).toFixed(0)}%;background:var(--green);border-radius:2px"></div></div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${d.rev.toFixed(2)}</div>
+          <div style="font-size:10px;color:var(--text3)">${d.qty} 件</div>
+        </div>
+      </div>`).join('');
+  }
+
+  // Payment breakdown
+  const payEl = document.getElementById('hq-payment-breakdown');
+  if(payEl) {
+    const qrCount = allSales.filter(o => o.payment_status === 'paid_qr').length;
+    const cashCount = allSales.filter(o => o.payment_status === 'paid_cash').length;
+    const unpaidCount = allSales.filter(o => o.payment_status === 'unpaid').length;
+    const total = allSales.length || 1;
+    payEl.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:13px;font-weight:500">📲 QR Pay</span>
+            <span style="font-size:13px;font-family:'DM Mono',monospace;color:var(--blue)">RM ${qrRev.toFixed(2)} (${qrCount}单)</span>
+          </div>
+          <div style="height:6px;background:var(--surface2);border-radius:3px"><div style="height:100%;width:${(qrRev/Math.max(totalRev,1)*100).toFixed(0)}%;background:var(--blue);border-radius:3px"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:13px;font-weight:500">💵 现金</span>
+            <span style="font-size:13px;font-family:'DM Mono',monospace;color:var(--green)">RM ${cashRev.toFixed(2)} (${cashCount}单)</span>
+          </div>
+          <div style="height:6px;background:var(--surface2);border-radius:3px"><div style="height:100%;width:${(cashRev/Math.max(totalRev,1)*100).toFixed(0)}%;background:var(--green);border-radius:3px"></div></div>
+        </div>
+        ${unpaidCount > 0 ? `<div style="font-size:12px;color:var(--amber);padding:6px 10px;background:var(--amber-bg);border-radius:var(--radius-xs)">⚠️ ${unpaidCount} 单未付款</div>` : ''}
+      </div>`;
+  }
+
+  // Instore history
+  const histEl = document.getElementById('hq-instore-list');
+  if(histEl) {
+    const recent = [...allSales].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 20);
+    if(!recent.length) { histEl.innerHTML = '<div class="empty">暂无记录</div>'; }
+    else histEl.innerHTML = recent.map(o => {
+      const d = new Date(o.created_at);
+      const timeStr = d.toLocaleDateString('zh-CN', {month:'short', day:'numeric'}) + ' ' + d.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit', hour12:false});
+      const payBadge = o.payment_status === 'paid_qr'
+        ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--blue-bg);color:var(--blue);font-weight:600">QR</span>'
+        : o.payment_status === 'paid_cash'
+        ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--green-bg);color:var(--green);font-weight:600">Cash</span>'
+        : '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--amber-bg);color:var(--amber);font-weight:600">未付</span>';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.item_name || '—'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${timeStr} · x${o.qty||1} · ${o.customer||'门市'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          ${payBadge}
+          <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${(+(o.total_price||0)).toFixed(2)}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Low stock
+  const lowEl = document.getElementById('hq-low-stock');
+  if(lowEl) {
+    const lowItems = items.filter(i => !i.bundle_components && (i.shop_qty < 2 || (i.home_qty + i.shop_qty) < (i.threshold || 10)));
+    if(!lowItems.length) { lowEl.innerHTML = '<div class="empty" style="color:var(--green)">✓ 库存充足</div>'; }
+    else lowEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">` +
+      lowItems.slice(0,12).map(i => `
+        <div style="background:var(--surface2);border-radius:var(--radius-xs);padding:10px 12px;border-left:3px solid ${i.shop_qty === 0 ? 'var(--red)' : 'var(--amber)'}">
+          <div style="font-size:12px;font-weight:600;margin-bottom:3px">${i.name}</div>
+          <div style="font-size:11px;color:var(--text3)">家里 ${i.home_qty} · 店里 ${i.shop_qty}</div>
+        </div>`).join('') + '</div>';
+  }
+}
+
+// ── LOGOUT ───────────────────────────────────────────
+function doLogout() {
+  if(!confirm('确认登出？')) return;
+  _currentRole = null;
+  // Reset UI
+  const logo = document.querySelector('.topbar-logo');
+  if(logo) logo.innerHTML = '🛒 杂货店 POS';
+  document.getElementById('btn-logout').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').textContent = '';
+  // Reset to instore tab
+  posSwitchTab('instore');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('navbtn-instore').classList.add('active');
 }
 
 </script>
