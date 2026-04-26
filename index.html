@@ -26,11 +26,6 @@
 }
 body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); height: 100vh; height: 100dvh; overflow: hidden; }
 
-/* Full-page POS mode */
-body.pos-mode .sidebar { display: none; }
-body.pos-mode .pages { flex: 1; }
-body.pos-mode .pos-cart { width: 340px; }
-body.pos-mode .pos-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 
 /* ── LOADING ─────────────────────────────────────── */
 #loading { position: fixed; inset: 0; background: var(--surface); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; z-index: 999; }
@@ -49,7 +44,7 @@ body.pos-mode .pos-grid { grid-template-columns: repeat(auto-fill, minmax(140px,
 .topbar-action-btn { padding: 6px 11px; font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--surface2); color: var(--text2); cursor: pointer; transition: background 0.12s; white-space: nowrap; }
 .topbar-action-btn:hover { background: var(--surface3); color: var(--text); }
 .sync-msg { font-size: 11px; color: var(--text3); }
-.app-body { display: flex; flex: 1; overflow: hidden; }
+.app-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
 
 /* ── SIDEBAR ─────────────────────────────────────── */
 .sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
@@ -66,12 +61,12 @@ body.pos-mode .pos-grid { grid-template-columns: repeat(auto-fill, minmax(140px,
 .nav-action-btn:hover { background: var(--surface3); color: var(--text); }
 
 /* ── PAGES ───────────────────────────────────────── */
-.pages { flex: 1; overflow: hidden; position: relative; }
+.pages { flex: 1; overflow: hidden; position: relative; min-width: 0; }
 .page { display: none !important; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 18px; }
 .page.active { display: block !important; }
 .page::-webkit-scrollbar { width: 4px; }
 .page::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
-#page-instore { padding: 0 !important; overflow: hidden !important; display: none !important; }
+#page-instore { padding: 0 !important; overflow: hidden !important; display: none !important; height: 100%; }
 #page-instore.active { display: flex !important; }
 
 /* ── CARDS ───────────────────────────────────────── */
@@ -150,8 +145,8 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .search-result-price { font-size: 12px; color: var(--green); font-family: 'DM Mono', monospace; font-weight: 600; }
 
 /* ── POS INSTORE LAYOUT ──────────────────────────── */
-.pos-layout { display: flex; height: 100%; overflow: hidden; }
-.pos-products { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border-right: 1px solid var(--border); }
+.pos-layout { display: flex; height: 100%; width: 100%; overflow: hidden; }
+.pos-products { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border-right: 1px solid var(--border); min-width: 0; }
 .pos-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .pos-search { flex: 1; padding: 10px 14px; font-size: 15px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); outline: none; font-family: 'DM Sans', sans-serif; }
 .pos-search:focus { border-color: var(--text); background: var(--surface); }
@@ -163,7 +158,7 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .pos-cat-pill { padding: 5px 12px; font-size: 12px; font-weight: 500; color: var(--text2); cursor: pointer; border: 1.5px solid var(--border); border-radius: 20px; white-space: nowrap; background: var(--surface2); transition: all 0.15s; font-family: 'DM Sans', sans-serif; flex-shrink: 0; }
 .pos-cat-pill:hover { border-color: var(--border2); color: var(--text); }
 .pos-cat-pill.active { background: var(--text); color: #fff; border-color: var(--text); }
-.pos-grid-wrap { flex: 1; overflow-y: auto; padding: 14px; }
+.pos-grid-wrap { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 14px; min-height: 0; }
 .pos-grid-wrap::-webkit-scrollbar { width: 3px; }
 .pos-grid-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 .pos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
@@ -180,7 +175,7 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .pos-prod-cat { font-size: 10px; color: var(--text3); margin-bottom: 4px; }
 
 /* ── POS CART ────────────────────────────────────── */
-.pos-cart { width: 310px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--surface); overflow: hidden; }
+.pos-cart { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--surface); overflow: hidden; min-height: 0; }
 .pos-cart-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
 .pos-cart-title { font-size: 15px; font-weight: 700; }
 .pos-cart-count { font-size: 12px; color: var(--text3); }
@@ -1097,7 +1092,7 @@ async function init() {
     await loadItems(); await loadOrders(); await loadBundleRules(); await loadPnlExpenses();
     subscribeRealtime();
     document.getElementById('loading').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
+    document.getElementById('app').style.display = 'flex';
     setSync('ok','已同步');
     setPayStatus('unpaid'); // set initial button state
   } catch(e) {
@@ -6074,17 +6069,11 @@ function posSwitchTab(t) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const page = document.getElementById('page-' + t);
   if(page) page.classList.add('active');
-  // Toggle full-page POS mode
-  if(t === 'instore') {
-    document.body.classList.add('pos-mode');
-    renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard();
-  } else {
-    document.body.classList.remove('pos-mode');
-    if(t === 'orders') loadOrders();
-    if(t === 'overview') renderOverview();
-    if(t === 'profit') { renderProfitReport(); renderCostEditor(); }
-    if(t === 'finance') { initFinanceTab(); }
-  }
+  if(t === 'instore') { renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard(); }
+  else if(t === 'orders') loadOrders();
+  else if(t === 'overview') renderOverview();
+  else if(t === 'profit') { renderProfitReport(); renderCostEditor(); }
+  else if(t === 'finance') { initFinanceTab(); }
 }
 
 function posSidebarFinanceUnlock() {
@@ -6127,7 +6116,7 @@ function posOpenCustomer() { openCustomerMode(); }
 
 
 init();
-setTimeout(() => { document.body.classList.add('pos-mode'); renderPosCats(); renderPosGrid(); updatePosCartUI(); }, 300);
+setTimeout(() => { renderPosCats(); renderPosGrid(); updatePosCartUI(); }, 300);
 </script>
 </body>
 </html>
