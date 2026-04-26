@@ -6415,9 +6415,9 @@ function posSwitchTab(t) {
     const newOrderCard = document.querySelector('#page-orders .orders-right .card:first-child');
     const ordDashboard = document.getElementById('ord-dashboard');
     if(_branchRole) {
-      // Branch: hide new order + dashboard
+      // Branch: hide new order only, SHOW dashboard
       if(newOrderCard) newOrderCard.style.display = 'none';
-      if(ordDashboard) ordDashboard.style.display = 'none';
+      if(ordDashboard) ordDashboard.style.display = '';
     } else {
       // HQ: show everything, auto-unlock order form
       if(newOrderCard) newOrderCard.style.display = '';
