@@ -6941,22 +6941,28 @@ function doLogout() {
 }
 
 
-// ── Scroll passthrough fix ──────────────────────────────
-// Prevent search result containers from trapping wheel scroll
-// when they don't need to scroll themselves
-document.addEventListener('wheel', function(e) {
-  const target = e.target.closest('#transfer-search-results, #restock-search-results, #o-search-results, #ins-search-results');
-  if(!target) return;
-  const atTop = target.scrollTop === 0;
-  const atBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 1;
-  const scrollingUp = e.deltaY < 0;
-  const scrollingDown = e.deltaY > 0;
-  // If already at limits, let parent scroll
-  if((scrollingUp && atTop) || (scrollingDown && atBottom)) {
+
+
+
+// ── Universal scroll fix ─────────────────────────────
+// Force .page.active to scroll when wheel fires anywhere inside it,
+// bypassing any child elements that silently absorb wheel events.
+(function() {
+  document.addEventListener('wheel', function(e) {
+    const activePage = document.querySelector('.page.active');
+    if(!activePage || !activePage.contains(e.target)) return;
+    // If a legit scrollable child exists between target and activePage, let it handle
+    let el = e.target;
+    while(el && el !== activePage) {
+      const oy = window.getComputedStyle(el).overflowY;
+      if((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 2) return;
+      el = el.parentElement;
+    }
+    // No scrollable child — scroll the page manually
     e.preventDefault();
-    target.closest('.page')?.scrollBy(0, e.deltaY);
-  }
-}, { passive: false });
+    activePage.scrollTop += e.deltaY;
+  }, { passive: false, capture: true });
+})();
 
 </script>
 </body>
