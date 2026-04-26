@@ -395,7 +395,7 @@ body.modal-open { overflow: hidden; }
           <!-- Product browser -->
           <div class="pos-products">
             <div class="pos-topbar">
-              <input class="pos-search" id="pos-search-input" placeholder="🔍 搜索商品..." oninput="renderPosGrid()">
+              <input class="pos-search" id="pos-search-input" placeholder="🔍 搜索商品..." oninput="posSearchInput(this.value)">
               <button class="btn btn-scan" onclick="openScanModal('instore')" style="padding:10px 14px">📷</button>
             </div>
             <div class="pos-cats" id="pos-cat-bar"></div>
@@ -5819,26 +5819,59 @@ function setPoscat(c) {
   renderPosGrid();
 }
 
+// Barcode debounce state
+let _posSearchTimer = null;
+let _lastBarcodeAdded = '';
+let _lastBarcodeTime = 0;
+
+function posSearchInput(val) {
+  // Barcode scanners send all chars rapidly then press Enter
+  // Detect: if all digits, wait 120ms for scanner to finish, then process
+  clearTimeout(_posSearchTimer);
+  if (/^\d{6,}$/.test(val.trim())) {
+    // Looks like a barcode being typed - wait for scanner to finish
+    _posSearchTimer = setTimeout(() => {
+      handleBarcodeInput(val.trim());
+    }, 150);
+  } else {
+    // Normal text search - immediate render
+    renderPosGrid();
+  }
+}
+
+function handleBarcodeInput(barcode) {
+  const now = Date.now();
+  // Prevent double-scan: ignore same barcode within 1.5 seconds
+  if (barcode === _lastBarcodeAdded && now - _lastBarcodeTime < 1500) {
+    document.getElementById('pos-search-input').value = '';
+    return;
+  }
+  const exact = items.find(i => i.barcode && i.barcode.trim() === barcode);
+  const input = document.getElementById('pos-search-input');
+  if (exact) {
+    if (exact.shop_qty === 0) {
+      showPosToast('⚠️ ' + exact.name + ' 已售完');
+      if(input) input.value = '';
+      return;
+    }
+    _lastBarcodeAdded = barcode;
+    _lastBarcodeTime = now;
+    posAddItem(exact.id);
+    if(input) input.value = '';
+    renderPosGrid();
+  } else {
+    // Barcode not found - show message but keep value so user can see
+    showPosToast('❌ 找不到此条码：' + barcode);
+    if(input) input.select();
+  }
+}
+
 function renderPosGrid() {
   const grid = document.getElementById('pos-grid');
   if(!grid) return;
   const _rawQ = (document.getElementById('pos-search-input')?.value || '').trim();
   const q = _rawQ.toLowerCase();
   const cat = _posCat;
-
-  // Barcode scan: if all digits 8+ chars, try exact match and auto-add
-  if (/^\d{8,}$/.test(_rawQ)) {
-    const exact = items.find(i => i.barcode && i.barcode.trim() === _rawQ);
-    if (exact && exact.shop_qty > 0) {
-      posAddItem(exact.id);
-      document.getElementById('pos-search-input').value = '';
-      renderPosGrid(); // re-render without query
-      return;
-    } else if (exact && exact.shop_qty === 0) {
-      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--red);padding:2rem 0;font-size:14px;font-weight:600">⚠️ ' + exact.name + ' — 已售完</div>';
-      return;
-    }
-  }
 
   let list = items.filter(i => {
     if (cat && i.category !== cat) return false;
@@ -5873,13 +5906,11 @@ function posAddItem(id) {
     showPosToast('⚠️ ' + it.name + ' 已售完');
     return;
   }
-  // addToInstoreCart calls renderInstoreCart which writes to old IDs (ins-cart-list).
-  // We bypass renderInstoreCart and directly mutate instoreCart, then call our UI.
   const existing = instoreCart.find(c => c.item.id === it.id);
   if(existing) existing.qty++;
   else instoreCart.push({ item: it, qty: 1, unitPrice: +(it.price||0) });
   updatePosCartUI();
-  renderPosGrid(); // refresh stock display
+  // Note: do NOT call renderPosGrid() here - caller handles that to avoid double render
 }
 
 function updatePosCartUI() {
