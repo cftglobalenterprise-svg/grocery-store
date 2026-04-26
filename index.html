@@ -39,7 +39,9 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 /* ── APP SHELL ───────────────────────────────────── */
 #app { height: 100vh; height: 100dvh; overflow: hidden; display: none; flex-direction: column; }
 .topbar { height: var(--nav-h); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; padding: 0 16px; flex-shrink: 0; }
-.topbar-logo { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; flex: 1; }
+.topbar-logo { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+.topbar-action-btn { padding: 6px 11px; font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--surface2); color: var(--text2); cursor: pointer; transition: background 0.12s; white-space: nowrap; }
+.topbar-action-btn:hover { background: var(--surface3); color: var(--text); }
 .sync-msg { font-size: 11px; color: var(--text3); }
 .app-body { display: flex; flex: 1; overflow: hidden; }
 
@@ -147,11 +149,14 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .pos-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .pos-search { flex: 1; padding: 10px 14px; font-size: 15px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); outline: none; font-family: 'DM Sans', sans-serif; }
 .pos-search:focus { border-color: var(--text); background: var(--surface); }
-.pos-cats { display: flex; gap: 0; padding: 0 14px; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; flex-shrink: 0; }
-.pos-cats::-webkit-scrollbar { display: none; }
-.pos-cat-btn { padding: 10px 14px; font-size: 13px; font-weight: 500; color: var(--text2); cursor: pointer; border: none; background: transparent; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
-.pos-cat-btn:hover { color: var(--text); }
-.pos-cat-btn.active { color: var(--text); border-bottom-color: var(--text); font-weight: 600; }
+.pos-cat-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.pos-cat-select { flex: 0 0 150px; padding: 7px 10px; font-size: 13px; border: 1.5px solid var(--border); border-radius: var(--radius-xs); background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 500; cursor: pointer; outline: none; -webkit-appearance: none; }
+.pos-cat-select:focus { border-color: var(--text); }
+.pos-cat-pills { display: flex; gap: 6px; overflow-x: auto; flex: 1; }
+.pos-cat-pills::-webkit-scrollbar { display: none; }
+.pos-cat-pill { padding: 5px 12px; font-size: 12px; font-weight: 500; color: var(--text2); cursor: pointer; border: 1.5px solid var(--border); border-radius: 20px; white-space: nowrap; background: var(--surface2); transition: all 0.15s; font-family: 'DM Sans', sans-serif; flex-shrink: 0; }
+.pos-cat-pill:hover { border-color: var(--border2); color: var(--text); }
+.pos-cat-pill.active { background: var(--text); color: #fff; border-color: var(--text); }
 .pos-grid-wrap { flex: 1; overflow-y: auto; padding: 14px; }
 .pos-grid-wrap::-webkit-scrollbar { width: 3px; }
 .pos-grid-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
@@ -350,8 +355,15 @@ body.modal-open { overflow: hidden; }
 <div id="app" style="display:none;flex-direction:column;">
   <div class="topbar">
     <div class="topbar-logo">🛒 杂货店 POS</div>
-    <div class="sync-dot" id="sync-dot"></div>
-    <span class="sync-msg" id="sync-msg">连接中</span>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+      <button class="topbar-action-btn" onclick="posOpenBundle()" title="套餐规则">🎁 套餐</button>
+      <button class="topbar-action-btn" onclick="posOpenCustomer()" title="顾客展示">📱 展示</button>
+      <button class="topbar-action-btn" id="profit-unlock-topbar" onclick="posSidebarProfitUnlock()" title="老板模式">🔒 老板</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:8px;padding-left:8px;border-left:1px solid var(--border)">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span class="sync-msg" id="sync-msg">连接中</span>
+    </div>
   </div>
   <div class="app-body">
 
@@ -378,11 +390,7 @@ body.modal-open { overflow: hidden; }
       <button class="nav-btn" id="navbtn-finance" onclick="posSidebarFinanceUnlock()">
         <span class="nav-icon">📒</span> 记账
       </button>
-      <div class="nav-bottom">
-        <button class="nav-action-btn" onclick="posOpenBundle()">🎁 套餐规则</button>
-        <button class="nav-action-btn" onclick="posOpenCustomer()">📱 顾客展示</button>
-        <button class="nav-action-btn" id="profit-unlock-topbar" onclick="posSidebarProfitUnlock()">🔒 老板模式</button>
-      </div>
+
     </div>
 
     <!-- PAGES -->
@@ -398,7 +406,12 @@ body.modal-open { overflow: hidden; }
               <input class="pos-search" id="pos-search-input" placeholder="🔍 搜索商品..." oninput="posSearchInput(this.value)">
               <button class="btn btn-scan" onclick="openScanModal('instore')" style="padding:10px 14px">📷</button>
             </div>
-            <div class="pos-cats" id="pos-cat-bar"></div>
+            <div class="pos-cat-row" id="pos-cat-row">
+              <select class="pos-cat-select" id="pos-cat-select" onchange="setPoscat(this.value)">
+                <option value="">全部类别</option>
+              </select>
+              <div class="pos-cat-pills" id="pos-cat-pills"></div>
+            </div>
             <div class="pos-grid-wrap">
               <div class="pos-grid" id="pos-grid"></div>
             </div>
@@ -5805,16 +5818,31 @@ function exportFnReport() {
 let _posCat = '';
 
 function renderPosCats() {
-  const bar = document.getElementById('pos-cat-bar');
-  if(!bar) return;
+  const sel = document.getElementById('pos-cat-select');
+  const pillsEl = document.getElementById('pos-cat-pills');
+  if(!sel && !pillsEl) return;
   const cats = [...new Set(items.map(i=>i.category).filter(Boolean))].sort();
-  bar.innerHTML =
-    `<button class="pos-cat-btn${_posCat===''?' active':''}" onclick="setPoscat('')">全部</button>` +
-    cats.map(c=>`<button class="pos-cat-btn${_posCat===c?' active':''}" onclick="setPoscat('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')"> ${c}</button>`).join('');
+  if(sel) {
+    sel.innerHTML = '<option value="">全部类别</option>' +
+      cats.map(c=>`<option value="${c}"${_posCat===c?' selected':''}>${c}</option>`).join('');
+    sel.value = _posCat;
+  }
+  if(pillsEl) {
+    const catCount = {};
+    items.forEach(i => { if(i.category) catCount[i.category] = (catCount[i.category]||0)+1; });
+    const topCats = [...cats].sort((a,b)=>(catCount[b]||0)-(catCount[a]||0)).slice(0,8);
+    pillsEl.innerHTML = topCats.map(c=>{
+      const safe = c.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return `<button class="pos-cat-pill${_posCat===c?' active':''}" onclick="setPoscat('${safe}')">${c}</button>`;
+    }).join('');
+  }
 }
 
 function setPoscat(c) {
   _posCat = c;
+  // sync dropdown
+  const sel = document.getElementById('pos-cat-select');
+  if(sel) sel.value = c;
   renderPosCats();
   renderPosGrid();
 }
