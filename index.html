@@ -355,6 +355,38 @@ body.modal-open { overflow: hidden; }
 </head>
 <body>
 
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">🛒</div>
+      <div class="login-logo-name">杂货店 POS</div>
+      <div class="login-logo-sub">快速收银管理系统</div>
+    </div>
+
+    <div class="login-tabs">
+      <div class="login-tab active" id="login-tab-branch" onclick="selectLoginRole('branch')">
+        <div class="login-tab-icon">🏪</div>
+        <div class="login-tab-label">分店登入</div>
+        <div class="login-tab-desc">POS 收银 · 库存管理</div>
+      </div>
+      <div class="login-tab" id="login-tab-hq" onclick="selectLoginRole('hq')">
+        <div class="login-tab-icon">📊</div>
+        <div class="login-tab-label">总部登入</div>
+        <div class="login-tab-desc">报表 · 财务 · 总览</div>
+      </div>
+    </div>
+
+    <div class="login-field-label">密码</div>
+    <input class="login-input" type="password" id="login-password"
+      placeholder="••••••••"
+      onkeydown="if(event.key==='Enter') doLogin()">
+    <button class="login-btn" onclick="doLogin()">进入系统</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+
 <div id="loading"><div class="spinner"></div><p>连接中...</p></div>
 <div class="pos-toast" id="pos-toast"></div>
 <!-- Stub elements needed by original JS functions -->
@@ -6223,6 +6255,75 @@ function onRestockBarcodeTyped(val) {
       if(input) input.select();
     }
   }, 150);
+}
+
+// ── LOGIN LOGIC ──────────────────────────────────────
+const BRANCH_PASSWORD = '1234';  // 分店密码 - 改成你要的
+const HQ_PASSWORD = '960108';    // 总部密码 - 改成你要的
+let _loginRole = 'branch';       // 'branch' or 'hq'
+let _currentRole = null;
+
+function selectLoginRole(role) {
+  _loginRole = role;
+  document.getElementById('login-tab-branch').classList.toggle('active', role === 'branch');
+  document.getElementById('login-tab-hq').classList.toggle('active', role === 'hq');
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('login-password').focus();
+}
+
+function doLogin() {
+  const pw = document.getElementById('login-password').value;
+  const err = document.getElementById('login-error');
+  if(!pw) { err.textContent = '请输入密码'; return; }
+  
+  if(_loginRole === 'branch' && pw === BRANCH_PASSWORD) {
+    _currentRole = 'branch';
+    applyRolePermissions('branch');
+    document.getElementById('login-screen').style.display = 'none';
+  } else if(_loginRole === 'hq' && pw === HQ_PASSWORD) {
+    _currentRole = 'hq';
+    applyRolePermissions('hq');
+    document.getElementById('login-screen').style.display = 'none';
+  } else {
+    err.textContent = '密码错误，请重试';
+    document.getElementById('login-password').value = '';
+    document.getElementById('login-password').focus();
+  }
+}
+
+function applyRolePermissions(role) {
+  // Show role badge in topbar
+  const logo = document.querySelector('.topbar-logo');
+  if(logo) {
+    const badge = role === 'branch'
+      ? '<span class="login-branch-badge branch">🏪 分店</span>'
+      : '<span class="login-branch-badge hq">📊 总部</span>';
+    logo.innerHTML = '🛒 杂货店 POS &nbsp;' + badge;
+  }
+
+  if(role === 'branch') {
+    // 分店: 门市收银、库存管理、订单
+    // 隐藏: 利润、记账 (总部才能看)
+    const profitBtn = document.getElementById('navbtn-profit');
+    const financeBtn = document.getElementById('navbtn-finance');
+    if(profitBtn) profitBtn.style.display = 'none';
+    if(financeBtn) financeBtn.style.display = 'none';
+    // 隐藏老板模式按钮
+    const bossBtn = document.getElementById('profit-unlock-topbar');
+    if(bossBtn) bossBtn.style.display = 'none';
+  } else {
+    // 总部: 全部功能
+    // 显示所有功能，总部直接解锁利润
+    _profitUnlocked = true;
+    const profitBtn = document.getElementById('navbtn-profit');
+    if(profitBtn) profitBtn.style.display = '';
+    // 直接跳到总览页面
+    posSwitchTab('overview');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const ovBtn = document.getElementById('navbtn-overview');
+    if(ovBtn) ovBtn.classList.add('active');
+  }
 }
 
 </script>
