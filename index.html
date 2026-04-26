@@ -1140,7 +1140,7 @@ body.modal-open { overflow: hidden; }
         </div>
 
         <div class="card" style="margin-top:14px">
-          <div class="card-title">📋 门市收银记录</div>
+          <div class="card-title">📋 收银记录（门市 + 订单）</div>
           <div id="hq-instore-list"><div class="empty">暂无数据</div></div>
         </div>
 
@@ -6412,15 +6412,23 @@ function posSwitchTab(t) {
   if(t === 'instore') { renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard(); }
   else if(t === 'orders') {
     loadOrders();
-    // Branch role: hide new order card + order dashboard
     const newOrderCard = document.querySelector('#page-orders .orders-right .card:first-child');
     const ordDashboard = document.getElementById('ord-dashboard');
     if(_branchRole) {
+      // Branch: hide new order + dashboard
       if(newOrderCard) newOrderCard.style.display = 'none';
       if(ordDashboard) ordDashboard.style.display = 'none';
     } else {
+      // HQ: show everything, auto-unlock order form
       if(newOrderCard) newOrderCard.style.display = '';
       if(ordDashboard) ordDashboard.style.display = '';
+      // Auto-unlock order form for HQ
+      const lockedView = document.getElementById('order-locked-view');
+      const unlockedView = document.getElementById('order-unlocked-view');
+      const lockBtn = document.getElementById('order-lock-btn');
+      if(lockedView) lockedView.style.display = 'none';
+      if(unlockedView) unlockedView.style.display = '';
+      if(lockBtn) lockBtn.textContent = '🔓 已解锁';
     }
   }
   else if(t === 'overview') renderOverview();
@@ -6613,11 +6621,14 @@ function applyRolePermissions(role) {
 
   } else {
     // 总部: 全部功能 + 总部报表
-    ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-overview',
+    ['navbtn-instore','navbtn-stock','navbtn-orders',
      'navbtn-profit','navbtn-finance','navbtn-hq'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
+    // 总部隐藏总览(总部报表已包含)
+    const ovBtn = document.getElementById('navbtn-overview');
+    if(ovBtn) ovBtn.style.display = 'none';
     // 总部显示套餐按钮
     const bundleBtn = document.getElementById('btn-bundle');
     if(bundleBtn) bundleBtn.style.display = '';
@@ -6661,16 +6672,21 @@ function renderHqDashboard() {
     }
   }
 
-  // All completed instore + order sales
+  // 门市收银记录 (instore POS)
   const instoreOrders = orders.filter(o => {
     const d = new Date(o.created_at);
     return o.status === 'instore' && d >= startDate && d <= endDate;
   });
-  const completedOrders = orders.filter(o => {
+  // 订单收款记录：只计算已付款(paid_qr / paid_cash)的完成订单
+  // 时间以 updated_at 或 created_at 为准（有收款动作的）
+  const paidOrders = orders.filter(o => {
     const d = new Date(o.created_at);
-    return o.status !== 'pending' && o.status !== 'instore' && d >= startDate && d <= endDate;
+    return o.status !== 'instore'
+      && o.status !== 'pending'
+      && (o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash')
+      && d >= startDate && d <= endDate;
   });
-  const allSales = [...instoreOrders, ...completedOrders];
+  const allSales = [...instoreOrders, ...paidOrders];
 
   // KPIs
   const totalRev = allSales.reduce((s,o) => s + +(o.total_price||0), 0);
@@ -6750,12 +6766,15 @@ function renderHqDashboard() {
         : o.payment_status === 'paid_cash'
         ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--green-bg);color:var(--green);font-weight:600">Cash</span>'
         : '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--amber-bg);color:var(--amber);font-weight:600">未付</span>';
+      const sourceBadge = o.status === 'instore'
+        ? '<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:var(--surface2);color:var(--text3);font-weight:600">门市</span>'
+        : '<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:var(--purple-bg);color:var(--purple);font-weight:600">订单</span>';
       return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.item_name || '—'}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">${timeStr} · x${o.qty||1} · ${o.customer||'门市'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;display:flex;gap:5px;align-items:center">${sourceBadge} ${timeStr} · x${o.qty||1} · ${o.customer||'门市'}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           ${payBadge}
           <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${(+(o.total_price||0)).toFixed(2)}</span>
         </div>
