@@ -827,11 +827,19 @@
         <button onclick="lockProfit()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer;color:var(--text2)">🔒 锁定</button>
       </div>
       <!-- Time period -->
-      <div style="display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
         <button class="btn" id="profit-btn-today" style="font-size:11px;padding:4px 8px" onclick="setProfitPeriod('today')">今天</button>
         <button class="btn" id="profit-btn-week" style="font-size:11px;padding:4px 8px" onclick="setProfitPeriod('week')">本周</button>
         <button class="btn" id="profit-btn-month" style="font-size:11px;padding:4px 8px;background:var(--text);color:#fff;border-color:var(--text)" onclick="setProfitPeriod('month')">本月</button>
         <button class="btn" id="profit-btn-all" style="font-size:11px;padding:4px 8px" onclick="setProfitPeriod('all')">全部</button>
+      </div>
+      <!-- Custom date range -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--text3);font-weight:600;flex-shrink:0">指定日期</span>
+        <input type="date" id="profit-date-from" style="flex:1;min-width:110px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="setProfitPeriod('custom')">
+        <span style="font-size:11px;color:var(--text3);flex-shrink:0">至</span>
+        <input type="date" id="profit-date-to" style="flex:1;min-width:110px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="setProfitPeriod('custom')">
+        <button class="btn" style="font-size:11px;padding:4px 8px;flex-shrink:0" onclick="document.getElementById('profit-date-from').value='';document.getElementById('profit-date-to').value='';setProfitPeriod('month')">✕</button>
       </div>
       <!-- Summary -->
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
@@ -3849,6 +3857,13 @@ function lockProfit() {
 
 function setProfitPeriod(p) {
   _profitPeriod = p;
+  // Clear custom dates if switching to preset
+  if(p !== 'custom') {
+    const f = document.getElementById('profit-date-from');
+    const t = document.getElementById('profit-date-to');
+    if(f) f.value = '';
+    if(t) t.value = '';
+  }
   ['today','week','month','all'].forEach(x => {
     const btn = document.getElementById('profit-btn-' + x);
     if(!btn) return;
@@ -3862,6 +3877,14 @@ function setProfitPeriod(p) {
 function getProfitDateRange() {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if(_profitPeriod === 'custom') {
+    const fromVal = document.getElementById('profit-date-from')?.value;
+    const toVal   = document.getElementById('profit-date-to')?.value;
+    const start = fromVal ? new Date(fromVal) : new Date(0);
+    const end   = toVal   ? new Date(new Date(toVal).getTime() + 86400000) : new Date();
+    return { start, end };
+  }
   if(_profitPeriod === 'today') return { start: today, end: new Date(today.getTime() + 86400000) };
   if(_profitPeriod === 'week') {
     const dow = today.getDay() || 7;
