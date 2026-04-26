@@ -742,9 +742,6 @@ body.modal-open { overflow: hidden; }
       <button class="nav-btn" id="navbtn-overview" onclick="posSwitchTab('overview')">
         <span class="nav-icon">📊</span> 总览
       </button>
-      <button class="nav-btn" id="navbtn-profit" style="display:none" onclick="posSidebarProfitUnlock()">
-        <span class="nav-icon">💰</span> 利润
-      </button>
       <button class="nav-btn" id="navbtn-finance" onclick="posSidebarFinanceUnlock()">
         <span class="nav-icon">📒</span> 记账
       </button>
@@ -903,6 +900,44 @@ body.modal-open { overflow: hidden; }
             </div>
           </div>
         </div>
+
+        <!-- ── Cost editor + Bulk price ── -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+          <div class="card">
+            <div class="card-title">⚙️ 成本价设置</div>
+            <div style="display:flex;gap:6px;margin-bottom:8px">
+              <input type="text" id="cost-search" placeholder="🔍 搜索商品..." oninput="renderCostEditor()" style="flex:1">
+              <select id="cost-cat-filter" onchange="renderCostEditor()" style="max-width:120px"><option value="">全部类别</option></select>
+            </div>
+            <div id="cost-editor-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">💲 批量调整价格</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:10px">筛选商品，统一调整售价</div>
+            <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+              <input type="text" id="bulk-price-search" placeholder="🔍 搜索..." oninput="renderBulkPriceList()" style="flex:1;min-width:100px">
+              <select id="bulk-price-cat" onchange="renderBulkPriceList()" style="max-width:110px"><option value="">全部类别</option></select>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+              <button class="btn" style="font-size:11px;padding:4px 8px" onclick="bulkPriceSelectAll()">全选</button>
+              <button class="btn" style="font-size:11px;padding:4px 8px" onclick="bulkPriceClearAll()">清空</button>
+              <span id="bulk-price-selected-count" style="font-size:12px;color:var(--text3);margin-left:4px">已选 0 项</span>
+            </div>
+            <div id="bulk-price-list" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:10px"></div>
+            <div style="background:var(--surface2);border-radius:var(--radius-xs);padding:12px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button id="bp-mode-set" onclick="setBulkPriceMode('set')" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid var(--text);background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">设为固定价</button>
+                <button id="bp-mode-add" onclick="setBulkPriceMode('add')" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">增加 RM</button>
+                <button id="bp-mode-pct" onclick="setBulkPriceMode('pct')" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">按 % 调整</button>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="number" id="bulk-price-value" placeholder="输入数值" step="0.01" style="flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);outline:none">
+                <span id="bulk-price-unit" style="font-size:13px;color:var(--text2);font-weight:600;min-width:24px">RM</span>
+              </div>
+              <button onclick="applyBulkPrice()" style="width:100%;padding:11px;background:linear-gradient(135deg,#3a6b28,#2d5218);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;">✅ 确认批量调价</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ══ ORDERS ════════════════════════════════════ -->
@@ -970,240 +1005,6 @@ body.modal-open { overflow: hidden; }
       </div>
 
       <!-- ══ PROFIT ════════════════════════════════════ -->
-      <div id="page-profit" class="page" style="max-width:900px">
-        <div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div class="card-title" style="margin-bottom:0">📋 月度损益表</div><div style="display:flex;align-items:center;gap:8px"><input type="month" id="pnl-month-picker" style="padding:5px 8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderPnL()"><button class="btn" style="font-size:11px;padding:4px 10px" onclick="exportPnL()">📄 导出</button></div></div><div id="pnl-body"><div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">请选择月份</div></div></div>
-        <div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div class="card-title" style="margin-bottom:0">💰 成本 / 利润报表</div><button onclick="lockProfit()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer;color:var(--text2)">🔒 锁定</button></div><div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap"><button class="btn" id="profit-btn-today" style="font-size:11px;padding:4px 8px" onclick="setProfitPeriod('today')">今天</button><button class="btn" id="profit-btn-week" style="font-size:11px;padding:4px 8px" onclick="setProfitPeriod('week')">本周</button><button class="btn" id="profit-btn-month" style="font-size:11px;padding:4px 8px;background:var(--text);color:#fff;border-color:var(--text)" onclick="setProfitPeriod('month')">本月</button><button class="btn" id="profit-btn-all" style="font-size:11px;padding:4px 8px" onclick="setProfitPeriod('all')">全部</button></div><div style="display:flex;align-items:center;gap:6px;margin-bottom:14px;flex-wrap:wrap"><span style="font-size:11px;color:var(--text3);font-weight:600;flex-shrink:0">指定日期</span><input type="date" id="profit-date-from" style="flex:1;min-width:110px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="setProfitPeriod('custom')"><span style="font-size:11px;color:var(--text3);flex-shrink:0">至</span><input type="date" id="profit-date-to" style="flex:1;min-width:110px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="setProfitPeriod('custom')"><button class="btn" style="font-size:11px;padding:4px 8px;flex-shrink:0" onclick="document.getElementById('profit-date-from').value='';document.getElementById('profit-date-to').value='';setProfitPeriod('month')">✕</button></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px"><div style="background:var(--green-bg);border-radius:var(--radius-xs);padding:12px;text-align:center;border:1px solid var(--green-border)"><div style="font-size:10px;color:var(--green);font-weight:600;margin-bottom:4px">总营业额</div><div style="font-size:17px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)" id="profit-revenue">RM 0</div></div><div style="background:var(--red-bg);border-radius:var(--radius-xs);padding:12px;text-align:center;border:1px solid var(--red-border)"><div style="font-size:10px;color:var(--red);font-weight:600;margin-bottom:4px">总成本</div><div style="font-size:17px;font-weight:700;font-family:'DM Mono',monospace;color:var(--red)" id="profit-cost">RM 0</div></div><div style="background:var(--blue-bg);border-radius:var(--radius-xs);padding:12px;text-align:center;border:1px solid var(--blue-border)"><div style="font-size:10px;color:var(--blue);font-weight:600;margin-bottom:4px">毛利润</div><div style="font-size:17px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)" id="profit-gross">RM 0</div></div></div><div style="background:var(--surface2);border-radius:var(--radius-xs);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--text2);font-weight:600">毛利率</span><span style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace" id="profit-margin">0%</span></div><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">商品利润明细 <span id="profit-no-cost-hint" style="font-weight:400;color:var(--amber)"></span></div><div id="profit-breakdown"></div></div>
-        <div class="card"><div class="card-title">⚙️ 设置商品成本价</div><div style="display:flex;gap:6px;margin-bottom:8px"><input type="text" id="cost-search" placeholder="搜索商品..." oninput="renderCostEditor()" style="flex:1"><select id="cost-cat-filter" onchange="renderCostEditor()" style="max-width:130px"><option value="">全部类别</option></select></div><div id="cost-editor-list"></div></div>
-      </div>
-
-
-      <!-- Finance page -->
-      <!-- FINANCE PAGE ═══════════════════════════════════════════════════ -->
-      <div id="page-finance" class="page" style="max-width:860px;margin:0 auto">
-      
-        <!-- Sub-tabs -->
-        <div style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:12px;align-items:center">
-          <button id="ftab-overview" onclick="setFinanceTab('overview')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">📊 总览</button>
-          <button id="ftab-accounts" onclick="setFinanceTab('accounts')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🏦 账户</button>
-          <button id="ftab-txns" onclick="setFinanceTab('txns')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📋 收支</button>
-          <button id="ftab-debts" onclick="setFinanceTab('debts')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🤝 欠款</button>
-          <button id="ftab-report" onclick="setFinanceTab('report')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📄 报表</button>
-          <button onclick="lockFinance()" style="padding:7px 10px;font-size:11px;font-weight:600;border:none;border-left:1px solid var(--border);background:none;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0" title="锁定记账">🔒</button>
-        </div>
-      
-        <!-- ── 总览 ── -->
-        <div id="fpage-overview">
-          <!-- 净资产 -->
-          <div class="card" style="background:var(--text);color:#fff;border:none;margin-bottom:10px">
-            <div style="font-size:10px;font-weight:600;opacity:0.55;margin-bottom:5px;letter-spacing:0.5px">NET WORTH · 净资产</div>
-            <div style="font-size:30px;font-weight:700;font-family:'DM Mono',monospace" id="fn-networth">RM 0.00</div>
-            <div style="font-size:10px;opacity:0.45;margin-top:5px">所有账户总和</div>
-          </div>
-          <!-- 账户快照 -->
-          <div class="card">
-            <div class="card-title">🏦 账户快照</div>
-            <div id="fn-acc-snapshot"><div class="empty">还没有账户</div></div>
-          </div>
-          <!-- 本月收支 -->
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-              <div class="card-title" style="margin-bottom:0">📅 月度收支</div>
-              <input type="month" id="fn-ov-month" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnOverview()">
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
-              <div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #52be80">
-                <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:#2d6a4f" id="fn-income">RM 0</div>
-                <div style="font-size:10px;color:#2d6a4f;font-weight:600;margin-top:3px">收入</div>
-              </div>
-              <div style="background:#fadbd8;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #f1948a">
-                <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:#922b21" id="fn-expense">RM 0</div>
-                <div style="font-size:10px;color:#922b21;font-weight:600;margin-top:3px">支出</div>
-              </div>
-              <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #5dade2">
-                <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="fn-surplus">RM 0</div>
-                <div style="font-size:10px;color:#1a5276;font-weight:600;margin-top:3px">结余</div>
-              </div>
-            </div>
-            <div id="fn-cat-chart"></div>
-          </div>
-          <!-- 欠款摘要 -->
-          <div class="card">
-            <div class="card-title">🤝 欠款摘要</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #5dade2">
-                <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="fn-oweme-total">RM 0</div>
-                <div style="font-size:10px;color:#1a5276;font-weight:600;margin-top:3px">别人欠我</div>
-              </div>
-              <div style="background:#fef3cd;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #f0c040">
-                <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:#7d4e00" id="fn-iowe-total">RM 0</div>
-                <div style="font-size:10px;color:#7d4e00;font-weight:600;margin-top:3px">我欠别人</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      
-        <!-- ── 账户 ── -->
-        <div id="fpage-accounts" style="display:none">
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-              <div class="card-title" style="margin-bottom:0">🏦 我的账户</div>
-              <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="openFnAccModal()">＋ 添加</button>
-            </div>
-            <div id="fn-acc-list"><div class="empty">还没有账户</div></div>
-          </div>
-        </div>
-      
-        <!-- ── 收支 ── -->
-        <div id="fpage-txns" style="display:none">
-      
-          <!-- 生意收入（自动从库存系统） -->
-          <div class="card" style="border:1.5px solid #52be80">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-              <div>
-                <div class="card-title" style="margin-bottom:2px">🏪 生意收入（自动）</div>
-                <div style="font-size:11px;color:var(--text3)">直接从门市和订单系统拉取，无需手动输入</div>
-              </div>
-              <input type="month" id="fn-biz-month" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnBizIncome()">
-            </div>
-            <div id="fn-biz-income-body"></div>
-          </div>
-      
-          <!-- 其他收支（手动） -->
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-              <div>
-                <div class="card-title" style="margin-bottom:2px">📋 其他收支（手动）</div>
-                <div style="font-size:11px;color:var(--text3)">个人开销、非生意收入等</div>
-              </div>
-              <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="openFnTxnModal()">＋ 添加</button>
-            </div>
-            <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-              <input type="month" id="fn-txn-month" style="flex:1;padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnTxns()">
-              <select id="fn-txn-type" style="padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnTxns()">
-                <option value="">全部</option><option value="income">收入</option><option value="expense">支出</option>
-              </select>
-            </div>
-            <div id="fn-txn-list"><div class="empty">暂无记录</div></div>
-          </div>
-        </div>
-      
-        <!-- ── 欠款 ── -->
-        <div id="fpage-debts" style="display:none">
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-              <div class="card-title" style="margin-bottom:0">📥 别人欠我</div>
-              <button class="btn" style="background:#1a5276;color:#fff;border-color:#1a5276" onclick="openFnDebtModal('owe_me')">＋ 添加</button>
-            </div>
-            <div id="fn-debt-oweme"><div class="empty">没有人欠你钱 👍</div></div>
-          </div>
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-              <div class="card-title" style="margin-bottom:0">📤 我欠别人</div>
-              <button class="btn" style="background:#7d4e00;color:#fff;border-color:#7d4e00" onclick="openFnDebtModal('i_owe')">＋ 添加</button>
-            </div>
-            <div id="fn-debt-iowe"><div class="empty">你没有欠任何人 👍</div></div>
-          </div>
-          <div class="card" style="background:var(--surface2)">
-            <div class="card-title">✅ 已结清</div>
-            <div id="fn-debt-settled"><div class="empty">暂无</div></div>
-          </div>
-        </div>
-      
-        <!-- ── 月度报表 ── -->
-        <div id="fpage-report" style="display:none">
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-              <div class="card-title" style="margin-bottom:0">📄 月度财务报表</div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <input type="month" id="fn-report-month" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnReport()">
-                <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--text);color:#fff;border-color:var(--text)" onclick="exportFnReport()">📥 导出</button>
-              </div>
-            </div>
-            <div id="fn-report-body"><div class="empty">请选择月份</div></div>
-          </div>
-        </div>
-      
-      </div>
-      
-      <!-- FN ACCOUNT MODAL -->
-      <div class="modal-overlay" id="fn-acc-modal">
-        <div class="modal" onwheel="event.stopPropagation()">
-          <h3 id="fn-acc-modal-title">添加账户</h3>
-          <div class="form-row"><label>账户名</label><input type="text" id="fn-acc-name" placeholder="例：Maybank, TNG, Cash"></div>
-          <div class="form-row"><label>类型</label>
-            <select id="fn-acc-type">
-              <option value="bank">🏦 银行账户</option>
-              <option value="cash">💵 现金</option>
-              <option value="ewallet">📱 电子钱包 (TNG/GrabPay)</option>
-              <option value="stock">📈 股票/投资</option>
-              <option value="crypto">🪙 加密货币</option>
-              <option value="other">📂 其他</option>
-            </select>
-          </div>
-          <div class="form-row"><label>余额 (RM)</label><input type="number" id="fn-acc-balance" step="0.01" placeholder="0.00"></div>
-          <div class="form-row"><label>备注</label><input type="text" id="fn-acc-note" placeholder="可选"></div>
-          <div class="modal-footer">
-            <button class="btn" onclick="closeFnAccModal()">取消</button>
-            <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveFnAcc()">保存</button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- FN TXN MODAL -->
-      <div class="modal-overlay" id="fn-txn-modal">
-        <div class="modal" onwheel="event.stopPropagation()">
-          <h3 id="fn-txn-modal-title">添加收支</h3>
-          <div class="form-row"><label>类型</label>
-            <div style="display:flex;gap:6px;flex:1">
-              <button id="fn-btn-income" onclick="setFnTxnType('income')" style="flex:1;padding:7px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #52be80;background:#d8f3dc;color:#2d6a4f;cursor:pointer">收入</button>
-              <button id="fn-btn-expense" onclick="setFnTxnType('expense')" style="flex:1;padding:7px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text3);cursor:pointer">支出</button>
-            </div>
-          </div>
-          <div class="form-row"><label>金额 (RM)</label><input type="number" id="fn-txn-amount" step="0.01" placeholder="0.00"></div>
-          <div class="form-row"><label>分类</label>
-            <select id="fn-txn-cat">
-              <option value="">-- 选择 --</option>
-              <optgroup label="💰 收入">
-                <option>工资</option><option>生意收入</option><option>投资回报</option><option>其他收入</option>
-              </optgroup>
-              <optgroup label="🍜 生活">
-                <option>饮食</option><option>交通/油费</option><option>购物</option><option>娱乐</option><option>医疗</option>
-              </optgroup>
-              <optgroup label="🏠 固定支出">
-                <option>租金</option><option>水电</option><option>网络/电话</option><option>保险</option>
-              </optgroup>
-              <optgroup label="🏪 生意">
-                <option>进货</option><option>员工薪资</option><option>生意杂费</option>
-              </optgroup>
-              <option value="其他">其他</option>
-            </select>
-          </div>
-          <div class="form-row"><label>账户</label>
-            <select id="fn-txn-acc"><option value="">-- 不指定 --</option></select>
-          </div>
-          <div class="form-row"><label>日期</label><input type="date" id="fn-txn-date"></div>
-          <div class="form-row"><label>备注</label><input type="text" id="fn-txn-note" placeholder="可选"></div>
-          <div class="modal-footer">
-            <button class="btn" onclick="closeFnTxnModal()">取消</button>
-            <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveFnTxn()">保存</button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- FN DEBT MODAL -->
-      <div class="modal-overlay" id="fn-debt-modal">
-        <div class="modal" onwheel="event.stopPropagation()">
-          <h3 id="fn-debt-modal-title">添加欠款</h3>
-          <div class="form-row"><label>姓名</label><input type="text" id="fn-debt-person" placeholder="对方姓名"></div>
-          <div class="form-row"><label>金额 (RM)</label><input type="number" id="fn-debt-amount" step="0.01" placeholder="0.00"></div>
-          <div class="form-row"><label>备注</label><input type="text" id="fn-debt-note" placeholder="例：借买手机、欠饭钱"></div>
-          <div class="modal-footer">
-            <button class="btn" onclick="closeFnDebtModal()">取消</button>
-            <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveFnDebt()">保存</button>
-          </div>
-        </div>
-      </div>
-      
 
       <!-- ══ HQ TOTAL PAGE ══════════════════════════════ -->
       <div id="page-hq" class="page">
@@ -1223,6 +1024,36 @@ body.modal-open { overflow: hidden; }
             <span style="font-size:12px;color:var(--text3)">至</span>
             <input type="date" id="hq-date-to" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderHqDashboard()">
           </div>
+        </div>
+
+        <!-- Profit summary row -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
+          <div class="card" style="margin-bottom:0;padding:14px;text-align:center">
+            <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">毛利润</div>
+            <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)" id="hq-gross-profit">RM 0</div>
+          </div>
+          <div class="card" style="margin-bottom:0;padding:14px;text-align:center">
+            <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">总成本</div>
+            <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:var(--red)" id="hq-total-cost">RM 0</div>
+          </div>
+          <div class="card" style="margin-bottom:0;padding:14px;text-align:center">
+            <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">毛利率</div>
+            <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:var(--purple)" id="hq-margin-pct">0%</div>
+          </div>
+          <div class="card" style="margin-bottom:0;padding:14px;text-align:center">
+            <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">月度损益</div>
+            <div style="display:flex;gap:6px;align-items:center;justify-content:center">
+              <input type="month" id="hq-pnl-month" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderHqPnL()">
+            </div>
+            <div id="hq-pnl-mini" style="font-size:10px;color:var(--text3);margin-top:4px">选择月份</div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:12px;display:none" id="hq-profit-breakdown-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div class="card-title" style="margin-bottom:0">📊 利润明细</div>
+            <button onclick="document.getElementById('hq-profit-breakdown-card').style.display='none'" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer">收起 ✕</button>
+          </div>
+          <div id="hq-profit-breakdown-list"></div>
         </div>
 
         <!-- KPI cards -->
@@ -6551,7 +6382,6 @@ function posSwitchTab(t) {
     }
   }
   else if(t === 'overview') renderOverview();
-  else if(t === 'profit') { renderProfitReport(); renderCostEditor(); }
   else if(t === 'finance') { initFinanceTab(); }
   else if(t === 'hq') { renderHqDashboard(); }
 }
@@ -6748,11 +6578,11 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders',
-     'navbtn-profit','navbtn-finance','navbtn-hq'].forEach(id => {
+     'navbtn-finance','navbtn-hq'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
-    // 总部隐藏总览(总部报表已包含)
+    // 总部隐藏总览
     const ovBtn = document.getElementById('navbtn-overview');
     if(ovBtn) ovBtn.style.display = 'none';
     // 总部显示套餐按钮
@@ -6943,6 +6773,205 @@ function doLogout() {
 
 
 
+
+
+// ── BULK PRICE EDITOR ───────────────────────────────────
+let _bulkPriceMode = 'set';
+let _bulkPriceSelected = new Set();
+
+function renderBulkPriceList() {
+  const el = document.getElementById('bulk-price-list');
+  const catEl = document.getElementById('bulk-price-cat');
+  const searchEl = document.getElementById('bulk-price-search');
+  if(!el) return;
+
+  // Populate category dropdown
+  if(catEl && catEl.options.length <= 1) {
+    const cats = [...new Set(items.map(i=>i.category).filter(Boolean))].sort();
+    catEl.innerHTML = '<option value="">全部类别</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  }
+
+  const q = (searchEl?.value||'').toLowerCase();
+  const cat = catEl?.value||'';
+  const filtered = items.filter(i => {
+    if(i.bundle_components) return false;
+    if(cat && i.category !== cat) return false;
+    if(q && !i.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:10px">没有找到商品</div>'; return; }
+
+  el.innerHTML = filtered.map(it => {
+    const checked = _bulkPriceSelected.has(it.id);
+    return `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;${checked?'background:var(--green-bg)':''}">
+      <input type="checkbox" ${checked?'checked':''} onchange="bulkPriceToggle(${it.id},this.checked)" style="width:15px;height:15px;accent-color:var(--green);flex-shrink:0">
+      <span style="flex:1;font-size:12px;color:var(--text)">${it.name}</span>
+      <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--green);font-weight:600">${it.price?'RM '+(+it.price).toFixed(2):'—'}</span>
+    </label>`;
+  }).join('');
+
+  document.getElementById('bulk-price-selected-count').textContent = '已选 ' + _bulkPriceSelected.size + ' 项';
+}
+
+function bulkPriceToggle(id, checked) {
+  if(checked) _bulkPriceSelected.add(id);
+  else _bulkPriceSelected.delete(id);
+  document.getElementById('bulk-price-selected-count').textContent = '已选 ' + _bulkPriceSelected.size + ' 项';
+  renderBulkPriceList();
+}
+
+function bulkPriceSelectAll() {
+  const cat = document.getElementById('bulk-price-cat')?.value||'';
+  const q = document.getElementById('bulk-price-search')?.value.toLowerCase()||'';
+  items.filter(i => !i.bundle_components && (!cat||i.category===cat) && (!q||i.name.toLowerCase().includes(q)))
+    .forEach(i => _bulkPriceSelected.add(i.id));
+  renderBulkPriceList();
+}
+
+function bulkPriceClearAll() {
+  _bulkPriceSelected.clear();
+  renderBulkPriceList();
+}
+
+function setBulkPriceMode(mode) {
+  _bulkPriceMode = mode;
+  ['set','add','pct'].forEach(m => {
+    const btn = document.getElementById('bp-mode-' + m);
+    if(!btn) return;
+    const active = m === mode;
+    btn.style.background = active ? 'var(--text)' : 'var(--surface)';
+    btn.style.color = active ? '#fff' : 'var(--text2)';
+    btn.style.borderColor = active ? 'var(--text)' : 'var(--border)';
+  });
+  const unit = document.getElementById('bulk-price-unit');
+  if(unit) unit.textContent = mode === 'pct' ? '%' : 'RM';
+  const input = document.getElementById('bulk-price-value');
+  if(input) input.placeholder = mode === 'set' ? '新售价' : mode === 'add' ? '增加金额' : '调整百分比';
+}
+
+async function applyBulkPrice() {
+  if(_bulkPriceSelected.size === 0) { alert('请先选择商品'); return; }
+  const val = parseFloat(document.getElementById('bulk-price-value')?.value);
+  if(isNaN(val)) { alert('请输入有效数值'); return; }
+
+  const selectedItems = items.filter(i => _bulkPriceSelected.has(i.id));
+  const preview = selectedItems.slice(0,3).map(i => {
+    let newPrice = val;
+    if(_bulkPriceMode === 'add') newPrice = (+(i.price||0)) + val;
+    if(_bulkPriceMode === 'pct') newPrice = (+(i.price||0)) * (1 + val/100);
+    return `${i.name}: RM ${(+(i.price||0)).toFixed(2)} → RM ${newPrice.toFixed(2)}`;
+  }).join('
+');
+
+  const more = selectedItems.length > 3 ? `
+...还有 ${selectedItems.length-3} 件` : '';
+  if(!confirm(`确认调整 ${selectedItems.length} 件商品价格？
+
+${preview}${more}`)) return;
+
+  setSync('busy','批量更新价格...');
+  let success = 0, fail = 0;
+  for(const it of selectedItems) {
+    let newPrice = val;
+    if(_bulkPriceMode === 'add') newPrice = (+(it.price||0)) + val;
+    if(_bulkPriceMode === 'pct') newPrice = (+(it.price||0)) * (1 + val/100);
+    newPrice = Math.max(0, Math.round(newPrice * 100) / 100);
+    const { error } = await sb.from('items').update({ price: newPrice }).eq('id', it.id);
+    if(error) fail++;
+    else { it.price = newPrice; success++; }
+  }
+  await loadItems();
+  renderBulkPriceList();
+  renderItems();
+  setSync('ok', `✅ 已更新 ${success} 件${fail?'，'+fail+' 件失败':''}`);
+  if(success > 0) {
+    _bulkPriceSelected.clear();
+    document.getElementById('bulk-price-value').value = '';
+  }
+}
+
+// ── HQ profit integration ───────────────────────────────
+function renderHqProfit(allSales) {
+  // Calculate profit using item costs
+  let totalRev = 0, totalCost = 0;
+  allSales.forEach(o => {
+    const rev = +(o.total_price||0);
+    totalRev += rev;
+    const it = items.find(i => i.id === o.item_id);
+    const cost = it && it.cost_price ? +(it.cost_price) * (+(o.qty||1)) : 0;
+    totalCost += cost;
+  });
+  const gross = totalRev - totalCost;
+  const margin = totalRev > 0 ? (gross/totalRev*100) : 0;
+
+  const setEl = (id,txt) => { const e=document.getElementById(id); if(e) e.textContent=txt; };
+  setEl('hq-gross-profit', 'RM ' + gross.toFixed(2));
+  setEl('hq-total-cost', 'RM ' + totalCost.toFixed(2));
+  setEl('hq-margin-pct', margin.toFixed(1) + '%');
+}
+
+function renderHqPnL() {
+  const ym = document.getElementById('hq-pnl-month')?.value;
+  const el = document.getElementById('hq-pnl-mini');
+  if(!ym || !el) return;
+  const [y,m] = ym.split('-').map(Number);
+  const start = new Date(y, m-1, 1);
+  const end = new Date(y, m, 1);
+  const monthSales = orders.filter(o => {
+    const d = new Date(o.created_at);
+    return (o.status==='instore'||(o.status!=='pending'&&(o.payment_status==='paid_qr'||o.payment_status==='paid_cash')))
+      && d>=start && d<end;
+  });
+  const rev = monthSales.reduce((s,o)=>s+(+(o.total_price||0)),0);
+  el.textContent = `RM ${rev.toFixed(2)}`;
+}
+
+// Hook into renderHqDashboard to also render profit
+const _origRenderHqDashboard = renderHqDashboard;
+function renderHqDashboard() {
+  _origRenderHqDashboard();
+  // After rendering, also compute profit from same allSales
+  const period = document.getElementById('hq-period')?.value||'month';
+  const now = new Date();
+  let startDate;
+  switch(period) {
+    case 'today': startDate = new Date(now.getFullYear(),now.getMonth(),now.getDate()); break;
+    case 'week': startDate = new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()); break;
+    case 'month': startDate = new Date(now.getFullYear(),now.getMonth(),1); break;
+    default: startDate = new Date(0);
+  }
+  const allSales = orders.filter(o => {
+    const d = new Date(o.created_at);
+    return (o.status==='instore'||(o.status!=='pending'&&(o.payment_status==='paid_qr'||o.payment_status==='paid_cash')))
+      && d>=startDate && d<=now;
+  });
+  renderHqProfit(allSales);
+
+  // Set default month for PnL
+  const picker = document.getElementById('hq-pnl-month');
+  if(picker && !picker.value) {
+    picker.value = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    renderHqPnL();
+  }
+}
+
+// Patch posSwitchTab stock to render bulk price list
+const _origPosSwitchTabForStock = posSwitchTab;
+function posSwitchTab(t) {
+  _origPosSwitchTabForStock(t);
+  if(t==='stock') {
+    setTimeout(() => {
+      renderBulkPriceList();
+      // Also populate cost cat filter
+      const catEl = document.getElementById('cost-cat-filter');
+      if(catEl && catEl.options.length <= 1) {
+        const cats = [...new Set(items.map(i=>i.category).filter(Boolean))].sort();
+        catEl.innerHTML = '<option value="">全部类别</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+      }
+    }, 100);
+  }
+}
 
 // ── Universal scroll fix ─────────────────────────────
 // Force .page.active to scroll when wheel fires anywhere inside it,
