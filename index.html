@@ -6404,8 +6404,6 @@ function exportFnReport() {
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`财务报告_${ym}.txt`; a.click();
 }
 
-init();
-
 // ── POS GRID (new iPad POS functions) ─────────────────────
 let _posCat = '';
 
@@ -6563,15 +6561,6 @@ function _sidebarFinanceUnlock(el) {
 // reassign
 promptFinanceUnlock = _sidebarFinanceUnlock;
 
-// Patch init to also render POS grid after load
-const _origInit = init;
-async function init() {
-  await _origInit();
-  renderPosCats();
-  renderPosGrid();
-  syncPosCartUI();
-}
-
 // Override profitUnlock for sidebar
 function promptProfitUnlock() {
   const PROFIT_PASSWORD = '960108';
@@ -6614,6 +6603,27 @@ function renderItems() {
   renderPosCats();
   renderPosGrid();
 }
+
+// ── STARTUP ────────────────────────────────────────────────
+(async () => {
+  try {
+    await loadItems();
+    await loadOrders();
+    await loadBundleRules();
+    await loadPnlExpenses();
+    subscribeRealtime();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    setSync('ok','已同步');
+    setPayStatus('unpaid');
+    renderPosCats();
+    renderPosGrid();
+    syncPosCartUI();
+  } catch(e) {
+    document.getElementById('loading').querySelector('p').textContent = '连接失败，请刷新页面';
+    console.error('Init error:', e);
+  }
+})();
 
 </script>
 </body>
