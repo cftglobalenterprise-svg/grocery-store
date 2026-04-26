@@ -353,6 +353,13 @@ body.modal-open { overflow: hidden; }
 
 <div id="loading"><div class="spinner"></div><p>连接中...</p></div>
 <div class="pos-toast" id="pos-toast"></div>
+<!-- Stub elements needed by original JS functions -->
+<input id="ins-barcode-input" style="display:none" aria-hidden="true">
+<input id="ins-search-name" style="display:none" aria-hidden="true">
+<select id="ins-search-category" style="display:none" aria-hidden="true"></select>
+<div id="ins-cart-list" style="display:none"></div>
+<div id="ins-cart-count" style="display:none"></div>
+<div id="ins-total" style="display:none"></div>
 
 <div id="app" style="display:none;flex-direction:column;">
   <div class="topbar">
@@ -6047,13 +6054,6 @@ async function posCheckout(method) {
   if(btn) btn.textContent = '处理中...';
 
   try {
-    // Stub out the barcode input clear so instoreCheckout doesn't throw
-    if(!document.getElementById('ins-barcode-input')) {
-      const stub = document.createElement('input');
-      stub.id = 'ins-barcode-input';
-      stub.style.display = 'none';
-      document.body.appendChild(stub);
-    }
     await instoreCheckout(method);
     // instoreCheckout already calls loadItems, loadOrders, renderDashboard
     // We just need to also call renderInstoreHistory which it skips
