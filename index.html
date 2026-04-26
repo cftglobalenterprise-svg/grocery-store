@@ -716,7 +716,6 @@ body.modal-open { overflow: hidden; }
     <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
       <button class="topbar-action-btn" id="btn-bundle" onclick="posOpenBundle()" title="套餐规则">🎁 套餐</button>
       <button class="topbar-action-btn" id="btn-customer" onclick="posOpenCustomer()" title="顾客展示">📱 展示</button>
-      <button class="topbar-action-btn" id="profit-unlock-topbar" onclick="posSidebarProfitUnlock()" title="老板模式">🔒 老板</button>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-left:8px;padding-left:8px;border-left:1px solid var(--border)">
       <div class="sync-dot" id="sync-dot"></div>
@@ -6735,8 +6734,7 @@ function applyRolePermissions(role) {
       const el = document.getElementById(id);
       if(el) el.style.display = 'none';
     });
-    const bossBtn = document.getElementById('profit-unlock-topbar');
-    if(bossBtn) bossBtn.style.display = 'none';
+
     const bundleBtn = document.getElementById('btn-bundle');
     if(bundleBtn) bundleBtn.style.display = 'none';
     // 隐藏订单页的新增订单区域
