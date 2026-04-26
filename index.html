@@ -6173,28 +6173,38 @@ function onTransferBarcodeTyped(val) {
   clearTimeout(_transferBarcodeTimer);
   val = val.trim();
   if(!val) return;
-  if(/^\d{6,}$/.test(val)) {
-    _transferBarcodeTimer = setTimeout(() => {
-      const found = items.find(i => i.barcode && i.barcode === val && !i.bundle_components);
-      const input = document.getElementById('transfer-barcode');
-      if(found) {
-        addToTransferCart(found.id);
-        if(input) input.value = '';
-      } else {
-        alert('找不到此条码：' + val + '\n请确认商品有设置 barcode');
-        if(input) input.select();
-      }
-    }, 150);
-  } else {
-    // Short/partial input - wait for more
-    _transferBarcodeTimer = setTimeout(() => {
-      const found = items.find(i => i.barcode && i.barcode === val && !i.bundle_components);
-      if(found) {
-        addToTransferCart(found.id);
-        const input = document.getElementById('transfer-barcode');
-        if(input) input.value = '';
-      }
-    }, 150);
+  _transferBarcodeTimer = setTimeout(() => {
+    const input = document.getElementById('transfer-barcode');
+    // Check if it's a bundle item
+    const bundle = items.find(i => i.barcode && i.barcode === val && i.bundle_components);
+    if(bundle && bundle.bundle_components) {
+      // Transfer the components instead
+      const bc = bundle.bundle_components;
+      if(bc.battery_id) addToTransferCart(bc.battery_id);
+      if(bc.cartridge_id) addToTransferCart(bc.cartridge_id);
+      if(input) input.value = '';
+      showTransferToast('🎁 套装 ' + bundle.name + ' → 已加入零件');
+      return;
+    }
+    // Normal item
+    const found = items.find(i => i.barcode && i.barcode === val && !i.bundle_components);
+    if(found) {
+      addToTransferCart(found.id);
+      if(input) input.value = '';
+    } else if(val.length >= 6) {
+      showTransferToast('❌ 找不到条码：' + val);
+      if(input) { input.select(); }
+    }
+  }, 150);
+}
+
+function showTransferToast(msg) {
+  // Reuse pos-toast if available, else alert
+  const t = document.getElementById('pos-toast');
+  if(t) {
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
   }
 }
 
@@ -6209,7 +6219,7 @@ function onRestockBarcodeTyped(val) {
       addToRestockCart(found.id);
       if(input) input.value = '';
     } else if(val.length >= 6) {
-      alert('找不到此条码：' + val + '\n请确认商品有设置 barcode');
+      showTransferToast('❌ 找不到条码：' + val);
       if(input) input.select();
     }
   }, 150);
