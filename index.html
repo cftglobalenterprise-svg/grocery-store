@@ -3942,8 +3942,8 @@ function renderCostEditor() {
     });
   }
 
-  const filtered = items.filter(i => !i.bundle_components
-    && (!q || i.name.toLowerCase().includes(q))
+  const filtered = items.filter(i =>
+    (!q || i.name.toLowerCase().includes(q))
     && (!cat || i.category===cat)
   );
 
@@ -3952,18 +3952,36 @@ function renderCostEditor() {
   if(!filtered.length) { el.innerHTML='<div class="empty">没有找到商品</div>'; return; }
 
   el.innerHTML = filtered.map(it => {
-    const cost = +(it.cost_price||0);
+    const cost  = +(it.cost_price||0);
     const price = +(it.price||0);
     const margin = price>0 && cost>0 ? ((price-cost)/price*100).toFixed(0)+'%' : '-';
+
+    // For bundles, calc component cost sum as hint
+    let bundleHint = '';
+    if(it.bundle_components?.battery_id && it.bundle_components?.cartridge_id) {
+      const bat = items.find(i=>i.id===it.bundle_components.battery_id);
+      const car = items.find(i=>i.id===it.bundle_components.cartridge_id);
+      const batCost = +(bat?.cost_price||0);
+      const carCost = +(car?.cost_price||0);
+      const compSum = batCost + carCost;
+      const batName = bat?.name || '零件1';
+      const carName = car?.name || '零件2';
+      if(compSum > 0) {
+        bundleHint = ` · 零件成本参考: RM${compSum.toFixed(2)} (${batName.split(' ').slice(-1)[0]} RM${batCost.toFixed(2)} + ${carName.split(' ').slice(-1)[0]} RM${carCost.toFixed(2)})`;
+      } else {
+        bundleHint = ' · 套装（请手动设成本）';
+      }
+    }
+
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name}</div>
-        <div style="font-size:11px;color:var(--text3)">售 RM${price.toFixed(2)} · 利润率 ${margin}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name}${it.bundle_components?` <span style="font-size:10px;background:#d6eaf8;color:#1a5276;padding:1px 5px;border-radius:4px">套装</span>`:''}</div>
+        <div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">售 RM${price.toFixed(2)} · 利润率 ${margin}${bundleHint}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
         <span style="font-size:11px;color:var(--text3)">成本</span>
         <input type="number" min="0" step="0.01" value="${cost||''}" placeholder="0.00"
-          style="width:72px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:right;font-family:\'DM Mono\',monospace"
+          style="width:72px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:right;font-family:'DM Mono',monospace"
           onchange="saveCostPrice(${it.id}, this.value)">
       </div>
     </div>`;
