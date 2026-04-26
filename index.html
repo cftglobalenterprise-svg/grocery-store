@@ -365,7 +365,7 @@ body.modal-open { overflow: hidden; }
   .login-branch-badge { display: none; }
   .sync-msg { display: none; }
 
-  /* Sidebar → bottom tab bar */
+  /* Sidebar -> bottom tab bar */
   .app-body { flex-direction: column; }
   .sidebar {
     width: 100% !important;
@@ -6860,15 +6860,11 @@ async function applyBulkPrice() {
     let newPrice = val;
     if(_bulkPriceMode === 'add') newPrice = (+(i.price||0)) + val;
     if(_bulkPriceMode === 'pct') newPrice = (+(i.price||0)) * (1 + val/100);
-    return `${i.name}: RM ${(+(i.price||0)).toFixed(2)} → RM ${newPrice.toFixed(2)}`;
-  }).join('
-');
+    return i.name + ': RM ' + (+(i.price||0)).toFixed(2) + ' → RM ' + newPrice.toFixed(2);
+  }).join('\n');
 
-  const more = selectedItems.length > 3 ? `
-...还有 ${selectedItems.length-3} 件` : '';
-  if(!confirm(`确认调整 ${selectedItems.length} 件商品价格？
-
-${preview}${more}`)) return;
+  const more = selectedItems.length > 3 ? ('\n...还有 ' + (selectedItems.length - 3) + ' 件') : '';
+  if(!confirm('确认调整 ' + selectedItems.length + ' 件商品价格？\n\n' + preview + more)) return;
 
   setSync('busy','批量更新价格...');
   let success = 0, fail = 0;
