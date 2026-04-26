@@ -484,6 +484,57 @@ body.modal-open { overflow: hidden; }
   .nav-btn { min-width: 52px; padding: 4px 6px; }
 }
 
+/* Global overflow fix for mobile */
+@media (max-width: 768px) {
+  .pages, .page { overflow-x: hidden !important; }
+
+  /* HQ page header: stack vertically */
+  #page-hq > div:first-child {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px;
+  }
+  #page-hq > div:first-child > div:last-child {
+    display: flex; flex-wrap: wrap; gap: 6px; width: 100%;
+  }
+  #page-hq > div:first-child > div:last-child select,
+  #page-hq > div:first-child > div:last-child input {
+    flex: 1; min-width: 100px; font-size: 12px;
+  }
+  #page-hq > div:first-child > div:last-child span { display: none; }
+
+  /* HQ KPI grid: 2 columns on mobile */
+  #page-hq > div:nth-child(2) {
+    grid-template-columns: repeat(2,1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* HQ charts: stack vertically */
+  #page-hq > div:nth-child(3) {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Orders layout on mobile */
+  .orders-layout { flex-direction: column !important; }
+  .orders-left { width: 100% !important; position: static !important; }
+
+  /* Stock layout on mobile */
+  .stock-layout { flex-direction: column !important; }
+  .stock-left { width: 100% !important; flex: none !important; }
+
+  /* Finance / profit pages */
+  #page-finance, #page-profit { max-width: 100% !important; }
+
+  /* Form rows on mobile */
+  .form-row { flex-wrap: wrap; gap: 6px; }
+  .form-row label { min-width: auto; width: 100%; font-size: 11px; }
+  .form-row input, .form-row select { font-size: 14px; }
+
+  /* Metrics */
+  .metrics { grid-template-columns: repeat(3,1fr) !important; }
+}
+
+
 </style>
 
 </head>
@@ -491,37 +542,40 @@ body.modal-open { overflow: hidden; }
 
 <!-- LOGIN SCREEN -->
 <div id="login-screen" style="position:fixed;inset:0;z-index:9999;background:#f5f2ee;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif">
-  <div style="background:#fff;border:1px solid #ddd8d0;border-radius:20px;padding:36px 28px 28px;width:min(360px,calc(100vw - 32px));box-shadow:0 4px 40px rgba(0,0,0,0.08)">
+  <div style="background:#fff;border:1px solid #ddd8d0;border-radius:20px;padding:32px 24px 24px;width:min(340px,calc(100vw - 32px));box-shadow:0 4px 40px rgba(0,0,0,0.08)">
     
-    <!-- Logo -->
-    <div style="text-align:center;margin-bottom:32px">
-      <div style="width:64px;height:64px;background:#1e6641;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 14px">🛒</div>
-      <div style="font-size:20px;font-weight:700;color:#1a1814;letter-spacing:-0.3px">杂货店 POS</div>
-      <div style="font-size:12px;color:#9e9890;margin-top:5px">请选择登入身份</div>
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="width:60px;height:60px;background:#1e6641;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 12px">🛒</div>
+      <div style="font-size:18px;font-weight:700;color:#1a1814">杂货店 POS</div>
+      <div style="font-size:11px;color:#9e9890;margin-top:4px">快速收银管理系统</div>
     </div>
 
-    <!-- Role cards - click to enter directly -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div onclick="directLogin('branch')" style="padding:20px 12px;border:2px solid #ddd8d0;border-radius:14px;cursor:pointer;text-align:center;background:#f5f2ee;transition:all 0.15s;-webkit-tap-highlight-color:transparent"
-        onmouseover="this.style.borderColor='#1e6641';this.style.background='#d4f0dc'"
-        onmouseout="this.style.borderColor='#ddd8d0';this.style.background='#f5f2ee'"
-        ontouchstart="this.style.borderColor='#1e6641';this.style.background='#d4f0dc'"
-        ontouchend="this.style.borderColor='#ddd8d0';this.style.background='#f5f2ee'">
-        <div style="font-size:32px;margin-bottom:10px">🏪</div>
-        <div style="font-size:15px;font-weight:700;color:#1a1814;margin-bottom:5px">分店</div>
-        <div style="font-size:11px;color:#6b6560;line-height:1.4">POS 收银<br>库存管理</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
+      <div id="login-tab-branch" onclick="selectLoginRole('branch')"
+        style="padding:16px 8px;border:2px solid #1e6641;border-radius:12px;cursor:pointer;text-align:center;background:#d4f0dc;transition:all 0.15s;-webkit-tap-highlight-color:transparent">
+        <div style="font-size:26px;margin-bottom:6px">🏪</div>
+        <div style="font-size:13px;font-weight:700;color:#1e6641">分店登入</div>
+        <div style="font-size:10px;color:#1e6641;opacity:0.75;margin-top:2px">POS · 库存</div>
       </div>
-      <div onclick="directLogin('hq')" style="padding:20px 12px;border:2px solid #ddd8d0;border-radius:14px;cursor:pointer;text-align:center;background:#f5f2ee;transition:all 0.15s;-webkit-tap-highlight-color:transparent"
-        onmouseover="this.style.borderColor='#1a4d7a';this.style.background='#d6eaf8'"
-        onmouseout="this.style.borderColor='#ddd8d0';this.style.background='#f5f2ee'"
-        ontouchstart="this.style.borderColor='#1a4d7a';this.style.background='#d6eaf8'"
-        ontouchend="this.style.borderColor='#ddd8d0';this.style.background='#f5f2ee'">
-        <div style="font-size:32px;margin-bottom:10px">🏢</div>
-        <div style="font-size:15px;font-weight:700;color:#1a1814;margin-bottom:5px">总部</div>
-        <div style="font-size:11px;color:#6b6560;line-height:1.4">报表 · 财务<br>全部功能</div>
+      <div id="login-tab-hq" onclick="selectLoginRole('hq')"
+        style="padding:16px 8px;border:2px solid #ddd8d0;border-radius:12px;cursor:pointer;text-align:center;background:#f5f2ee;transition:all 0.15s;-webkit-tap-highlight-color:transparent">
+        <div style="font-size:26px;margin-bottom:6px">🏢</div>
+        <div style="font-size:13px;font-weight:700;color:#6b6560">总部登入</div>
+        <div style="font-size:10px;color:#9e9890;margin-top:2px">报表 · 财务</div>
       </div>
     </div>
-    <div id="login-error" style="font-size:12px;color:#8b2318;text-align:center;margin-top:14px;min-height:16px"></div>
+
+    <div style="font-size:10px;font-weight:600;color:#9e9890;letter-spacing:0.8px;margin-bottom:5px">密码</div>
+    <input type="password" id="login-password" placeholder="输入密码"
+      onkeydown="if(event.key==='Enter') doLogin()"
+      onfocus="this.style.borderColor='#1e6641';this.style.background='#fff'"
+      onblur="this.style.borderColor='#ddd8d0';this.style.background='#f5f2ee'"
+      style="width:100%;padding:11px 12px;border:1.5px solid #ddd8d0;border-radius:10px;font-size:15px;font-family:'DM Sans',sans-serif;background:#f5f2ee;color:#1a1814;outline:none;letter-spacing:3px;margin-bottom:12px;box-sizing:border-box">
+    
+    <button onclick="doLogin()" style="width:100%;padding:13px;background:#1e6641;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer">
+      进入系统
+    </button>
+    <div id="login-error" style="font-size:12px;color:#8b2318;text-align:center;margin-top:8px;min-height:16px"></div>
   </div>
 </div>
 
@@ -1413,10 +1467,6 @@ const FINANCE_PASSWORD = '960108';
 let _financeUnlocked = false;
 
 function promptFinanceUnlock(el) {
-  if(_financeUnlocked) { switchTab('finance', el); return; }
-  const pw = prompt('请输入密码：');
-  if(pw === null) return;
-  if(pw !== FINANCE_PASSWORD) { alert('密码错误'); return; }
   _financeUnlocked = true;
   switchTab('finance', el);
 }
@@ -6380,29 +6430,16 @@ function posSwitchTab(t) {
 }
 
 function posSidebarFinanceUnlock() {
-  if(_financeUnlocked) { posSwitchTab('finance'); return; }
-  const pw = prompt('请输入密码：');
-  if(pw === null) return;
-  if(pw !== FINANCE_PASSWORD) { alert('密码错误'); return; }
+  // No password needed - already authenticated via system login
   _financeUnlocked = true;
   posSwitchTab('finance');
 }
 
 function posSidebarProfitUnlock() {
-  if(_profitUnlocked) {
-    const el = document.getElementById('navbtn-profit');
-    if(el) el.style.display = '';
-    posSwitchTab('profit');
-    return;
-  }
-  const pw = prompt('请输入老板密码：');
-  if(pw === null) return;
-  if(pw !== PROFIT_PASSWORD) { alert('密码错误'); return; }
+  // No password needed - already authenticated via system login
   _profitUnlocked = true;
   const el = document.getElementById('navbtn-profit');
   if(el) el.style.display = '';
-  const tabEl = document.getElementById('tab-profit');
-  if(tabEl) tabEl.style.display = '';
   posSwitchTab('profit');
   renderProfitReport();
   renderCostEditor();
@@ -6482,7 +6519,7 @@ function onRestockBarcodeTyped(val) {
 
 // ── LOGIN LOGIC ──────────────────────────────────────
 const BRANCH_PASSWORD = '1234';  // 分店密码 - 改成你要的
-const HQ_PASSWORD = '960108';    // 总部密码 - 改成你要的
+const HQ_PASSWORD = '0426';    // 总部密码 - 改成你要的
 let _loginRole = 'branch';       // 'branch' or 'hq'
 let _currentRole = null;
 let _branchRole = false;
@@ -6494,9 +6531,43 @@ function directLogin(role) {
   document.getElementById('login-screen').style.display = 'none';
 }
 
-// Keep these for backward compat
-function selectLoginRole(role) { _loginRole = role; }
-function doLogin() { directLogin(_loginRole); }
+function selectLoginRole(role) {
+  _loginRole = role;
+  const brTab = document.getElementById('login-tab-branch');
+  const hqTab = document.getElementById('login-tab-hq');
+  if(brTab && hqTab) {
+    if(role === 'branch') {
+      brTab.style.border = '2px solid #1e6641'; brTab.style.background = '#d4f0dc';
+      brTab.querySelector('div:nth-child(2)').style.color = '#1e6641';
+      hqTab.style.border = '2px solid #ddd8d0'; hqTab.style.background = '#f5f2ee';
+      hqTab.querySelector('div:nth-child(2)').style.color = '#6b6560';
+    } else {
+      hqTab.style.border = '2px solid #1a4d7a'; hqTab.style.background = '#d6eaf8';
+      hqTab.querySelector('div:nth-child(2)').style.color = '#1a4d7a';
+      brTab.style.border = '2px solid #ddd8d0'; brTab.style.background = '#f5f2ee';
+      brTab.querySelector('div:nth-child(2)').style.color = '#6b6560';
+    }
+  }
+  const pw = document.getElementById('login-password');
+  if(pw) { pw.value = ''; pw.focus(); }
+  const err = document.getElementById('login-error');
+  if(err) err.textContent = '';
+}
+
+function doLogin() {
+  const pw = document.getElementById('login-password')?.value || '';
+  const err = document.getElementById('login-error');
+  if(!pw) { if(err) err.textContent = '请输入密码'; return; }
+  if(_loginRole === 'branch' && pw === BRANCH_PASSWORD) {
+    directLogin('branch');
+  } else if(_loginRole === 'hq' && pw === HQ_PASSWORD) {
+    directLogin('hq');
+  } else {
+    if(err) err.textContent = '密码错误，请重试';
+    const pwEl = document.getElementById('login-password');
+    if(pwEl) { pwEl.value = ''; pwEl.focus(); }
+  }
+}
 
 function applyRolePermissions(role) {
   // Show role badge + logout button
