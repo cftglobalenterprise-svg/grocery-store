@@ -6165,6 +6165,56 @@ function posOpenCustomer() { openCustomerMode(); }
 
 init();
 setTimeout(() => { renderPosCats(); renderPosGrid(); updatePosCartUI(); }, 300);
+// ── Debounced barcode handlers for Transfer and Restock ──
+let _transferBarcodeTimer = null;
+let _restockBarcodeTimer = null;
+
+function onTransferBarcodeTyped(val) {
+  clearTimeout(_transferBarcodeTimer);
+  val = val.trim();
+  if(!val) return;
+  if(/^\d{6,}$/.test(val)) {
+    _transferBarcodeTimer = setTimeout(() => {
+      const found = items.find(i => i.barcode && i.barcode === val && !i.bundle_components);
+      const input = document.getElementById('transfer-barcode');
+      if(found) {
+        addToTransferCart(found.id);
+        if(input) input.value = '';
+      } else {
+        alert('找不到此条码：' + val + '\n请确认商品有设置 barcode');
+        if(input) input.select();
+      }
+    }, 150);
+  } else {
+    // Short/partial input - wait for more
+    _transferBarcodeTimer = setTimeout(() => {
+      const found = items.find(i => i.barcode && i.barcode === val && !i.bundle_components);
+      if(found) {
+        addToTransferCart(found.id);
+        const input = document.getElementById('transfer-barcode');
+        if(input) input.value = '';
+      }
+    }, 150);
+  }
+}
+
+function onRestockBarcodeTyped(val) {
+  clearTimeout(_restockBarcodeTimer);
+  val = val.trim();
+  if(!val) return;
+  _restockBarcodeTimer = setTimeout(() => {
+    const found = items.find(i => i.barcode && i.barcode === val);
+    const input = document.getElementById('restock-barcode');
+    if(found) {
+      addToRestockCart(found.id);
+      if(input) input.value = '';
+    } else if(val.length >= 6) {
+      alert('找不到此条码：' + val + '\n请确认商品有设置 barcode');
+      if(input) input.select();
+    }
+  }, 150);
+}
+
 </script>
 </body>
 </html>
