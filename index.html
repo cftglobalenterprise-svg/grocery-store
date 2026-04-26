@@ -5822,11 +5822,27 @@ function setPoscat(c) {
 function renderPosGrid() {
   const grid = document.getElementById('pos-grid');
   if(!grid) return;
-  const q = (document.getElementById('pos-search-input')?.value || '').toLowerCase();
+  const _rawQ = (document.getElementById('pos-search-input')?.value || '').trim();
+  const q = _rawQ.toLowerCase();
   const cat = _posCat;
+
+  // Barcode scan: if all digits 8+ chars, try exact match and auto-add
+  if (/^\d{8,}$/.test(_rawQ)) {
+    const exact = items.find(i => i.barcode && i.barcode.trim() === _rawQ);
+    if (exact && exact.shop_qty > 0) {
+      posAddItem(exact.id);
+      document.getElementById('pos-search-input').value = '';
+      renderPosGrid(); // re-render without query
+      return;
+    } else if (exact && exact.shop_qty === 0) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--red);padding:2rem 0;font-size:14px;font-weight:600">⚠️ ' + exact.name + ' — 已售完</div>';
+      return;
+    }
+  }
+
   let list = items.filter(i => {
-    if(cat && i.category !== cat) return false;
-    if(q && !i.name.toLowerCase().includes(q)) return false;
+    if (cat && i.category !== cat) return false;
+    if (q && !i.name.toLowerCase().includes(q) && !(i.barcode && i.barcode.toLowerCase().includes(q))) return false;
     return true;
   });
   if(!list.length) {
@@ -5852,8 +5868,18 @@ function renderPosGrid() {
 
 function posAddItem(id) {
   const it = items.find(i=>i.id===id);
-  if(it) addToInstoreCart(it);
+  if(!it) return;
+  if(it.shop_qty === 0) {
+    showPosToast('⚠️ ' + it.name + ' 已售完');
+    return;
+  }
+  // addToInstoreCart calls renderInstoreCart which writes to old IDs (ins-cart-list).
+  // We bypass renderInstoreCart and directly mutate instoreCart, then call our UI.
+  const existing = instoreCart.find(c => c.item.id === it.id);
+  if(existing) existing.qty++;
+  else instoreCart.push({ item: it, qty: 1, unitPrice: +(it.price||0) });
   updatePosCartUI();
+  renderPosGrid(); // refresh stock display
 }
 
 function updatePosCartUI() {
@@ -5903,7 +5929,7 @@ function updatePosCartUI() {
         <span class="pos-qty-num">${c.qty}</span>
         <button class="pos-qty-btn" onclick="posChangeQty(${c.item.id},1)">+</button>
       </div>
-      <button class="pos-ci-remove" onclick="removeFromInstoreCart(${c.item.id});updatePosCartUI()">✕</button>
+      <button class="pos-ci-remove" onclick="posRemoveItem(${c.item.id})">✕</button>
     </div>`;
   }).join('');
 
@@ -5916,20 +5942,37 @@ function posChangeQty(itemId, delta) {
   if(!entry) return;
   entry.qty = Math.max(1, entry.qty + delta);
   updatePosCartUI();
+  renderPosGrid();
+}
+
+
+function posRemoveItem(itemId) {
+  instoreCart = instoreCart.filter(c => c.item.id !== itemId);
+  updatePosCartUI();
+  renderPosGrid();
 }
 
 function posClearCart() {
   instoreCart = [];
   updatePosCartUI();
+  renderPosGrid();
 }
 
 async function posCheckout(method) {
   if(!instoreCart.length) return;
-  await instoreCheckout(method);
+  const btn = method === 'paid_qr' ? document.getElementById('pos-pay-qr') : document.getElementById('pos-pay-cash');
+  if(btn) { btn.disabled = true; btn.textContent = '处理中...'; }
+  try {
+    await instoreCheckout(method);
+    showPosToast('✅ 结账成功！');
+  } catch(e) {
+    showPosToast('❌ 结账失败，请重试');
+    console.error(e);
+  }
   updatePosCartUI();
   renderPosGrid();
   renderPosCats();
-  showPosToast('✅ 结账成功！');
+  if(btn) { btn.disabled = false; btn.textContent = method === 'paid_qr' ? '📲 QR Pay' : '💵 Cash'; }
 }
 
 function showPosToast(msg) {
