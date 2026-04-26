@@ -62,15 +62,19 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 
 /* ── PAGES ───────────────────────────────────────── */
 .pages { flex: 1; overflow: hidden; position: relative; min-width: 0; }
-.page { display: none !important; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 18px; }
+.page { display: none !important; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 18px; overscroll-behavior: contain; }
 .page.active { display: block !important; }
 .page::-webkit-scrollbar { width: 4px; }
 .page::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
 #page-instore { padding: 0 !important; overflow: hidden !important; display: none !important; height: 100%; }
 #page-instore.active { display: flex !important; }
+/* Ensure scroll events bubble through all content children */
+#page-stock *, #page-orders *, #page-overview *, #page-profit *, #page-finance * {
+  overscroll-behavior: auto;
+}
 
 /* ── CARDS ───────────────────────────────────────── */
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; overflow: visible; }
 .card:last-child { margin-bottom: 0; }
 .card-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px; }
 .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
@@ -109,9 +113,9 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .can-make-badge { font-size: 11px; padding: 2px 7px; border-radius: 20px; background: var(--purple-bg); color: var(--purple); font-weight: 600; white-space: nowrap; }
 
 /* ── STOCK PAGE ──────────────────────────────────── */
-.stock-layout { display: flex; gap: 16px; }
+.stock-layout { display: flex; gap: 16px; align-items: flex-start; }
 .stock-left { flex: 0 0 280px; min-width: 0; }
-.stock-right { flex: 1; min-width: 0; }
+.stock-right { flex: 1; min-width: 0; overflow: visible; }
 .item-checkbox { width: 17px; height: 17px; cursor: pointer; flex-shrink: 0; accent-color: var(--text); }
 .item-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
 .item-row.selected { background: var(--amber-bg); margin: 0 -16px; padding: 14px 16px; }
@@ -128,7 +132,7 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; }
 
 /* ── COLLAPSE PANELS ─────────────────────────────── */
-.collapse-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+.collapse-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: clip; }
 .collapse-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; cursor: pointer; font-size: 14px; font-weight: 600; user-select: none; }
 .collapse-header:hover { background: var(--surface2); }
 .collapse-arrow { font-size: 16px; color: var(--text3); transition: transform 0.2s; display: inline-block; }
@@ -319,7 +323,7 @@ body.modal-open { overflow: hidden; }
 .cat-toggle:hover { background: var(--surface3); }
 .cat-arrow { font-size: 11px; color: var(--text3); transition: transform 0.2s; }
 .cat-arrow.open { transform: rotate(90deg); }
-.cat-body { border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius-xs) var(--radius-xs); overflow: hidden; }
+.cat-body { border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius-xs) var(--radius-xs); overflow: clip; }
 .cat-modal-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); border-radius: var(--radius-xs); margin-bottom: 4px; background: var(--surface2); }
 .cat-modal-name { font-size: 14px; font-weight: 500; }
 .cat-modal-count { font-size: 12px; color: var(--text3); margin-left: 8px; }
