@@ -6039,19 +6039,39 @@ function posClearCart() {
 
 async function posCheckout(method) {
   if(!instoreCart.length) return;
-  const btn = method === 'paid_qr' ? document.getElementById('pos-pay-qr') : document.getElementById('pos-pay-cash');
-  if(btn) { btn.disabled = true; btn.textContent = '处理中...'; }
+  const qrBtn = document.getElementById('pos-pay-qr');
+  const cashBtn = document.getElementById('pos-pay-cash');
+  if(qrBtn) { qrBtn.disabled = true; }
+  if(cashBtn) { cashBtn.disabled = true; }
+  const btn = method === 'paid_qr' ? qrBtn : cashBtn;
+  if(btn) btn.textContent = '处理中...';
+
   try {
+    // Stub out the barcode input clear so instoreCheckout doesn't throw
+    if(!document.getElementById('ins-barcode-input')) {
+      const stub = document.createElement('input');
+      stub.id = 'ins-barcode-input';
+      stub.style.display = 'none';
+      document.body.appendChild(stub);
+    }
     await instoreCheckout(method);
+    // instoreCheckout already calls loadItems, loadOrders, renderDashboard
+    // We just need to also call renderInstoreHistory which it skips
+    renderInstoreHistory();
+    updatePosCartUI();
+    renderPosGrid();
+    renderPosCats();
     showPosToast('✅ 结账成功！');
+    // Also refresh history after the delayed loadOrders completes
+    setTimeout(() => { renderInstoreHistory(); renderDashboard(); }, 1800);
   } catch(e) {
     showPosToast('❌ 结账失败，请重试');
     console.error(e);
   }
-  updatePosCartUI();
-  renderPosGrid();
-  renderPosCats();
-  if(btn) { btn.disabled = false; btn.textContent = method === 'paid_qr' ? '📲 QR Pay' : '💵 Cash'; }
+
+  if(btn) btn.textContent = method === 'paid_qr' ? '📲 QR Pay' : '💵 Cash';
+  if(qrBtn) qrBtn.disabled = false;
+  if(cashBtn) cashBtn.disabled = false;
 }
 
 function showPosToast(msg) {
