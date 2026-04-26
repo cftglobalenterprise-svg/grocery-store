@@ -5924,24 +5924,34 @@ function renderPosGrid() {
     return;
   }
   grid.innerHTML = list.map(it => {
-    const stock = it.shop_qty;
+    // For bundle items, effective stock = min(battery.shop_qty, cartridge.shop_qty)
+    let effectiveStock = it.shop_qty;
+    let isBundle = false;
+    if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
+      const bat = items.find(i => i.id === it.bundle_components.battery_id);
+      const car = items.find(i => i.id === it.bundle_components.cartridge_id);
+      effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
+      isBundle = true;
+    }
     const cartEntry = instoreCart.find(c => c.item.id === it.id);
     const cartQty = cartEntry ? cartEntry.qty : 0;
-    const isOut = stock === 0;
-    const isMaxed = !isOut && cartQty >= stock;
-    const isLow = !isOut && !isMaxed && stock <= 3;
+    const isOut = effectiveStock === 0;
+    const isMaxed = !isOut && cartQty >= effectiveStock;
+    const isLow = !isOut && !isMaxed && effectiveStock <= 3;
     const stockClass = isOut ? 'zero' : (isMaxed ? 'zero' : (isLow ? 'low' : ''));
-    const stockLabel = isOut ? '售完' : (isMaxed ? '已满' : (cartQty > 0 ? `${cartQty}/${stock}` : stock));
+    const stockLabel = isOut ? '售完' : (isMaxed ? '已满' : (cartQty > 0 ? `${cartQty}/${effectiveStock}` : effectiveStock));
     const price = it.price ? `RM ${(+it.price).toFixed(2)}` : '—';
     const catLabel = it.category ? `<div class="pos-prod-cat">${it.category}</div>` : '';
     const cardClass = (isOut || isMaxed) ? ' out-of-stock' : '';
     const inCartBadge = cartQty > 0 ? `<div class="pos-prod-in-cart">${cartQty}</div>` : '';
+    const bundleBadge = isBundle ? `<div style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--purple);font-weight:700;white-space:nowrap">🎁 套装</div>` : '';
     return `<div class="pos-prod-card${cardClass}" onclick="posAddItem(${it.id})">
       ${inCartBadge}
       <div class="pos-prod-stock ${stockClass}">${stockLabel}</div>
       ${catLabel}
-      <div class="pos-prod-name">${it.name}</div>
+      <div class="pos-prod-name" style="${isBundle?'margin-bottom:18px':''}">  ${it.name}</div>
       <div class="pos-prod-price">${price}</div>
+      ${bundleBadge}
     </div>`;
   }).join('');
 }
@@ -5949,15 +5959,21 @@ function renderPosGrid() {
 function posAddItem(id) {
   const it = items.find(i=>i.id===id);
   if(!it) return;
-  if(it.shop_qty === 0) {
+  // Calculate effective stock (handle bundles)
+  let effectiveStock = it.shop_qty;
+  if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
+    const bat = items.find(i => i.id === it.bundle_components.battery_id);
+    const car = items.find(i => i.id === it.bundle_components.cartridge_id);
+    effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
+  }
+  if(effectiveStock === 0) {
     showPosToast('⚠️ ' + it.name + ' — 已售完');
     return;
   }
-  // Check cart qty vs available stock
   const existing = instoreCart.find(c => c.item.id === it.id);
   const cartQty = existing ? existing.qty : 0;
-  if(cartQty >= it.shop_qty) {
-    showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + it.shop_qty + ' 件）');
+  if(cartQty >= effectiveStock) {
+    showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 套）');
     return;
   }
   if(existing) existing.qty++;
@@ -6025,9 +6041,17 @@ function posChangeQty(itemId, delta) {
   if(!entry) return;
   if(delta > 0) {
     const it = items.find(i=>i.id===itemId);
-    if(it && entry.qty >= it.shop_qty) {
-      showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + it.shop_qty + ' 件）');
-      return;
+    if(it) {
+      let effectiveStock = it.shop_qty;
+      if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
+        const bat = items.find(i => i.id === it.bundle_components.battery_id);
+        const car = items.find(i => i.id === it.bundle_components.cartridge_id);
+        effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
+      }
+      if(entry.qty >= effectiveStock) {
+        showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 件）');
+        return;
+      }
     }
   }
   entry.qty = Math.max(1, entry.qty + delta);
