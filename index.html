@@ -26,6 +26,12 @@
 }
 body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); height: 100vh; height: 100dvh; overflow: hidden; }
 
+/* Full-page POS mode */
+body.pos-mode .sidebar { display: none; }
+body.pos-mode .pages { flex: 1; }
+body.pos-mode .pos-cart { width: 340px; }
+body.pos-mode .pos-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+
 /* ── LOADING ─────────────────────────────────────── */
 #loading { position: fixed; inset: 0; background: var(--surface); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; z-index: 999; }
 #loading p { font-size: 15px; color: var(--text2); }
@@ -165,6 +171,7 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .pos-prod-card:hover { border-color: var(--border2); transform: translateY(-1px); }
 .pos-prod-card:active { transform: scale(0.96); background: var(--surface2); }
 .pos-prod-card.out-of-stock { opacity: 0.42; pointer-events: none; }
+.pos-prod-in-cart { position: absolute; top: -6px; left: -6px; width: 22px; height: 22px; border-radius: 50%; background: var(--green); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; font-family: 'DM Mono', monospace; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
 .pos-prod-name { font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 6px; color: var(--text); }
 .pos-prod-price { font-size: 15px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--green); }
 .pos-prod-stock { position: absolute; top: 6px; right: 7px; font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; }
@@ -5912,13 +5919,19 @@ function renderPosGrid() {
   }
   grid.innerHTML = list.map(it => {
     const stock = it.shop_qty;
+    const cartEntry = instoreCart.find(c => c.item.id === it.id);
+    const cartQty = cartEntry ? cartEntry.qty : 0;
     const isOut = stock === 0;
-    const isLow = !isOut && stock <= 3;
-    const stockClass = isOut ? 'zero' : (isLow ? 'low' : '');
-    const stockLabel = isOut ? '售完' : stock;
+    const isMaxed = !isOut && cartQty >= stock;
+    const isLow = !isOut && !isMaxed && stock <= 3;
+    const stockClass = isOut ? 'zero' : (isMaxed ? 'zero' : (isLow ? 'low' : ''));
+    const stockLabel = isOut ? '售完' : (isMaxed ? '已满' : (cartQty > 0 ? `${cartQty}/${stock}` : stock));
     const price = it.price ? `RM ${(+it.price).toFixed(2)}` : '—';
     const catLabel = it.category ? `<div class="pos-prod-cat">${it.category}</div>` : '';
-    return `<div class="pos-prod-card${isOut?' out-of-stock':''}" onclick="posAddItem(${it.id})">
+    const cardClass = (isOut || isMaxed) ? ' out-of-stock' : '';
+    const inCartBadge = cartQty > 0 ? `<div class="pos-prod-in-cart">${cartQty}</div>` : '';
+    return `<div class="pos-prod-card${cardClass}" onclick="posAddItem(${it.id})">
+      ${inCartBadge}
       <div class="pos-prod-stock ${stockClass}">${stockLabel}</div>
       ${catLabel}
       <div class="pos-prod-name">${it.name}</div>
@@ -5931,14 +5944,19 @@ function posAddItem(id) {
   const it = items.find(i=>i.id===id);
   if(!it) return;
   if(it.shop_qty === 0) {
-    showPosToast('⚠️ ' + it.name + ' 已售完');
+    showPosToast('⚠️ ' + it.name + ' — 已售完');
     return;
   }
+  // Check cart qty vs available stock
   const existing = instoreCart.find(c => c.item.id === it.id);
+  const cartQty = existing ? existing.qty : 0;
+  if(cartQty >= it.shop_qty) {
+    showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + it.shop_qty + ' 件）');
+    return;
+  }
   if(existing) existing.qty++;
   else instoreCart.push({ item: it, qty: 1, unitPrice: +(it.price||0) });
   updatePosCartUI();
-  // Note: do NOT call renderPosGrid() here - caller handles that to avoid double render
 }
 
 function updatePosCartUI() {
@@ -5999,6 +6017,13 @@ function updatePosCartUI() {
 function posChangeQty(itemId, delta) {
   const entry = instoreCart.find(c => c.item.id === itemId);
   if(!entry) return;
+  if(delta > 0) {
+    const it = items.find(i=>i.id===itemId);
+    if(it && entry.qty >= it.shop_qty) {
+      showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + it.shop_qty + ' 件）');
+      return;
+    }
+  }
   entry.qty = Math.max(1, entry.qty + delta);
   updatePosCartUI();
   renderPosGrid();
@@ -6049,12 +6074,17 @@ function posSwitchTab(t) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const page = document.getElementById('page-' + t);
   if(page) page.classList.add('active');
-  // trigger any original tab-switch side effects
-  if(t === 'orders') loadOrders();
-  if(t === 'overview') renderOverview();
-  if(t === 'instore') { renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard(); }
-  if(t === 'profit') { renderProfitReport(); renderCostEditor(); }
-  if(t === 'finance') { initFinanceTab(); }
+  // Toggle full-page POS mode
+  if(t === 'instore') {
+    document.body.classList.add('pos-mode');
+    renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard();
+  } else {
+    document.body.classList.remove('pos-mode');
+    if(t === 'orders') loadOrders();
+    if(t === 'overview') renderOverview();
+    if(t === 'profit') { renderProfitReport(); renderCostEditor(); }
+    if(t === 'finance') { initFinanceTab(); }
+  }
 }
 
 function posSidebarFinanceUnlock() {
@@ -6097,7 +6127,7 @@ function posOpenCustomer() { openCustomerMode(); }
 
 
 init();
-setTimeout(() => { renderPosCats(); renderPosGrid(); updatePosCartUI(); }, 300);
+setTimeout(() => { document.body.classList.add('pos-mode'); renderPosCats(); renderPosGrid(); updatePosCartUI(); }, 300);
 </script>
 </body>
 </html>
