@@ -7783,13 +7783,24 @@ Singgah la ke kedai kami — kami tunggu! 🛒`;
   const customReason = document.getElementById('notify-custom-reason')?.value.trim();
   const reason = customReason || _notifyReason;
   const timeStr = duration === 'custom' ? (customTime || 'sebentar lagi') : duration;
+  // Translate Chinese duration options to Malay
+  const durationMap = {
+    '30分钟': '30 minit', '1小时': '1 jam', '2小时': '2 jam', '3小时': '3 jam',
+    '今天营业结束': 'penghujung hari ini', '明天恢复营业': 'esok'
+  };
+  const timeMS = durationMap[timeStr] || timeStr;
+
+  // Translate Chinese reason to Malay for 其他 fallback
+  const reasonMap = { '休息': 'rehat', '出货': 'keluar ambil stok', '其他': 'ada urusan sebentar' };
+  const reasonMS = reasonMap[reason] || reason;
+
   let preview;
   if(reason === '休息') {
-    preview = 'Salam sejahtera! 😊\n\nKedai kami *TUTUP SEBENTAR* untuk rehat.\nDijangka buka semula dalam masa *' + timeStr + '* lagi.\n\nMinta maaf atas kesulitan yang ditimbulkan ya 😊\nKalau ada keperluan, boleh WhatsApp kami terus.\n\nTerima kasih kerana sabar menunggu! 🛒';
+    preview = 'Salam sejahtera! 😊\n\nKedai kami *TUTUP SEBENTAR* untuk rehat.\nDijangka buka semula dalam masa *' + timeMS + '* lagi.\n\nMinta maaf atas kesulitan yang ditimbulkan ya 😊\nKalau ada keperluan, boleh WhatsApp kami terus.\n\nTerima kasih kerana sabar menunggu! 🛒';
   } else if(reason === '出货') {
-    preview = 'Hai member member Kedai 19! 👋\n\nKedai kami *TUTUP SEBENTAR* — tuan kedai keluar ambil stok barang baru.\nDijangka balik dan buka semula dalam masa *' + timeStr + '* lagi.\n\nNanti ada barang baru tau! 😄\nMinta maaf atas kesulitan ya.\n\nKalau ada pertanyaan, boleh tinggalkan mesej! 📦';
+    preview = 'Hai member member Kedai 19! 👋\n\nKedai kami *TUTUP SEBENTAR* — tuan kedai keluar ambil stok barang baru.\nDijangka balik dan buka semula dalam masa *' + timeMS + '* lagi.\n\nNanti ada barang baru tau! 😄\nMinta maaf atas kesulitan ya.\n\nKalau ada pertanyaan, boleh tinggalkan mesej! 📦';
   } else {
-    preview = 'Hai member member Kedai 19! 👋\n\nKedai kami *TUTUP SEBENTAR* — ' + (reason || 'ada urusan mendadak') + '.\nDijangka buka semula dalam masa *' + timeStr + '* lagi.\n\nMinta maaf atas kesulitan yang ditimbulkan 😊\nBoleh WhatsApp kami kalau ada keperluan urgent.\n\nTerima kasih kerana faham! 🙏';
+    preview = 'Hai member member Kedai 19! 👋\n\nKedai kami *TUTUP SEBENTAR* — ' + reasonMS + '.\nDijangka buka semula dalam masa *' + timeMS + '* lagi.\n\nMinta maaf atas kesulitan yang ditimbulkan 😊\nBoleh WhatsApp kami kalau ada keperluan urgent.\n\nTerima kasih kerana faham! 🙏';
   }
   const el = document.getElementById('notify-preview');
   if(el) el.textContent = preview;
