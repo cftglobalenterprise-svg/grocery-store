@@ -720,6 +720,8 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
       <button class="topbar-action-btn" id="btn-bundle" onclick="posOpenBundle()" title="套餐规则">🎁 套餐</button>
       <button class="topbar-action-btn" id="btn-customer" onclick="posOpenCustomer()" title="顾客展示">📱 展示</button>
+      <button class="topbar-action-btn hq-only" id="btn-notify" onclick="openNotifyModal()" title="休息通知" style="background:#fde8e8;color:#8b2318;border-color:#f0a09a;">🔴 休息通知</button>
+      <button class="topbar-action-btn" id="btn-refresh" onclick="refreshAllData()" title="刷新数据">🔄 刷新</button>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-left:8px;padding-left:8px;border-left:1px solid var(--border)">
       <div class="sync-dot" id="sync-dot"></div>
@@ -751,6 +753,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </button>
       <button class="nav-btn" id="navbtn-hq" onclick="posSwitchTab('hq')" style="display:none">
         <span class="nav-icon">🏢</span> 总部报表
+      </button>
+      <button class="nav-btn hq-only" id="navbtn-customers" onclick="posSwitchTab('customers')" style="display:none">
+        <span class="nav-icon">👥</span> 顾客名单
       </button>
 
     </div>
@@ -1338,6 +1343,28 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
   </div>
 </div>
 
+      <!-- ══ CUSTOMERS PAGE ════════════════════════════ -->
+      <div id="page-customers" class="page">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div>
+            <div style="font-size:20px;font-weight:700;color:var(--text)">👥 顾客名单</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">管理顾客联络方式，用于休息通知</div>
+          </div>
+          <button onclick="openAddCustomerModal()" style="padding:10px 18px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;">+ 新增顾客</button>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="customer-search" placeholder="🔍 搜索顾客名字或号码..." oninput="renderCustomerList()" style="flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);outline:none">
+        </div>
+
+        <div class="card" style="padding:0;overflow:visible">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0;padding:10px 16px;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase;border-bottom:1px solid var(--border)">
+            <span>名字</span><span>电话号码</span><span>备注</span><span></span>
+          </div>
+          <div id="customer-list"><div class="empty" style="padding:2rem">暂无顾客，点右上角新增</div></div>
+        </div>
+      </div>
+
     </div><!-- end pages -->
   </div><!-- end app-body -->
 </div><!-- end app -->
@@ -1560,6 +1587,77 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
   </div>
 </div>
 
+
+<!-- NOTIFY MODAL -->
+<div class="modal-overlay" id="notify-modal">
+  <div class="modal" style="max-width:480px">
+    <h3>🔴 休息通知</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+      <button class="notify-reason-btn active" onclick="setNotifyReason('休息',this)">☕ 休息</button>
+      <button class="notify-reason-btn" onclick="setNotifyReason('出货',this)">🚚 出货</button>
+      <button class="notify-reason-btn" onclick="setNotifyReason('其他',this)">📝 其他</button>
+    </div>
+    <div class="form-row"><label>自定义原因</label><input type="text" id="notify-custom-reason" placeholder="例：店主有事外出" style="flex:1"></div>
+    <div class="form-row"><label>预计恢复</label>
+      <select id="notify-duration" style="flex:1">
+        <option value="30分钟">30分钟</option>
+        <option value="1小时" selected>1小时</option>
+        <option value="2小时">2小时</option>
+        <option value="3小时">3小时</option>
+        <option value="今天营业结束">今天营业结束</option>
+        <option value="明天恢复营业">明天恢复营业</option>
+        <option value="custom">自定义时间...</option>
+      </select>
+    </div>
+    <div class="form-row" id="notify-custom-time-row" style="display:none"><label>具体时间</label><input type="text" id="notify-custom-time" placeholder="例：下午3点" style="flex:1"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px;margin-top:8px">预览讯息</div>
+    <div id="notify-preview" style="background:var(--surface2);border-radius:var(--radius-xs);padding:12px;font-size:13px;color:var(--text);line-height:1.6;border:1px solid var(--border);white-space:pre-wrap;min-height:60px"></div>
+    <div style="margin-top:12px;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">
+      选择发送对象 
+      <span id="notify-selected-count" style="color:var(--green);font-weight:700">0 人</span>
+      <button onclick="notifySelectAll()" style="margin-left:8px;font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer;font-family:'DM Sans',sans-serif">全选</button>
+      <button onclick="notifyClearAll()" style="margin-left:4px;font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer;font-family:'DM Sans',sans-serif">清空</button>
+    </div>
+    <div id="notify-customer-pick" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:14px"></div>
+    <div id="notify-send-area" style="display:none">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">逐一点击发送，每次会自动打开 WhatsApp：</div>
+      <div id="notify-send-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeNotifyModal()">关闭</button>
+      <button class="btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="generateNotifyLinks()">📲 生成发送列表</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT CUSTOMER MODAL -->
+<div class="modal-overlay" id="add-customer-modal">
+  <div class="modal">
+    <h3 id="add-customer-title">新增顾客</h3>
+    <div class="form-row"><label>名字</label><input type="text" id="cust-name" placeholder="顾客名字" style="flex:1"></div>
+    <div class="form-row"><label>电话</label>
+      <div style="display:flex;gap:6px;flex:1">
+        <select id="cust-cc" style="flex:0 0 80px"><option value="60">🇲🇾 +60</option><option value="65">🇸🇬 +65</option><option value="62">🇮🇩 +62</option><option value="66">🇹🇭 +66</option></select>
+        <input type="text" id="cust-phone" placeholder="1X-XXXXXXXX" style="flex:1">
+      </div>
+    </div>
+    <div class="form-row"><label>备注</label><input type="text" id="cust-notes" placeholder="例：VIP顾客、常买RELX" style="flex:1"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAddCustomerModal()">取消</button>
+      <button class="btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="saveCustomer()">保存</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.notify-reason-btn {
+  padding:8px;font-size:12px;font-weight:600;border-radius:var(--radius-xs);
+  border:1.5px solid var(--border);background:var(--surface2);color:var(--text2);
+  cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;
+}
+.notify-reason-btn.active { background:var(--green);color:#fff;border-color:var(--green); }
+.notify-reason-btn:hover { border-color:var(--green); }
+</style>
 
 <script>
 const SUPABASE_URL = 'https://zyeyhyfdjtgmoocdjgcg.supabase.co';
@@ -6642,6 +6740,7 @@ function posSwitchTab(t) {
   else if(t === 'overview') renderOverview();
   else if(t === 'finance') { initFinanceTab(); }
   else if(t === 'hq') { renderHqDashboard(); }
+  else if(t === 'customers') { renderCustomerList(); }
 }
 
 function posSidebarFinanceUnlock() {
@@ -6671,7 +6770,7 @@ function posOpenCustomer() { openCustomerMode(); }
 
 
 init();
-setTimeout(() => { renderPosCats(); renderPosGrid(); updatePosCartUI(); }, 300);
+setTimeout(() => { renderPosCats(); renderPosGrid(); updatePosCartUI(); loadCustomers(); }, 300);
 // ── Debounced barcode handlers for Transfer and Restock ──
 let _transferBarcodeTimer = null;
 let _restockBarcodeTimer = null;
@@ -6837,7 +6936,7 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders',
-     'navbtn-finance','navbtn-hq'].forEach(id => {
+     'navbtn-finance','navbtn-hq','navbtn-customers'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
@@ -7196,6 +7295,256 @@ function renderHqPnL() {
 // renderHqDashboard profit hook removed - merged into main function
 
 
+
+
+// ── CUSTOMERS & NOTIFY ──────────────────────────────────
+let customers = [];
+let _notifyReason = '休息';
+let _notifySelected = new Set();
+let _editingCustomerId = null;
+
+async function loadCustomers() {
+  const { data, error } = await sb.from('customers').select('*').order('name');
+  if(!error) customers = data || [];
+}
+
+function renderCustomerList() {
+  const el = document.getElementById('customer-list');
+  if(!el) return;
+  const q = document.getElementById('customer-search')?.value.toLowerCase() || '';
+  const list = customers.filter(c =>
+    !q || c.name.toLowerCase().includes(q) || (c.phone||'').includes(q)
+  );
+  if(!list.length) {
+    el.innerHTML = '<div class="empty" style="padding:2rem">没有找到顾客</div>';
+    return;
+  }
+  el.innerHTML = list.map(c => `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center">
+      <div style="font-size:13px;font-weight:600">${c.name}</div>
+      <div style="font-size:12px;color:var(--text2);font-family:'DM Mono',monospace">+${c.phone}</div>
+      <div style="font-size:12px;color:var(--text3)">${c.notes||'—'}</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn" style="font-size:11px;padding:4px 8px" onclick="openEditCustomer(${c.id})">✏️</button>
+        <button class="btn btn-danger" style="font-size:11px;padding:4px 8px" onclick="deleteCustomer(${c.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function openAddCustomerModal() {
+  _editingCustomerId = null;
+  document.getElementById('add-customer-title').textContent = '新增顾客';
+  document.getElementById('cust-name').value = '';
+  document.getElementById('cust-phone').value = '';
+  document.getElementById('cust-notes').value = '';
+  document.getElementById('cust-cc').value = '60';
+  document.getElementById('add-customer-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+
+function openEditCustomer(id) {
+  const c = customers.find(x=>x.id===id);
+  if(!c) return;
+  _editingCustomerId = id;
+  document.getElementById('add-customer-title').textContent = '编辑顾客';
+  // Split phone: remove country code prefix
+  let phone = c.phone || '';
+  let cc = '60';
+  for(const code of ['60','65','62','66']) {
+    if(phone.startsWith(code)) { cc = code; phone = phone.slice(code.length); break; }
+  }
+  document.getElementById('cust-cc').value = cc;
+  document.getElementById('cust-name').value = c.name;
+  document.getElementById('cust-phone').value = phone;
+  document.getElementById('cust-notes').value = c.notes || '';
+  document.getElementById('add-customer-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+
+function closeAddCustomerModal() {
+  document.getElementById('add-customer-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+
+async function saveCustomer() {
+  const name = document.getElementById('cust-name').value.trim();
+  const cc = document.getElementById('cust-cc').value;
+  const phoneRaw = document.getElementById('cust-phone').value.trim().replace(/[-\s]/g,'');
+  const notes = document.getElementById('cust-notes').value.trim();
+  if(!name || !phoneRaw) { alert('请填写名字和电话'); return; }
+  const phone = cc + phoneRaw;
+  if(_editingCustomerId) {
+    const { error } = await sb.from('customers').update({name,phone,notes}).eq('id',_editingCustomerId);
+    if(error) { alert('更新失败：'+error.message); return; }
+  } else {
+    const { error } = await sb.from('customers').insert({name,phone,notes});
+    if(error) { alert('添加失败：'+error.message); return; }
+  }
+  await loadCustomers();
+  renderCustomerList();
+  closeAddCustomerModal();
+}
+
+async function deleteCustomer(id) {
+  const c = customers.find(x=>x.id===id);
+  if(!confirm('确认删除顾客 ' + (c?.name||'') + '？')) return;
+  await sb.from('customers').delete().eq('id',id);
+  await loadCustomers();
+  renderCustomerList();
+}
+
+// ── NOTIFY ───────────────────────────────────────────────
+function setNotifyReason(reason, btn) {
+  _notifyReason = reason;
+  document.querySelectorAll('.notify-reason-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updateNotifyPreview();
+}
+
+function updateNotifyPreview() {
+  const duration = document.getElementById('notify-duration')?.value;
+  const customTime = document.getElementById('notify-custom-time')?.value;
+  const customReason = document.getElementById('notify-custom-reason')?.value.trim();
+  const reason = customReason || _notifyReason;
+  const timeStr = duration === 'custom' ? (customTime || '待定') : duration;
+  const preview = `🏪 杂货店营业通知
+
+您好！我们目前暂时${reason}，预计 ${timeStr} 后恢复营业。
+
+给您带来不便，非常抱歉！🙏
+如有紧急需要，欢迎WhatsApp联系。
+
+谢谢您的耐心等待！`;
+  const el = document.getElementById('notify-preview');
+  if(el) el.textContent = preview;
+  return preview;
+}
+
+function openNotifyModal() {
+  // Load customers into picker
+  const picker = document.getElementById('notify-customer-pick');
+  if(picker) {
+    if(!customers.length) {
+      picker.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text3)">暂无顾客，请先在「顾客名单」页面添加</div>';
+    } else {
+      _notifySelected.clear();
+      picker.innerHTML = customers.map(c => `
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer">
+          <input type="checkbox" onchange="notifyToggle(${c.id},this.checked)" style="width:15px;height:15px;accent-color:var(--green);flex-shrink:0">
+          <span style="flex:1;font-size:13px;font-weight:500">${c.name}</span>
+          <span style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">+${c.phone}</span>
+        </label>`).join('');
+    }
+  }
+  document.getElementById('notify-send-area').style.display = 'none';
+  document.getElementById('notify-selected-count').textContent = '0 人';
+  updateNotifyPreview();
+  document.getElementById('notify-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+
+  // Hook duration change
+  const dur = document.getElementById('notify-duration');
+  if(dur) dur.onchange = () => {
+    const customRow = document.getElementById('notify-custom-time-row');
+    if(customRow) customRow.style.display = dur.value === 'custom' ? 'flex' : 'none';
+    updateNotifyPreview();
+  };
+  const customR = document.getElementById('notify-custom-reason');
+  if(customR) customR.oninput = updateNotifyPreview;
+  const customT = document.getElementById('notify-custom-time');
+  if(customT) customT.oninput = updateNotifyPreview;
+}
+
+function closeNotifyModal() {
+  document.getElementById('notify-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+
+function notifyToggle(id, checked) {
+  if(checked) _notifySelected.add(id);
+  else _notifySelected.delete(id);
+  document.getElementById('notify-selected-count').textContent = _notifySelected.size + ' 人';
+}
+
+function notifySelectAll() {
+  _notifySelected = new Set(customers.map(c=>c.id));
+  document.querySelectorAll('#notify-customer-pick input[type=checkbox]').forEach(cb => cb.checked = true);
+  document.getElementById('notify-selected-count').textContent = _notifySelected.size + ' 人';
+}
+
+function notifyClearAll() {
+  _notifySelected.clear();
+  document.querySelectorAll('#notify-customer-pick input[type=checkbox]').forEach(cb => cb.checked = false);
+  document.getElementById('notify-selected-count').textContent = '0 人';
+}
+
+function generateNotifyLinks() {
+  if(!_notifySelected.size) { alert('请先选择发送对象'); return; }
+  const msg = updateNotifyPreview();
+  const encoded = encodeURIComponent(msg);
+  const selected = customers.filter(c => _notifySelected.has(c.id));
+  const sendArea = document.getElementById('notify-send-area');
+  const sendList = document.getElementById('notify-send-list');
+  sendArea.style.display = 'block';
+  sendList.innerHTML = selected.map((c, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)" id="notify-row-${c.id}">
+      <div style="width:22px;height:22px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text3);flex-shrink:0">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600">${c.name}</div>
+        <div style="font-size:11px;color:var(--text3)">+${c.phone}</div>
+      </div>
+      <a href="https://wa.me/${c.phone}?text=${encoded}" target="_blank"
+        onclick="markNotifySent(${c.id})"
+        style="padding:8px 14px;background:#25D366;color:#fff;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px;flex-shrink:0">
+        📲 发送
+      </a>
+      <span id="notify-sent-${c.id}" style="font-size:11px;color:var(--green);display:none">✓ 已发</span>
+    </div>`).join('');
+
+  sendArea.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function markNotifySent(id) {
+  setTimeout(() => {
+    const sent = document.getElementById('notify-sent-'+id);
+    const row = document.getElementById('notify-row-'+id);
+    if(sent) sent.style.display = 'inline';
+    if(row) row.style.opacity = '0.5';
+  }, 1000);
+}
+
+// ── REFRESH ──────────────────────────────────────────────
+async function refreshAllData() {
+  const btn = document.getElementById('btn-refresh');
+  if(btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  setSync('busy', '刷新中...');
+  try {
+    await loadItems();
+    await loadOrders();
+    await loadCustomers();
+    // Re-render current active page
+    const active = document.querySelector('.page.active');
+    if(active) {
+      const id = active.id;
+      if(id === 'page-instore') { renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard(); }
+      else if(id === 'page-stock') { renderItems(); }
+      else if(id === 'page-orders') { renderOrders(); renderOrdDashboard(); }
+      else if(id === 'page-overview') { renderOverview(); }
+      else if(id === 'page-hq') { renderHqDashboard(); }
+      else if(id === 'page-customers') { renderCustomerList(); }
+    }
+    setSync('ok', '✅ 已更新');
+    showPosToast('✅ 数据已刷新');
+  } catch(e) {
+    setSync('err', '刷新失败');
+    showPosToast('❌ 刷新失败：'+e.message);
+  }
+  if(btn) { btn.textContent = '🔄 刷新'; btn.disabled = false; }
+}
+
+// Hook posSwitchTab for customers page
+const _origPosSwitchForCustomers = posSwitchTab;
+// Avoid double-hook - just extend via the existing posSwitchTab
 
 // ── Universal scroll fix ─────────────────────────────
 // Force .page.active to scroll when wheel fires anywhere inside it,
