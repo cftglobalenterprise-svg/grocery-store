@@ -351,6 +351,10 @@ body.modal-open { overflow: hidden; }
 #page-finance { max-width: 860px; margin: 0 auto; }
 #page-profit { max-width: 900px; }
 .tabs { display: none !important; }
+/* HQ-only elements: hidden by default, shown via JS for HQ role */
+.hq-only { display: none !important; }
+body.hq-mode .hq-only { display: block !important; }
+body.hq-mode .collapse-card.hq-only { display: block !important; }
 /* ═══════════════════════════════════════════════════
    MOBILE  ≤768px
    ═══════════════════════════════════════════════════ */
@@ -885,7 +889,47 @@ body.modal-open { overflow: hidden; }
                 <div class="form-row"><label>或扫 Barcode</label><div class="barcode-input-wrap"><input type="text" id="transfer-barcode" placeholder="扫描 barcode" oninput="onTransferBarcodeTyped(this.value)"><button class="btn btn-scan" onclick="openScanModal('transfer')">📷</button></div></div>
               </div>
             </div>
-          </div>
+          
+            <!-- Cost editor panel -->
+            <div class="collapse-card hq-only" id="panel-cost">
+              <div class="collapse-header" onclick="togglePanel('panel-cost')"><span>⚙️ 成本价设置</span><span class="collapse-arrow" id="arrow-panel-cost">▾</span></div>
+              <div class="collapse-body" id="body-panel-cost" style="display:none">
+                <div style="display:flex;gap:6px;margin-bottom:8px">
+                  <input type="text" id="cost-search" placeholder="🔍 搜索商品..." oninput="renderCostEditor()" style="flex:1">
+                  <select id="cost-cat-filter" onchange="renderCostEditor()" style="max-width:110px"><option value="">全部类别</option></select>
+                </div>
+                <div id="cost-editor-list" style="max-height:300px;overflow-y:auto"></div>
+              </div>
+            </div>
+
+            <!-- Bulk price panel -->
+            <div class="collapse-card" id="panel-bulk-price">
+              <div class="collapse-header" onclick="togglePanel('panel-bulk-price')"><span>💲 批量调整价格</span><span class="collapse-arrow" id="arrow-panel-bulk-price">▾</span></div>
+              <div class="collapse-body" id="body-panel-bulk-price" style="display:none">
+                <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+                  <input type="text" id="bulk-price-search" placeholder="🔍 搜索..." oninput="renderBulkPriceList()" style="flex:1;min-width:100px">
+                  <select id="bulk-price-cat" onchange="renderBulkPriceList()" style="max-width:110px"><option value="">全部类别</option></select>
+                </div>
+                <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+                  <button class="btn" style="font-size:11px;padding:4px 8px" onclick="bulkPriceSelectAll()">全选</button>
+                  <button class="btn" style="font-size:11px;padding:4px 8px" onclick="bulkPriceClearAll()">清空</button>
+                  <span id="bulk-price-selected-count" style="font-size:12px;color:var(--text3)">已选 0 项</span>
+                </div>
+                <div id="bulk-price-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:10px"></div>
+                <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
+                  <button id="bp-mode-set" onclick="setBulkPriceMode('set')" style="flex:1;padding:6px;font-size:11px;font-weight:600;border-radius:8px;border:2px solid var(--text);background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">固定价</button>
+                  <button id="bp-mode-add" onclick="setBulkPriceMode('add')" style="flex:1;padding:6px;font-size:11px;font-weight:600;border-radius:8px;border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">+RM</button>
+                  <button id="bp-mode-pct" onclick="setBulkPriceMode('pct')" style="flex:1;padding:6px;font-size:11px;font-weight:600;border-radius:8px;border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">%调整</button>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                  <input type="number" id="bulk-price-value" placeholder="数值" step="0.01" style="flex:1;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);outline:none">
+                  <span id="bulk-price-unit" style="font-size:13px;color:var(--text2);font-weight:600;min-width:24px">RM</span>
+                </div>
+                <button onclick="applyBulkPrice()" class="btn btn-block" style="background:var(--green);border-color:var(--green);color:#fff">✅ 确认批量调价</button>
+              </div>
+            </div>
+
+</div>
           <div class="stock-right">
             <div class="card">
               <div class="card-title">库存列表</div>
@@ -901,43 +945,6 @@ body.modal-open { overflow: hidden; }
           </div>
         </div>
 
-        <!-- ── Cost editor + Bulk price ── -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
-          <div class="card">
-            <div class="card-title">⚙️ 成本价设置</div>
-            <div style="display:flex;gap:6px;margin-bottom:8px">
-              <input type="text" id="cost-search" placeholder="🔍 搜索商品..." oninput="renderCostEditor()" style="flex:1">
-              <select id="cost-cat-filter" onchange="renderCostEditor()" style="max-width:120px"><option value="">全部类别</option></select>
-            </div>
-            <div id="cost-editor-list"></div>
-          </div>
-          <div class="card">
-            <div class="card-title">💲 批量调整价格</div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:10px">筛选商品，统一调整售价</div>
-            <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-              <input type="text" id="bulk-price-search" placeholder="🔍 搜索..." oninput="renderBulkPriceList()" style="flex:1;min-width:100px">
-              <select id="bulk-price-cat" onchange="renderBulkPriceList()" style="max-width:110px"><option value="">全部类别</option></select>
-            </div>
-            <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
-              <button class="btn" style="font-size:11px;padding:4px 8px" onclick="bulkPriceSelectAll()">全选</button>
-              <button class="btn" style="font-size:11px;padding:4px 8px" onclick="bulkPriceClearAll()">清空</button>
-              <span id="bulk-price-selected-count" style="font-size:12px;color:var(--text3);margin-left:4px">已选 0 项</span>
-            </div>
-            <div id="bulk-price-list" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:10px"></div>
-            <div style="background:var(--surface2);border-radius:var(--radius-xs);padding:12px;display:flex;flex-direction:column;gap:8px">
-              <div style="display:flex;gap:6px;flex-wrap:wrap">
-                <button id="bp-mode-set" onclick="setBulkPriceMode('set')" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid var(--text);background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">设为固定价</button>
-                <button id="bp-mode-add" onclick="setBulkPriceMode('add')" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">增加 RM</button>
-                <button id="bp-mode-pct" onclick="setBulkPriceMode('pct')" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">按 % 调整</button>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <input type="number" id="bulk-price-value" placeholder="输入数值" step="0.01" style="flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);outline:none">
-                <span id="bulk-price-unit" style="font-size:13px;color:var(--text2);font-weight:600;min-width:24px">RM</span>
-              </div>
-              <button onclick="applyBulkPrice()" style="width:100%;padding:11px;background:linear-gradient(135deg,#3a6b28,#2d5218);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;">✅ 确认批量调价</button>
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- ══ ORDERS ════════════════════════════════════ -->
@@ -1102,6 +1109,234 @@ body.modal-open { overflow: hidden; }
           <div id="hq-low-stock"><div class="empty">暂无数据</div></div>
         </div>
       </div>
+
+
+      <!-- ══ FINANCE PAGE ══════════════════════════════ -->
+      <!-- FINANCE PAGE ═══════════════════════════════════════════════════ -->
+<div id="page-finance" class="page" style="max-width:860px;margin:0 auto">
+
+  <!-- Sub-tabs -->
+  <div style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:12px;align-items:center">
+    <button id="ftab-overview" onclick="setFinanceTab('overview')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">📊 总览</button>
+    <button id="ftab-accounts" onclick="setFinanceTab('accounts')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🏦 账户</button>
+    <button id="ftab-txns" onclick="setFinanceTab('txns')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📋 收支</button>
+    <button id="ftab-debts" onclick="setFinanceTab('debts')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🤝 欠款</button>
+    <button id="ftab-report" onclick="setFinanceTab('report')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📄 报表</button>
+    <button onclick="lockFinance()" style="padding:7px 10px;font-size:11px;font-weight:600;border:none;border-left:1px solid var(--border);background:none;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0" title="锁定记账">🔒</button>
+  </div>
+
+  <!-- ── 总览 ── -->
+  <div id="fpage-overview">
+    <!-- 净资产 -->
+    <div class="card" style="background:var(--text);color:#fff;border:none;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:600;opacity:0.55;margin-bottom:5px;letter-spacing:0.5px">NET WORTH · 净资产</div>
+      <div style="font-size:30px;font-weight:700;font-family:'DM Mono',monospace" id="fn-networth">RM 0.00</div>
+      <div style="font-size:10px;opacity:0.45;margin-top:5px">所有账户总和</div>
+    </div>
+    <!-- 账户快照 -->
+    <div class="card">
+      <div class="card-title">🏦 账户快照</div>
+      <div id="fn-acc-snapshot"><div class="empty">还没有账户</div></div>
+    </div>
+    <!-- 本月收支 -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">📅 月度收支</div>
+        <input type="month" id="fn-ov-month" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnOverview()">
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+        <div style="background:#d8f3dc;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #52be80">
+          <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:#2d6a4f" id="fn-income">RM 0</div>
+          <div style="font-size:10px;color:#2d6a4f;font-weight:600;margin-top:3px">收入</div>
+        </div>
+        <div style="background:#fadbd8;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #f1948a">
+          <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:#922b21" id="fn-expense">RM 0</div>
+          <div style="font-size:10px;color:#922b21;font-weight:600;margin-top:3px">支出</div>
+        </div>
+        <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #5dade2">
+          <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="fn-surplus">RM 0</div>
+          <div style="font-size:10px;color:#1a5276;font-weight:600;margin-top:3px">结余</div>
+        </div>
+      </div>
+      <div id="fn-cat-chart"></div>
+    </div>
+    <!-- 欠款摘要 -->
+    <div class="card">
+      <div class="card-title">🤝 欠款摘要</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #5dade2">
+          <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:#1a5276" id="fn-oweme-total">RM 0</div>
+          <div style="font-size:10px;color:#1a5276;font-weight:600;margin-top:3px">别人欠我</div>
+        </div>
+        <div style="background:#fef3cd;border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid #f0c040">
+          <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:#7d4e00" id="fn-iowe-total">RM 0</div>
+          <div style="font-size:10px;color:#7d4e00;font-weight:600;margin-top:3px">我欠别人</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 账户 ── -->
+  <div id="fpage-accounts" style="display:none">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">🏦 我的账户</div>
+        <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="openFnAccModal()">＋ 添加</button>
+      </div>
+      <div id="fn-acc-list"><div class="empty">还没有账户</div></div>
+    </div>
+  </div>
+
+  <!-- ── 收支 ── -->
+  <div id="fpage-txns" style="display:none">
+
+    <!-- 生意收入（自动从库存系统） -->
+    <div class="card" style="border:1.5px solid #52be80">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div class="card-title" style="margin-bottom:2px">🏪 生意收入（自动）</div>
+          <div style="font-size:11px;color:var(--text3)">直接从门市和订单系统拉取，无需手动输入</div>
+        </div>
+        <input type="month" id="fn-biz-month" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnBizIncome()">
+      </div>
+      <div id="fn-biz-income-body"></div>
+    </div>
+
+    <!-- 其他收支（手动） -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div class="card-title" style="margin-bottom:2px">📋 其他收支（手动）</div>
+          <div style="font-size:11px;color:var(--text3)">个人开销、非生意收入等</div>
+        </div>
+        <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="openFnTxnModal()">＋ 添加</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <input type="month" id="fn-txn-month" style="flex:1;padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnTxns()">
+        <select id="fn-txn-type" style="padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnTxns()">
+          <option value="">全部</option><option value="income">收入</option><option value="expense">支出</option>
+        </select>
+      </div>
+      <div id="fn-txn-list"><div class="empty">暂无记录</div></div>
+    </div>
+  </div>
+
+  <!-- ── 欠款 ── -->
+  <div id="fpage-debts" style="display:none">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📥 别人欠我</div>
+        <button class="btn" style="background:#1a5276;color:#fff;border-color:#1a5276" onclick="openFnDebtModal('owe_me')">＋ 添加</button>
+      </div>
+      <div id="fn-debt-oweme"><div class="empty">没有人欠你钱 👍</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📤 我欠别人</div>
+        <button class="btn" style="background:#7d4e00;color:#fff;border-color:#7d4e00" onclick="openFnDebtModal('i_owe')">＋ 添加</button>
+      </div>
+      <div id="fn-debt-iowe"><div class="empty">你没有欠任何人 👍</div></div>
+    </div>
+    <div class="card" style="background:var(--surface2)">
+      <div class="card-title">✅ 已结清</div>
+      <div id="fn-debt-settled"><div class="empty">暂无</div></div>
+    </div>
+  </div>
+
+  <!-- ── 月度报表 ── -->
+  <div id="fpage-report" style="display:none">
+    <div class="card hq-only" id="cost-editor-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📄 月度财务报表</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="month" id="fn-report-month" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFnReport()">
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--text);color:#fff;border-color:var(--text)" onclick="exportFnReport()">📥 导出</button>
+        </div>
+      </div>
+      <div id="fn-report-body"><div class="empty">请选择月份</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FN ACCOUNT MODAL -->
+<div class="modal-overlay" id="fn-acc-modal">
+  <div class="modal" onwheel="event.stopPropagation()">
+    <h3 id="fn-acc-modal-title">添加账户</h3>
+    <div class="form-row"><label>账户名</label><input type="text" id="fn-acc-name" placeholder="例：Maybank, TNG, Cash"></div>
+    <div class="form-row"><label>类型</label>
+      <select id="fn-acc-type">
+        <option value="bank">🏦 银行账户</option>
+        <option value="cash">💵 现金</option>
+        <option value="ewallet">📱 电子钱包 (TNG/GrabPay)</option>
+        <option value="stock">📈 股票/投资</option>
+        <option value="crypto">🪙 加密货币</option>
+        <option value="other">📂 其他</option>
+      </select>
+    </div>
+    <div class="form-row"><label>余额 (RM)</label><input type="number" id="fn-acc-balance" step="0.01" placeholder="0.00"></div>
+    <div class="form-row"><label>备注</label><input type="text" id="fn-acc-note" placeholder="可选"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeFnAccModal()">取消</button>
+      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveFnAcc()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- FN TXN MODAL -->
+<div class="modal-overlay" id="fn-txn-modal">
+  <div class="modal" onwheel="event.stopPropagation()">
+    <h3 id="fn-txn-modal-title">添加收支</h3>
+    <div class="form-row"><label>类型</label>
+      <div style="display:flex;gap:6px;flex:1">
+        <button id="fn-btn-income" onclick="setFnTxnType('income')" style="flex:1;padding:7px;font-size:12px;font-weight:600;border-radius:8px;border:2px solid #52be80;background:#d8f3dc;color:#2d6a4f;cursor:pointer">收入</button>
+        <button id="fn-btn-expense" onclick="setFnTxnType('expense')" style="flex:1;padding:7px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text3);cursor:pointer">支出</button>
+      </div>
+    </div>
+    <div class="form-row"><label>金额 (RM)</label><input type="number" id="fn-txn-amount" step="0.01" placeholder="0.00"></div>
+    <div class="form-row"><label>分类</label>
+      <select id="fn-txn-cat">
+        <option value="">-- 选择 --</option>
+        <optgroup label="💰 收入">
+          <option>工资</option><option>生意收入</option><option>投资回报</option><option>其他收入</option>
+        </optgroup>
+        <optgroup label="🍜 生活">
+          <option>饮食</option><option>交通/油费</option><option>购物</option><option>娱乐</option><option>医疗</option>
+        </optgroup>
+        <optgroup label="🏠 固定支出">
+          <option>租金</option><option>水电</option><option>网络/电话</option><option>保险</option>
+        </optgroup>
+        <optgroup label="🏪 生意">
+          <option>进货</option><option>员工薪资</option><option>生意杂费</option>
+        </optgroup>
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="form-row"><label>账户</label>
+      <select id="fn-txn-acc"><option value="">-- 不指定 --</option></select>
+    </div>
+    <div class="form-row"><label>日期</label><input type="date" id="fn-txn-date"></div>
+    <div class="form-row"><label>备注</label><input type="text" id="fn-txn-note" placeholder="可选"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeFnTxnModal()">取消</button>
+      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveFnTxn()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- FN DEBT MODAL -->
+<div class="modal-overlay" id="fn-debt-modal">
+  <div class="modal" onwheel="event.stopPropagation()">
+    <h3 id="fn-debt-modal-title">添加欠款</h3>
+    <div class="form-row"><label>姓名</label><input type="text" id="fn-debt-person" placeholder="对方姓名"></div>
+    <div class="form-row"><label>金额 (RM)</label><input type="number" id="fn-debt-amount" step="0.01" placeholder="0.00"></div>
+    <div class="form-row"><label>备注</label><input type="text" id="fn-debt-note" placeholder="例：借买手机、欠饭钱"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeFnDebtModal()">取消</button>
+      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveFnDebt()">保存</button>
+    </div>
+  </div>
+</div>
 
     </div><!-- end pages -->
   </div><!-- end app-body -->
@@ -6570,6 +6805,7 @@ function applyRolePermissions(role) {
   });
 
   if(role === 'branch') {
+    document.body.classList.remove('hq-mode');
     // 分店: 门市收银、库存管理、订单（只看，不能新增）
     ['navbtn-instore','navbtn-stock','navbtn-orders'].forEach(id => {
       const el = document.getElementById(id);
@@ -6604,6 +6840,7 @@ function applyRolePermissions(role) {
     // 总部显示套餐按钮
     const bundleBtn = document.getElementById('btn-bundle');
     if(bundleBtn) bundleBtn.style.display = '';
+    document.body.classList.add('hq-mode');
     _profitUnlocked = true;
     // Start on HQ dashboard
     setTimeout(() => {
@@ -6782,6 +7019,7 @@ function doLogout() {
   if(!confirm('确认登出？')) return;
   _currentRole = null;
   _branchRole = false;
+  document.body.classList.remove('hq-mode');
   // Reset UI
   const logo = document.querySelector('.topbar-logo');
   if(logo) logo.innerHTML = '🛒 杂货店 POS';
