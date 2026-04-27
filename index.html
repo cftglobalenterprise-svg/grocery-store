@@ -2535,45 +2535,59 @@ function editInstorePrice(itemId) {
   const entry = instoreCart.find(c => c.item.id === itemId);
   if(!entry) return;
   const curPrice = entry.unitPrice !== undefined ? entry.unitPrice : +(entry.item.price||0);
-  // Show inline price edit modal
-  let modal = document.getElementById('price-edit-modal');
-  if(!modal) {
-    modal = document.createElement('div');
-    modal.id = 'price-edit-modal';
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px';
-    modal.innerHTML = `
-      <div style="background:var(--surface);border-radius:var(--radius);padding:22px;width:100%;max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
-        <div style="font-size:13px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">修改单价</div>
-        <div id="price-edit-name" style="font-size:15px;font-weight:700;margin-bottom:14px;color:var(--text)"></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
-          <span style="font-size:15px;font-weight:700;color:var(--text2)">RM</span>
-          <input id="price-edit-input" type="number" step="0.01" min="0"
-            style="flex:1;padding:10px 12px;font-size:20px;font-weight:700;border:2px solid var(--text);border-radius:var(--radius-xs);background:var(--surface);font-family:'DM Mono',monospace;text-align:right;outline:none">
-        </div>
-        <div style="display:flex;gap:8px">
-          <button onclick="document.getElementById('price-edit-modal').remove()"
-            style="flex:1;padding:10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface2);font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">取消</button>
-          <button id="price-edit-confirm"
-            style="flex:2;padding:10px;border:none;border-radius:var(--radius-xs);background:var(--text);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">✓ 确认</button>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-  }
-  document.getElementById('price-edit-name').textContent = entry.item.name;
+  // Always recreate to avoid stale refs
+  const old = document.getElementById('price-edit-modal');
+  if(old) old.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'price-edit-modal';
+  // Fully isolated overlay — not affected by .modal-overlay CSS
+  modal.style.cssText = [
+    'position:fixed','inset:0','z-index:9999',
+    'display:flex','align-items:center','justify-content:center',
+    'padding:24px','background:rgba(0,0,0,0.5)',
+    'font-family:DM Sans,sans-serif'
+  ].join(';');
+
+  const box = document.createElement('div');
+  box.style.cssText = [
+    'background:#fff','border-radius:14px','padding:24px',
+    'width:100%','max-width:320px',
+    'box-shadow:0 12px 40px rgba(0,0,0,0.22)',
+    'display:flex','flex-direction:column','gap:0'
+  ].join(';');
+
+  box.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">修改单价</div>
+    <div style="font-size:15px;font-weight:700;color:#1a1814;margin-bottom:18px;line-height:1.3">${entry.item.name}</div>
+    <div style="display:flex;align-items:center;gap:10px;background:#f5f2ee;border-radius:10px;padding:4px 14px;margin-bottom:20px">
+      <span style="font-size:16px;font-weight:700;color:#6b6560">RM</span>
+      <input id="price-edit-input" type="number" step="0.01" min="0" inputmode="decimal"
+        style="flex:1;border:none;background:transparent;font-size:26px;font-weight:700;font-family:'DM Mono',monospace;color:#1a1814;text-align:right;outline:none;padding:10px 0;width:0">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="price-edit-cancel" style="flex:1;padding:11px;border:1px solid #ddd8d0;border-radius:10px;background:#f5f2ee;font-size:14px;font-weight:600;cursor:pointer;color:#6b6560;font-family:'DM Sans',sans-serif">取消</button>
+      <button id="price-edit-confirm" style="flex:2;padding:11px;border:none;border-radius:10px;background:#1a1814;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">✓ 确认</button>
+    </div>`;
+
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
   const inp = document.getElementById('price-edit-input');
   inp.value = curPrice.toFixed(2);
-  setTimeout(() => { inp.focus(); inp.select(); }, 80);
+  setTimeout(() => { inp.focus(); inp.select(); }, 60);
 
-  const confirm = () => {
+  const doConfirm = () => {
     const parsed = parseFloat(inp.value);
-    if(isNaN(parsed) || parsed < 0) { inp.style.borderColor='var(--red)'; inp.focus(); return; }
+    if(isNaN(parsed) || parsed < 0) { inp.style.background='#fad8d6'; inp.focus(); return; }
     entry.unitPrice = parsed;
     modal.remove();
     renderInstoreCart();
     updatePosCartUI();
   };
-  document.getElementById('price-edit-confirm').onclick = confirm;
-  inp.onkeydown = e => { if(e.key==='Enter') confirm(); if(e.key==='Escape') modal.remove(); };
+  document.getElementById('price-edit-confirm').onclick = doConfirm;
+  document.getElementById('price-edit-cancel').onclick = () => modal.remove();
+  inp.onkeydown = e => { if(e.key==='Enter') doConfirm(); if(e.key==='Escape') modal.remove(); };
   modal.onclick = e => { if(e.target===modal) modal.remove(); };
 }
 
@@ -7498,15 +7512,15 @@ function updateNotifyPreview() {
   const customTime = document.getElementById('notify-custom-time')?.value;
   const customReason = document.getElementById('notify-custom-reason')?.value.trim();
   const reason = customReason || _notifyReason;
-  const timeStr = duration === 'custom' ? (customTime || '待定') : duration;
-  const preview = `🏪 杂货店营业通知
-
-您好！我们目前暂时${reason}，预计 ${timeStr} 后恢复营业。
-
-给您带来不便，非常抱歉！🙏
-如有紧急需要，欢迎WhatsApp联系。
-
-谢谢您的耐心等待！`;
+  const timeStr = duration === 'custom' ? (customTime || 'sebentar lagi') : duration;
+  let preview;
+  if(reason === '休息') {
+    preview = 'Assalamualaikum & Salam sejahtera 🙏\n\nKedai kami *TUTUP SEBENTAR* untuk rehat.\nDijangka buka semula dalam masa *' + timeStr + '* lagi.\n\nMinta maaf atas kesulitan yang ditimbulkan ya 😊\nKalau ada keperluan, boleh WhatsApp kami terus.\n\nTerima kasih kerana sabar menunggu! 🛒';
+  } else if(reason === '出货') {
+    preview = 'Assalamualaikum 🙏\n\nKedai kami *TUTUP SEBENTAR* — tuan kedai keluar ambil stok barang baru.\nDijangka balik dan buka semula dalam masa *' + timeStr + '* lagi.\n\nNanti ada barang baru tau! 😄\nMinta maaf atas kesulitan ya.\n\nKalau ada pertanyaan, boleh tinggalkan mesej! 📦';
+  } else {
+    preview = 'Assalamualaikum 🙏\n\nKedai kami *TUTUP SEBENTAR* — ' + (reason || 'ada urusan mendadak') + '.\nDijangka buka semula dalam masa *' + timeStr + '* lagi.\n\nMinta maaf atas kesulitan yang ditimbulkan 😊\nBoleh WhatsApp kami kalau ada keperluan urgent.\n\nTerima kasih kerana faham! 🙏';
+  }
   const el = document.getElementById('notify-preview');
   if(el) el.textContent = preview;
   return preview;
