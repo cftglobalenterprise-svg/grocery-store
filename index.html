@@ -6360,6 +6360,22 @@ function posSwitchTab(t) {
   const page = document.getElementById('page-' + t);
   if(page) page.classList.add('active');
   if(t === 'instore') { renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard(); }
+  else if(t === 'stock') {
+    setTimeout(() => {
+      if(typeof renderBulkPriceList === 'function') renderBulkPriceList();
+      if(typeof renderCostEditor === 'function') renderCostEditor();
+      const catEl = document.getElementById('cost-cat-filter');
+      if(catEl && catEl.options.length <= 1) {
+        const cats = [...new Set(items.map(i=>i.category).filter(Boolean))].sort();
+        catEl.innerHTML = '<option value="">全部类别</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+      }
+      const bpCat = document.getElementById('bulk-price-cat');
+      if(bpCat && bpCat.options.length <= 1) {
+        const cats = [...new Set(items.map(i=>i.category).filter(Boolean))].sort();
+        bpCat.innerHTML = '<option value="">全部类别</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+      }
+    }, 100);
+  }
   else if(t === 'orders') {
     loadOrders();
     const newOrderCard = document.querySelector('#page-orders .orders-right .card:first-child');
@@ -6750,6 +6766,15 @@ function renderHqDashboard() {
           <div style="font-size:11px;color:var(--text3)">家里 ${i.home_qty} · 店里 ${i.shop_qty}</div>
         </div>`).join('') + '</div>';
   }
+
+  // Also render profit summary
+  if(typeof renderHqProfit === 'function') renderHqProfit(allSales);
+  const picker = document.getElementById('hq-pnl-month');
+  if(picker && !picker.value) {
+    const _n = new Date();
+    picker.value = _n.getFullYear()+'-'+String(_n.getMonth()+1).padStart(2,'0');
+    if(typeof renderHqPnL === 'function') renderHqPnL();
+  }
 }
 
 // ── LOGOUT ───────────────────────────────────────────
@@ -6923,34 +6948,7 @@ function renderHqPnL() {
   el.textContent = `RM ${rev.toFixed(2)}`;
 }
 
-// Hook into renderHqDashboard to also render profit
-const _origRenderHqDashboard = renderHqDashboard;
-function renderHqDashboard() {
-  _origRenderHqDashboard();
-  // After rendering, also compute profit from same allSales
-  const period = document.getElementById('hq-period')?.value||'month';
-  const now = new Date();
-  let startDate;
-  switch(period) {
-    case 'today': startDate = new Date(now.getFullYear(),now.getMonth(),now.getDate()); break;
-    case 'week': startDate = new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()); break;
-    case 'month': startDate = new Date(now.getFullYear(),now.getMonth(),1); break;
-    default: startDate = new Date(0);
-  }
-  const allSales = orders.filter(o => {
-    const d = new Date(o.created_at);
-    return (o.status==='instore'||(o.status!=='pending'&&(o.payment_status==='paid_qr'||o.payment_status==='paid_cash')))
-      && d>=startDate && d<=now;
-  });
-  renderHqProfit(allSales);
-
-  // Set default month for PnL
-  const picker = document.getElementById('hq-pnl-month');
-  if(picker && !picker.value) {
-    picker.value = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-    renderHqPnL();
-  }
-}
+// renderHqDashboard profit hook removed - merged into main function
 
 // Patch posSwitchTab stock to render bulk price list
 const _origPosSwitchTabForStock = posSwitchTab;
