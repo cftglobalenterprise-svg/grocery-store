@@ -6367,7 +6367,14 @@ function handleBarcodeInput(barcode) {
   const exact = items.find(i => i.barcode && i.barcode.trim() === barcode);
   const input = document.getElementById('pos-search-input');
   if (exact) {
-    if (exact.shop_qty === 0) {
+    // Calculate effective stock (handle bundles same as posAddItem)
+    let effectiveStock = exact.shop_qty;
+    if(exact.bundle_components && exact.bundle_components.battery_id && exact.bundle_components.cartridge_id) {
+      const bat = items.find(i => i.id === exact.bundle_components.battery_id);
+      const car = items.find(i => i.id === exact.bundle_components.cartridge_id);
+      effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
+    }
+    if (effectiveStock === 0) {
       showPosToast('⚠️ ' + exact.name + ' 已售完');
       if(input) input.value = '';
       return;
