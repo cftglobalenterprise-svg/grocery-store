@@ -7515,11 +7515,11 @@ function updateNotifyPreview() {
   const timeStr = duration === 'custom' ? (customTime || 'sebentar lagi') : duration;
   let preview;
   if(reason === '休息') {
-    preview = 'Assalamualaikum & Salam sejahtera 🙏\n\nKedai kami *TUTUP SEBENTAR* untuk rehat.\nDijangka buka semula dalam masa *' + timeStr + '* lagi.\n\nMinta maaf atas kesulitan yang ditimbulkan ya 😊\nKalau ada keperluan, boleh WhatsApp kami terus.\n\nTerima kasih kerana sabar menunggu! 🛒';
+    preview = 'Salam sejahtera! 😊\n\nKedai kami *TUTUP SEBENTAR* untuk rehat.\nDijangka buka semula dalam masa *' + timeStr + '* lagi.\n\nMinta maaf atas kesulitan yang ditimbulkan ya 😊\nKalau ada keperluan, boleh WhatsApp kami terus.\n\nTerima kasih kerana sabar menunggu! 🛒';
   } else if(reason === '出货') {
-    preview = 'Assalamualaikum 🙏\n\nKedai kami *TUTUP SEBENTAR* — tuan kedai keluar ambil stok barang baru.\nDijangka balik dan buka semula dalam masa *' + timeStr + '* lagi.\n\nNanti ada barang baru tau! 😄\nMinta maaf atas kesulitan ya.\n\nKalau ada pertanyaan, boleh tinggalkan mesej! 📦';
+    preview = 'Hai member member Kedai 19! 👋\n\nKedai kami *TUTUP SEBENTAR* — tuan kedai keluar ambil stok barang baru.\nDijangka balik dan buka semula dalam masa *' + timeStr + '* lagi.\n\nNanti ada barang baru tau! 😄\nMinta maaf atas kesulitan ya.\n\nKalau ada pertanyaan, boleh tinggalkan mesej! 📦';
   } else {
-    preview = 'Assalamualaikum 🙏\n\nKedai kami *TUTUP SEBENTAR* — ' + (reason || 'ada urusan mendadak') + '.\nDijangka buka semula dalam masa *' + timeStr + '* lagi.\n\nMinta maaf atas kesulitan yang ditimbulkan 😊\nBoleh WhatsApp kami kalau ada keperluan urgent.\n\nTerima kasih kerana faham! 🙏';
+    preview = 'Hai member member Kedai 19! 👋\n\nKedai kami *TUTUP SEBENTAR* — ' + (reason || 'ada urusan mendadak') + '.\nDijangka buka semula dalam masa *' + timeStr + '* lagi.\n\nMinta maaf atas kesulitan yang ditimbulkan 😊\nBoleh WhatsApp kami kalau ada keperluan urgent.\n\nTerima kasih kerana faham! 🙏';
   }
   const el = document.getElementById('notify-preview');
   if(el) el.textContent = preview;
