@@ -6950,22 +6950,7 @@ function renderHqPnL() {
 
 // renderHqDashboard profit hook removed - merged into main function
 
-// Patch posSwitchTab stock to render bulk price list
-const _origPosSwitchTabForStock = posSwitchTab;
-function posSwitchTab(t) {
-  _origPosSwitchTabForStock(t);
-  if(t==='stock') {
-    setTimeout(() => {
-      renderBulkPriceList();
-      // Also populate cost cat filter
-      const catEl = document.getElementById('cost-cat-filter');
-      if(catEl && catEl.options.length <= 1) {
-        const cats = [...new Set(items.map(i=>i.category).filter(Boolean))].sort();
-        catEl.innerHTML = '<option value="">全部类别</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
-      }
-    }, 100);
-  }
-}
+
 
 // ── Universal scroll fix ─────────────────────────────
 // Force .page.active to scroll when wheel fires anywhere inside it,
