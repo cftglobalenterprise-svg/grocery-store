@@ -1603,7 +1603,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <!-- Step 1: Type -->
       <div style="margin-bottom:16px">
         <div class="notify-section-label">📋 类型</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:6px">
           <button class="notify-reason-btn active" onclick="setNotifyReason('休息',this)">
             <div style="font-size:20px;margin-bottom:3px">☕</div>
             <div>休息</div>
@@ -1616,11 +1616,44 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <div style="font-size:20px;margin-bottom:3px">📝</div>
             <div>其他</div>
           </button>
+          <button class="notify-reason-btn" onclick="setNotifyReason('节日',this)" style="border-color:#f0c040;color:#7a4800">
+            <div style="font-size:20px;margin-bottom:3px">🎉</div>
+            <div style="font-size:11px">节日祝贺</div>
+          </button>
+          <button class="notify-reason-btn" onclick="setNotifyReason('促销',this)" style="border-color:#7bb3d8;color:#1a4d7a">
+            <div style="font-size:20px;margin-bottom:3px">🏷️</div>
+            <div style="font-size:11px">优惠促销</div>
+          </button>
         </div>
       </div>
 
+      <!-- Promo inputs -->
+      <div id="notify-promo-row" style="display:none;margin-bottom:16px">
+        <div class="notify-section-label">🏷️ 填写优惠详情</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <span style="font-size:12px;color:var(--text2);min-width:64px;padding-top:9px">优惠内容</span>
+            <textarea id="promo-detail" rows="2" placeholder="例：RELX Pod beli 2 percuma 1 / Semua vape harga khas minggu ini" style="flex:1;padding:8px 11px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);resize:none;outline:none" oninput="updateNotifyPreview()"></textarea>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:12px;color:var(--text2);min-width:64px">有效期至</span>
+            <input type="date" id="promo-until" style="flex:1;padding:8px 11px;font-size:13px" oninput="updateNotifyPreview()">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:12px;color:var(--text2);min-width:64px">额外备注</span>
+            <input type="text" id="promo-note" placeholder="例：Stok terhad! / Jangan lepaskan peluang ini（可留空）" style="flex:1;padding:8px 11px;font-size:13px" oninput="updateNotifyPreview()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Festival picker -->
+      <div id="notify-festival-row" style="display:none;margin-bottom:16px">
+        <div class="notify-section-label">🌙 选择节日</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="notify-festival-grid"></div>
+      </div>
+
       <!-- Step 2: Details -->
-      <div style="margin-bottom:16px">
+      <div id="notify-step2" style="margin-bottom:16px">
         <div class="notify-section-label">⏱️ 详情</div>
         <div style="display:flex;flex-direction:column;gap:8px">
           <div style="display:flex;align-items:center;gap:10px">
@@ -7406,6 +7439,143 @@ function renderHqPnL() {
 // ── CUSTOMERS & NOTIFY ──────────────────────────────────
 let customers = [];
 let _notifyReason = '休息';
+let _notifyFestival = null;
+
+const MALAY_FESTIVALS = [
+  { key: 'raya', emoji: '🌙', name: 'Hari Raya Aidilfitri',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Hari Raya Aidilfitri* 🌙✨
+Maaf zahir dan batin dari kami sekeluarga 🙏
+
+Semoga Aidilfitri kali ini membawa kebahagiaan, keberkatan dan keampunan untuk kita semua.
+
+Kedai 19 turut menyambut kegembiraan ini bersama korang! 🛒❤️
+
+Salam Lebaran! 🎊` },
+
+  { key: 'raya_haji', emoji: '🐑', name: 'Hari Raya Aidiladha',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Hari Raya Aidiladha* 🐑✨
+Semoga ibadah korban kita semua diterima Allah SWT 🙏
+
+Hari yang mulia ini semoga membawa keikhlasan, pengorbanan dan keberkatan dalam hidup kita.
+
+Salam dari kami di Kedai 19 ❤️
+
+*Allahu Akbar!* 🕌` },
+
+  { key: 'maulidur', emoji: '🕌', name: 'Maulidur Rasul',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Menyambut Maulidur Rasul* 🕌✨
+
+Sempena memperingati hari kelahiran junjungan besar kita, Nabi Muhammad SAW, marilah kita perkukuhkan kasih sayang dan amalan kita.
+
+Semoga kita semua sentiasa berada dalam rahmat dan lindungan-Nya 🙏
+
+Salam dari Kedai 19 ❤️` },
+
+  { key: 'nuzul', emoji: '📖', name: "Nuzul Al-Quran",
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Menyambut Nuzul Al-Quran* 📖✨
+
+Sempena peristiwa agung turunnya Al-Quran, marilah kita tingkatkan bacaan dan penghayatan kita terhadap kitab suci ini 🙏
+
+Semoga kita semua mendapat keberkatan di bulan Ramadan yang mulia ini.
+
+Salam dari Kedai 19 ❤️` },
+
+  { key: 'ramadan', emoji: '🌛', name: 'Awal Ramadan',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Menyambut Ramadan Al-Mubarak* 🌛✨
+
+Semoga Ramadan tahun ini membawa lebih banyak keberkatan, keampunan dan rahmat untuk kita semua 🙏
+
+Marilah kita sama-sama manfaatkan bulan yang mulia ini sebaik mungkin.
+
+Salam dari Kedai 19 — selamat berpuasa! 🤲` },
+
+  { key: 'malaysia', emoji: '🇲🇾', name: 'Hari Malaysia / Merdeka',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Hari Malaysia!* 🇲🇾✨
+
+66 tahun merdeka, kita terus bangga menjadi rakyat Malaysia yang berbilang bangsa dan budaya 💪
+
+Terima kasih kerana terus menyokong perniagaan tempatan kami!
+
+*Malaysia Boleh!* 🎉` },
+
+  { key: 'kebangsaan', emoji: '🎆', name: 'Hari Kebangsaan (31 Ogos)',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Hari Kebangsaan!* 🎆🇲🇾
+
+Detik kemerdekaan ini mengingatkan kita betapa berharganya perpaduan dan semangat kerjasama kita bersama.
+
+Terima kasih kerana terus setia bersama Kedai 19! ❤️
+
+*Merdeka! Merdeka! Merdeka!* 🎊` },
+
+  { key: 'thaipusam', emoji: '🪔', name: 'Thaipusam',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Thaipusam* 🪔✨
+
+Semoga perayaan suci ini membawa kedamaian, kebahagiaan dan keberkatan kepada semua yang menyambutnya 🙏
+
+Kita bersama dalam kepelbagaian — itulah keindahan Malaysia kita ❤️
+
+Salam dari Kedai 19 🛒` },
+
+  { key: 'wesak', emoji: '☸️', name: 'Hari Wesak',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Hari Wesak* ☸️✨
+
+Semoga perayaan yang penuh makna ini membawa ketenangan, kebahagiaan dan kasih sayang kepada semua yang menyambutnya 🙏
+
+Bersama dalam kepelbagaian — itulah semangat Malaysia kita ❤️
+
+Salam dari Kedai 19 🛒` },
+
+  { key: 'gawai', emoji: '🌾', name: 'Gawai Dayak',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Hari Gawai!* 🌾✨
+
+Gayu Guru Gerai Nyamai — semoga panjang umur, murah rezeki, sihat sejahtera dan damai selalu 🙏
+
+Kepada semua yang menyambut, selamat beraya bersama keluarga tersayang!
+
+Salam dari Kedai 19 ❤️` },
+
+  { key: 'kaamatan', emoji: '🌽', name: 'Pesta Kaamatan',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Pesta Kaamatan!* 🌽✨
+
+Tadau Tagazo Do Kaamatan — semoga pesta menuai ini membawa kesyukuran dan kegembiraan kepada semua 🙏
+
+Kepada semua yang menyambut di Sabah, selamat berhari raya!
+
+Salam dari Kedai 19 ❤️` },
+
+  { key: 'tahun_baru', emoji: '🎆', name: 'Tahun Baru',
+    msg: `Hai member member Kedai 19! 👋
+
+*Selamat Tahun Baru!* 🎆✨
+
+Semoga tahun yang baru ini membawa lebih banyak kebahagiaan, kesihatan, rezeki yang berlimpah dan impian yang tercapai untuk kita semua 🌟
+
+Terima kasih kerana terus menyokong Kedai 19 sepanjang tahun ini!
+
+Salam sayang dari kami ❤️ — nantikan barang baru tahun ini! 🛒` },
+];
 let _notifySelected = new Set();
 let _editingCustomerId = null;
 
@@ -7502,12 +7672,112 @@ async function deleteCustomer(id) {
 // ── NOTIFY ───────────────────────────────────────────────
 function setNotifyReason(reason, btn) {
   _notifyReason = reason;
+  _notifyFestival = null;
   document.querySelectorAll('.notify-reason-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+
+  // Show/hide festival picker + step 2 details
+  const festRow = document.getElementById('notify-festival-row');
+  const detailRow = document.querySelector('#notify-modal .notify-section-label');
+  const step2 = document.getElementById('notify-step2');
+
+  const promoRow = document.getElementById('notify-promo-row');
+
+  if(reason === '节日') {
+    if(festRow) {
+      festRow.style.display = 'block';
+      const grid = document.getElementById('notify-festival-grid');
+      if(grid && !grid.children.length) {
+        grid.innerHTML = MALAY_FESTIVALS.map(f => `
+          <button onclick="selectFestival('${f.key}',this)"
+            style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--radius-xs);background:var(--surface2);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:var(--text2);transition:all .15s;text-align:left"
+            id="fest-btn-${f.key}">
+            <span style="font-size:18px">${f.emoji}</span>
+            <span style="line-height:1.3">${f.name}</span>
+          </button>`).join('');
+      }
+    }
+    if(promoRow) promoRow.style.display = 'none';
+    if(step2) step2.style.display = 'none';
+  } else if(reason === '促销') {
+    if(festRow) festRow.style.display = 'none';
+    if(promoRow) promoRow.style.display = 'block';
+    if(step2) step2.style.display = 'none';
+    // Set default date to 7 days from now
+    const until = document.getElementById('promo-until');
+    if(until && !until.value) {
+      const d = new Date(); d.setDate(d.getDate()+7);
+      until.value = d.toISOString().slice(0,10);
+    }
+  } else {
+    if(festRow) festRow.style.display = 'none';
+    if(promoRow) promoRow.style.display = 'none';
+    if(step2) step2.style.display = 'block';
+  }
+  updateNotifyPreview();
+}
+
+function selectFestival(key, btn) {
+  _notifyFestival = key;
+  document.querySelectorAll('#notify-festival-grid button').forEach(b => {
+    b.style.background = 'var(--surface2)';
+    b.style.borderColor = 'var(--border)';
+    b.style.color = 'var(--text2)';
+  });
+  btn.style.background = 'var(--amber-bg)';
+  btn.style.borderColor = 'var(--amber-border)';
+  btn.style.color = 'var(--amber)';
   updateNotifyPreview();
 }
 
 function updateNotifyPreview() {
+  // Promo mode
+  if(_notifyReason === '促销') {
+    const el = document.getElementById('notify-preview');
+    const detail = document.getElementById('promo-detail')?.value.trim();
+    const until = document.getElementById('promo-until')?.value;
+    const note = document.getElementById('promo-note')?.value.trim();
+    if(!detail) { if(el) el.textContent = '← 填写上方优惠内容预览讯息'; return ''; }
+    // Format date nicely
+    let dateStr = '';
+    if(until) {
+      const d = new Date(until + 'T00:00:00');
+      const days = ['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
+      const months = ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogos','Sep','Okt','Nov','Dis'];
+      dateStr = `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    }
+    const noteLine = note ? `
+
+${note}` : '';
+    const dateLine = dateStr ? `
+⏳ Tawaran sah sehingga: *${dateStr}*` : '';
+    const msg = `Hai member member Kedai 19! 👋
+
+🏷️ *TAWARAN ISTIMEWA MINGGU INI!*
+
+${detail}${dateLine}
+
+Jangan lepaskan peluang ni tau! Stok terhad 🔥${noteLine}
+
+Singgah la ke kedai kami — kami tunggu! 🛒`;
+    if(el) el.textContent = msg;
+    return msg;
+  }
+
+  // Festival mode
+  if(_notifyReason === '节日') {
+    const el = document.getElementById('notify-preview');
+    if(!_notifyFestival) {
+      if(el) el.textContent = '← 请先选择上方节日';
+      return '';
+    }
+    const fest = MALAY_FESTIVALS.find(f => f.key === _notifyFestival);
+    const msg = fest ? fest.msg : '';
+    if(el) el.textContent = msg;
+    return msg;
+  }
+
+  // Normal mode
   const duration = document.getElementById('notify-duration')?.value;
   const customTime = document.getElementById('notify-custom-time')?.value;
   const customReason = document.getElementById('notify-custom-reason')?.value.trim();
