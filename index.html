@@ -1124,7 +1124,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <div>
             <div style="font-size:20px;font-weight:700;color:var(--text)">💼 员工薪资管理</div>
-            <div style="font-size:12px;color:var(--text3);margin-top:3px">固定月薪 · OT计算 · 生成薪资单</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">月薪 · OT · EPF/SOCSO/EIS · 年假病假 · Bonus · 薪资单 PDF</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <input type="month" id="payroll-month" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderPayrollPage()">
@@ -1762,56 +1762,242 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 
 <!-- ══ PAYROLL MODALS ════════════════════════════════ -->
 <!-- Add/Edit Employee Modal -->
+<!-- ══ EMPLOYEE MODAL (full profile) ══════════════════════ -->
 <div class="modal-overlay" id="employee-modal">
-  <div class="modal" style="max-width:420px">
+  <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto">
     <h3 id="employee-modal-title">新增员工</h3>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:14px">员工基本资料与福利设定</div>
+
+    <!-- Basic info -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">👤 基本资料</div>
     <div class="form-row"><label>姓名</label><input type="text" id="emp-name" placeholder="员工姓名" style="flex:1"></div>
-    <div class="form-row"><label>月薪 (RM)</label><input type="number" id="emp-salary" placeholder="例：1800" step="0.01" style="flex:1"></div>
+    <div class="form-row"><label>IC / 员工号</label><input type="text" id="emp-ic" placeholder="例：900101-01-1234" style="flex:1"></div>
+    <div class="form-row"><label>职位</label><input type="text" id="emp-position" placeholder="例：Cashier、Manager" style="flex:1"></div>
+    <div class="form-row"><label>入职日期</label><input type="date" id="emp-joindate" style="flex:1"></div>
+    <div class="form-row"><label>月薪 (RM)</label><input type="number" id="emp-salary" placeholder="例：1800" step="0.01" style="flex:1" oninput="updateEmpRatesPreview()"></div>
+
+    <!-- Leave entitlement -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 8px">📅 年假 / 病假 (天/年)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">年假 (Annual)</div>
+        <input type="number" id="emp-annual-leave" min="0" max="30" value="8" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:14px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">病假 (MC)</div>
+        <input type="number" id="emp-mc-leave" min="0" max="60" value="14" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:14px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">紧急假 (Emergency)</div>
+        <input type="number" id="emp-emergency-leave" min="0" max="14" value="3" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:14px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text)">
+      </div>
+    </div>
+
+    <!-- Statutory contributions -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">🏦 法定扣款设定</div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:13px;font-weight:600">EPF (公积金)</div>
+          <div style="font-size:11px;color:var(--text3)">Employee 11% · Employer 13%</div>
+        </div>
+        <label class="toggle-switch"><input type="checkbox" id="emp-epf" checked onchange="updateEmpRatesPreview()"><span class="toggle-slider"></span></label>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:13px;font-weight:600">SOCSO (社会保险)</div>
+          <div style="font-size:11px;color:var(--text3)">Employee 0.5% · Employer 1.75%（上限 RM 4,000）</div>
+        </div>
+        <label class="toggle-switch"><input type="checkbox" id="emp-socso" checked onchange="updateEmpRatesPreview()"><span class="toggle-slider"></span></label>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:13px;font-weight:600">EIS (就业保险)</div>
+          <div style="font-size:11px;color:var(--text3)">Employee 0.2% · Employer 0.2%（上限 RM 4,000）</div>
+        </div>
+        <label class="toggle-switch"><input type="checkbox" id="emp-eis" checked onchange="updateEmpRatesPreview()"><span class="toggle-slider"></span></label>
+      </div>
+    </div>
+
+    <!-- Rates preview -->
+    <div id="emp-rates-preview" style="background:var(--green-bg);border:1px solid var(--green-border);border-radius:var(--radius-xs);padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--green);display:none"></div>
+
     <div class="modal-footer">
       <button class="btn" onclick="closeEmployeeModal()">取消</button>
-      <button class="btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="saveEmployee()">保存</button>
+      <button class="btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="saveEmployee()">保存员工</button>
     </div>
   </div>
 </div>
 
-<!-- Attendance Input Modal -->
+<!-- ══ ATTENDANCE + PAYROLL MODAL (full) ═══════════════════ -->
 <div class="modal-overlay" id="attendance-modal">
-  <div class="modal" style="max-width:460px">
-    <h3 id="att-modal-title">编辑出勤记录</h3>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:14px" id="att-modal-subtitle"></div>
+  <div class="modal" style="max-width:560px;max-height:92vh;overflow-y:auto">
+    <h3 id="att-modal-title">月度出勤 & 薪资</h3>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px" id="att-modal-subtitle"></div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+    <!-- SECTION: Attendance -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 出勤记录</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
       <div>
-        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">上班天数</div>
-        <input type="number" id="att-days" min="0" max="31" step="0.5" placeholder="例：26" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:16px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text)">
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">标准月份 26 天</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">上班天数 <span style="color:var(--text3)">(标准 26 天)</span></div>
+        <input type="number" id="att-days" min="0" max="31" step="0.5" placeholder="26" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:18px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text)" oninput="updateAttCalcPreview()">
       </div>
       <div>
-        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">请假天数</div>
-        <input type="number" id="att-leave" min="0" max="31" step="0.5" placeholder="例：2" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:16px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text)">
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">无薪假扣减</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">无薪假 (Unpaid Leave)</div>
+        <input type="number" id="att-leave" min="0" max="31" step="0.5" placeholder="0" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:18px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--amber)" oninput="updateAttCalcPreview()">
       </div>
     </div>
 
+    <!-- SECTION: Leave Used This Month -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📅 本月假期使用（追踪用）</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">年假 (AL) 天数</div>
+        <input type="number" id="att-al-used" min="0" step="1" placeholder="0" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:15px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text)" oninput="updateAttCalcPreview()">
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">病假 (MC) 天数</div>
+        <input type="number" id="att-mc-used" min="0" step="1" placeholder="0" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:15px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text)" oninput="updateAttCalcPreview()">
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">紧急假 (EL) 天数</div>
+        <input type="number" id="att-el-used" min="0" step="1" placeholder="0" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:15px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text)" oninput="updateAttCalcPreview()">
+      </div>
+    </div>
+
+    <!-- SECTION: OT Log -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">⏰ OT 记录</div>
     <div style="margin-bottom:14px">
-      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">OT 小时数</div>
-      <input type="number" id="att-ot" min="0" step="0.5" placeholder="例：4.5" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:16px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text)">
-      <div style="font-size:11px;color:var(--text3);margin-top:4px">计算公式：月薪 ÷ 26 ÷ 8 × 1.5</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <button class="btn" style="font-size:12px;padding:5px 10px;background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)" onclick="openOtEntryRow()">+ 新增 OT</button>
+      </div>
+      <div id="ot-add-row" style="display:none;background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:var(--radius-xs);padding:10px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:600;color:var(--blue);margin-bottom:8px">📝 新增 OT</div>
+        <div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px;margin-bottom:8px;align-items:end">
+          <div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px">日期</div>
+            <input type="date" id="ot-date" style="width:100%;padding:7px 9px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text)">
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px">开始时间</div>
+            <input type="time" id="ot-start" style="width:100%;padding:7px 9px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:13px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace" oninput="updateOtDuration()">
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px">结束时间</div>
+            <input type="time" id="ot-end" style="width:100%;padding:7px 9px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:13px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace" oninput="updateOtDuration()">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div id="ot-duration-preview" style="font-size:13px;font-weight:600;font-family:'DM Mono',monospace;color:var(--blue)"></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn" style="font-size:12px;padding:5px 10px" onclick="cancelOtEntry()">取消</button>
+            <button class="btn" style="font-size:12px;padding:5px 10px;background:var(--blue);color:#fff;border-color:var(--blue)" onclick="confirmOtEntry()">✓ 添加</button>
+          </div>
+        </div>
+      </div>
+      <div id="ot-entries-list"></div>
+      <div id="ot-total-row" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 12px;display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+        <span style="font-size:12px;color:var(--text2);font-weight:600">OT 合计</span>
+        <span style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)" id="ot-total-hours">0 小时</span>
+      </div>
     </div>
 
-    <!-- Live calculation preview -->
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px;margin-bottom:14px" id="att-calc-preview">
-      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">预估薪资</div>
-      <div id="att-calc-lines" style="font-size:13px;color:var(--text2)">请填写上方数据</div>
-      <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:13px;font-weight:600;color:var(--text)">实发薪资</span>
-        <span style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)" id="att-calc-total">RM 0.00</span>
+    <!-- SECTION: Allowances & Deductions -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">💰 津贴 & 扣款</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <div>
+        <div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:4px">+ 津贴 (Allowance)</div>
+        <input type="number" id="att-allowance" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--green-border);border-radius:var(--radius-xs);font-size:15px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--green)" oninput="updateAttCalcPreview()">
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">交通、餐饮等</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--red);font-weight:600;margin-bottom:4px">− 额外扣款 (Other Deduction)</div>
+        <input type="number" id="att-extra-deduct" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--red-border);border-radius:var(--radius-xs);font-size:15px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--red)" oninput="updateAttCalcPreview()">
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">损坏赔偿等</div>
+      </div>
+    </div>
+
+    <!-- SECTION: Bonus -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">🎁 Bonus / 奖金</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Bonus 金额 (RM)</div>
+        <input type="number" id="att-bonus" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--purple-bg);border-radius:var(--radius-xs);font-size:15px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--purple)" oninput="updateAttCalcPreview()">
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Bonus 备注</div>
+        <input type="text" id="att-bonus-note" placeholder="例：年终奖金、表现奖" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)">
+      </div>
+    </div>
+
+    <!-- SECTION: Performance Rating -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">⭐ 表现评分 (本月)</div>
+    <div style="margin-bottom:14px">
+      <div style="display:flex;gap:8px;margin-bottom:8px" id="perf-stars-row">
+        <span style="font-size:11px;color:var(--text2);align-self:center;min-width:40px">评分：</span>
+        <div id="perf-star-btns" style="display:flex;gap:4px">
+          <!-- Stars rendered by JS -->
+        </div>
+        <span id="perf-star-label" style="font-size:11px;color:var(--text3);align-self:center;margin-left:4px"></span>
+      </div>
+      <input type="text" id="att-perf-note" placeholder="表现备注（例：态度积极、迟到 2 次、需改善服务态度）" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)">
+    </div>
+
+    <!-- SECTION: Statutory toggle override for this month -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">🏦 本月法定扣款</div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px 12px;margin-bottom:14px">
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="att-epf-on" style="width:15px;height:15px;accent-color:var(--text)"> EPF</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="att-socso-on" style="width:15px;height:15px;accent-color:var(--text)"> SOCSO</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="att-eis-on" style="width:15px;height:15px;accent-color:var(--text)"> EIS</label>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">EPF 11% · SOCSO 0.5% · EIS 0.2%（从员工应付薪资中扣）</div>
+      <div id="att-statutory-breakdown" style="font-size:12px;color:var(--text2);margin-top:6px"></div>
+    </div>
+
+    <!-- Live calc preview -->
+    <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--radius-xs);padding:14px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">📊 薪资计算明细</div>
+      <div id="att-calc-lines" style="font-size:13px;color:var(--text2);margin-bottom:8px">请填写上方数据</div>
+      <div style="border-top:2px solid var(--border);padding-top:10px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:11px;color:var(--text3)">员工实发</div>
+          <div style="font-size:24px;font-weight:800;font-family:'DM Mono',monospace;color:var(--green)" id="att-calc-total">RM 0.00</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text3)">雇主总成本</div>
+          <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text2)" id="att-calc-employer-cost">RM 0.00</div>
+        </div>
       </div>
     </div>
 
     <div class="modal-footer">
       <button class="btn" onclick="closeAttendanceModal()">取消</button>
-      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveAttendance()">保存记录</button>
+      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveAttendance()">💾 保存记录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OT LOG DETAIL MODAL ═════════════════════════════════ -->
+<div class="modal-overlay" id="ot-log-modal">
+  <div class="modal" style="max-width:500px">
+    <h3 id="ot-log-modal-title">OT 记录明细</h3>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px" id="ot-log-modal-subtitle"></div>
+    <div id="ot-log-modal-list"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeOtLogModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PERFORMANCE HISTORY MODAL ══════════════════════════ -->
+<div class="modal-overlay" id="perf-history-modal">
+  <div class="modal" style="max-width:520px">
+    <h3 id="perf-history-title">员工表现记录</h3>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px" id="perf-history-subtitle"></div>
+    <div id="perf-history-list"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="document.getElementById('perf-history-modal').classList.remove('open');document.body.classList.remove('modal-open')">关闭</button>
     </div>
   </div>
 </div>
@@ -8037,157 +8223,230 @@ const _origPosSwitchForCustomers = posSwitchTab;
 })();
 
 // ══════════════════════════════════════════════════════════
-// PAYROLL MODULE
+// PAYROLL MODULE  v3 — Full Featured
+// EPF / SOCSO / EIS · Annual/MC/Emergency Leave · OT Log
+// Bonus · Allowance · Performance Rating · PDF Payslip
 // ══════════════════════════════════════════════════════════
 
-// ── Storage helpers ──────────────────────────────────────
-function prGetEmployees() {
-  try { return JSON.parse(localStorage.getItem('payroll_employees') || '[]'); } catch { return []; }
+// ── EPF / SOCSO / EIS tables ──────────────────────────────
+// EPF: employee 11%, employer 13%
+// SOCSO: capped at salary RM4000, employee 0.5%, employer 1.75%
+// EIS:  capped at salary RM4000, employee 0.2%, employer 0.2%
+function calcStatutory(grossSalary, useEpf, useSocso, useEis) {
+  const epfBase = grossSalary;
+  const socsoBase = Math.min(grossSalary, 4000);
+  const eisBase = Math.min(grossSalary, 4000);
+  const empEpf   = useEpf   ? Math.round(epfBase   * 0.11 * 100) / 100 : 0;
+  const erEpf    = useEpf   ? Math.round(epfBase   * 0.13 * 100) / 100 : 0;
+  const empSocso = useSocso ? Math.round(socsoBase * 0.005 * 100) / 100 : 0;
+  const erSocso  = useSocso ? Math.round(socsoBase * 0.0175 * 100) / 100 : 0;
+  const empEis   = useEis   ? Math.round(eisBase   * 0.002 * 100) / 100 : 0;
+  const erEis    = useEis   ? Math.round(eisBase   * 0.002 * 100) / 100 : 0;
+  return { empEpf, erEpf, empSocso, erSocso, empEis, erEis,
+    totalEmpDeduct: empEpf + empSocso + empEis,
+    totalErContrib: erEpf + erSocso + erEis };
 }
-function prSaveEmployees(arr) {
-  localStorage.setItem('payroll_employees', JSON.stringify(arr));
-}
-function prGetAttendance() {
-  try { return JSON.parse(localStorage.getItem('payroll_attendance') || '{}'); } catch { return {}; }
-}
-function prSaveAttendance(obj) {
-  localStorage.setItem('payroll_attendance', JSON.stringify(obj));
-}
-
-// att key: "empId_YYYY-MM"
-function prAttKey(empId, monthStr) { return empId + '_' + monthStr; }
 
 // ── Salary calculation ────────────────────────────────────
-// monthSalary: fixed
-// workDays: days actually worked (after leave deduction)
-// leaveDays: unpaid leave days
-// otHours: OT hours
-// hourlyRate = salary / 26 / 8
-// OT pay = hourlyRate * 1.5 * otHours
-// Basic pay = (salary / 26) * workDays   [if workDays < 26, deduct]
-// Net pay = basicPay + otPay
 function calcSalary(salary, workDays, leaveDays, otHours) {
   const dailyRate = salary / 26;
   const hourlyRate = dailyRate / 8;
   const otRate = hourlyRate * 1.5;
   const otPay = otRate * otHours;
-  // Basic: full month if workDays >= 26, else prorate
   const basicPay = dailyRate * workDays;
   const leaveDeduct = dailyRate * leaveDays;
   const netPay = basicPay - leaveDeduct + otPay;
   return { dailyRate, hourlyRate, otRate, otPay, basicPay, leaveDeduct, netPay };
 }
 
-// ── State for modals ──────────────────────────────────────
-let _prEditEmpId = null;   // null = new employee
-let _prAttEmpId = null;    // employee being edited in attendance modal
-let _prCurrentMonth = '';  // "YYYY-MM"
+// ── Storage helpers ───────────────────────────────────────
+function prGetEmployees() { try { return JSON.parse(localStorage.getItem('payroll_employees') || '[]'); } catch { return []; } }
+function prSaveEmployees(a) { localStorage.setItem('payroll_employees', JSON.stringify(a)); }
+function prGetAttendance() { try { return JSON.parse(localStorage.getItem('payroll_attendance') || '{}'); } catch { return {}; } }
+function prSaveAttendance(o) { localStorage.setItem('payroll_attendance', JSON.stringify(o)); }
+function prGetOtLogs() { try { return JSON.parse(localStorage.getItem('payroll_ot_logs') || '{}'); } catch { return {}; } }
+function prSaveOtLogs(o) { localStorage.setItem('payroll_ot_logs', JSON.stringify(o)); }
+function prAttKey(empId, monthStr) { return empId + '_' + monthStr; }
+function prCalcOtHours(logs) { return logs.reduce((s, e) => s + Number(e.hours), 0); }
 
-// ── Init current month ────────────────────────────────────
+// ── State ─────────────────────────────────────────────────
+let _prEditEmpId = null, _prAttEmpId = null, _prCurrentMonth = '', _prOtDraft = [], _prPerfRating = 0;
+
 function prInitMonth() {
   const el = document.getElementById('payroll-month');
   if (!el) return;
-  if (!el.value) {
-    const now = new Date();
-    el.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  }
+  if (!el.value) { const n = new Date(); el.value = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0'); }
   _prCurrentMonth = el.value;
 }
 
-// ── Render payroll page ───────────────────────────────────
+// ── Leave balance calculation ─────────────────────────────
+function prCalcLeaveBalance(emp, allAtt) {
+  // Sum all months' leave used
+  let alUsed = 0, mcUsed = 0, elUsed = 0;
+  Object.keys(allAtt).forEach(k => {
+    if (!k.startsWith(emp.id + '_')) return;
+    const a = allAtt[k];
+    alUsed += Number(a.alUsed || 0);
+    mcUsed += Number(a.mcUsed || 0);
+    elUsed += Number(a.elUsed || 0);
+  });
+  return {
+    alUsed, alTotal: Number(emp.annualLeave || 8), alLeft: Number(emp.annualLeave || 8) - alUsed,
+    mcUsed, mcTotal: Number(emp.mcLeave || 14), mcLeft: Number(emp.mcLeave || 14) - mcUsed,
+    elUsed, elTotal: Number(emp.emergencyLeave || 3), elLeft: Number(emp.emergencyLeave || 3) - elUsed,
+  };
+}
+
+// ── RENDER PAYROLL PAGE ───────────────────────────────────
 function renderPayrollPage() {
   prInitMonth();
   const employees = prGetEmployees();
   const attendance = prGetAttendance();
+  const otLogs = prGetOtLogs();
   const list = document.getElementById('payroll-employee-list');
   const empty = document.getElementById('payroll-empty');
   if (!list) return;
-
-  if (!employees.length) {
-    list.innerHTML = '';
-    if (empty) empty.style.display = '';
-    return;
-  }
+  if (!employees.length) { list.innerHTML = ''; if (empty) empty.style.display = ''; return; }
   if (empty) empty.style.display = 'none';
-
   const month = _prCurrentMonth;
+
   list.innerHTML = employees.map(emp => {
     const key = prAttKey(emp.id, month);
-    const att = attendance[key] || { workDays: '', leaveDays: '', otHours: '' };
-    const hasData = att.workDays !== '' && att.workDays !== undefined;
-    let calcHtml = '';
-    let netPay = null;
-    if (hasData) {
-      const c = calcSalary(emp.salary, Number(att.workDays), Number(att.leaveDays || 0), Number(att.otHours || 0));
-      netPay = c.netPay;
-      calcHtml = `
+    const att = attendance[key] || {};
+    const logs = (otLogs[key] || []).slice().sort((a,b) => a.date.localeCompare(b.date));
+    const totalOtHours = prCalcOtHours(logs);
+    const hasData = att.workDays !== undefined && att.workDays !== '';
+    const lb = prCalcLeaveBalance(emp, attendance);
+    const otRate = emp.salary / 26 / 8 * 1.5;
+    const statShort = [emp.useEpf && 'EPF', emp.useSocso && 'SOCSO', emp.useEis && 'EIS'].filter(Boolean).join(' · ') || '无';
+
+    let summaryHtml = '';
+    if (hasData || logs.length > 0) {
+      const wd = Number(att.workDays || 0), ld = Number(att.leaveDays || 0);
+      const allowance = Number(att.allowance || 0), extraDeduct = Number(att.extraDeduct || 0), bonus = Number(att.bonus || 0);
+      const c = calcSalary(emp.salary, wd, ld, totalOtHours);
+      const gross = c.netPay + allowance - extraDeduct + bonus;
+      const stat = calcStatutory(gross, att.epfOn, att.socsoOn, att.eisOn);
+      const netEmployee = gross - stat.totalEmpDeduct;
+      const rating = att.perfRating || 0;
+      const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+      const otRowsHtml = logs.map(e => `
+        <div style="display:flex;gap:8px;font-size:11px;padding:3px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--text3);min-width:60px">${formatDateShort(e.date)}</span>
+          <span style="font-family:'DM Mono',monospace;color:var(--text2);flex:1">${e.start}–${e.end}</span>
+          <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue)">${Number(e.hours).toFixed(2)}h</span>
+        </div>`).join('');
+      summaryHtml = `
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px;margin-top:12px">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-            <div style="text-align:center">
-              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:4px">上班天数</div>
-              <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace">${att.workDays}</div>
-            </div>
-            <div style="text-align:center">
-              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:4px">请假天数</div>
-              <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:var(--amber)">${att.leaveDays || 0}</div>
-            </div>
-            <div style="text-align:center">
-              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:4px">OT 小时</div>
-              <div style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)">${att.otHours || 0}</div>
-            </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;text-align:center">
+            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">上班</div><div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace">${att.workDays}</div></div>
+            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">无薪假</div><div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--amber)">${att.leaveDays || 0}</div></div>
+            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">OT 小时</div><div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)">${totalOtHours.toFixed(2)}</div></div>
+            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">表现</div><div style="font-size:13px;color:#f59e0b">${stars}</div></div>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:10px">
+          ${logs.length ? `<div style="margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">OT 明细</div>${otRowsHtml}<div style="font-size:11px;color:var(--blue);font-weight:700;text-align:right;margin-top:3px">OT 合计：${totalOtHours.toFixed(2)}h = RM ${c.otPay.toFixed(2)}</div></div>` : ''}
+          ${att.bonus > 0 ? `<div style="font-size:11px;color:var(--purple);margin-bottom:6px">🎁 Bonus: RM ${Number(att.bonus).toFixed(2)} ${att.bonusNote ? '('+att.bonusNote+')' : ''}</div>` : ''}
+          ${att.perfNote ? `<div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-style:italic">📝 ${att.perfNote}</div>` : ''}
+          <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;align-items:flex-end">
             <div>
-              <div style="font-size:11px;color:var(--text3)">基本薪资 RM ${c.basicPay.toFixed(2)} ${c.leaveDeduct > 0 ? '− 假期 RM '+c.leaveDeduct.toFixed(2) : ''} ${c.otPay > 0 ? '+ OT RM '+c.otPay.toFixed(2) : ''}</div>
+              <div style="font-size:10px;color:var(--text3)">Gross: RM ${gross.toFixed(2)} ${stat.totalEmpDeduct>0?'− 扣款: RM '+stat.totalEmpDeduct.toFixed(2):''}</div>
             </div>
-            <div style="font-size:24px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${c.netPay.toFixed(2)}</div>
+            <div style="text-align:right">
+              <div style="font-size:10px;color:var(--text3)">实发</div>
+              <div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:var(--green)">RM ${netEmployee.toFixed(2)}</div>
+            </div>
           </div>
         </div>`;
     }
 
+    // Leave balance badges
+    const lbHtml = `
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--green-bg);color:var(--green);font-weight:600">AL: ${lb.alLeft}/${lb.alTotal}</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--blue-bg);color:var(--blue);font-weight:600">MC: ${lb.mcLeft}/${lb.mcTotal}</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--amber-bg);color:var(--amber);font-weight:600">EL: ${lb.elLeft}/${lb.elTotal}</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--surface2);color:var(--text3);font-weight:600">${statShort}</span>
+      </div>`;
+
     return `
       <div class="card" style="margin-bottom:14px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="width:36px;height:36px;border-radius:50%;background:var(--text);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${emp.name.charAt(0).toUpperCase()}</div>
-            <div>
-              <div style="font-size:16px;font-weight:700">${emp.name}</div>
-              <div style="font-size:12px;color:var(--text3)">月薪 <span style="font-family:'DM Mono',monospace;font-weight:600;color:var(--text2)">RM ${Number(emp.salary).toFixed(2)}</span> &nbsp;·&nbsp; 日薪 <span style="font-family:'DM Mono',monospace;font-weight:600;color:var(--text2)">RM ${(emp.salary/26).toFixed(2)}</span> &nbsp;·&nbsp; OT/h <span style="font-family:'DM Mono',monospace;font-weight:600;color:var(--blue)">RM ${(emp.salary/26/8*1.5).toFixed(2)}</span></div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--text);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0">${emp.name.charAt(0).toUpperCase()}</div>
+            <div style="min-width:0;flex:1">
+              <div style="font-size:15px;font-weight:700">${emp.name} <span style="font-size:11px;color:var(--text3);font-weight:400">${emp.position||''}</span></div>
+              <div style="font-size:11px;color:var(--text3);margin-top:1px">月薪 <span style="font-family:'DM Mono',monospace;font-weight:600;color:var(--text2)">RM ${Number(emp.salary).toFixed(2)}</span> &nbsp;·&nbsp; OT/h <span style="font-family:'DM Mono',monospace;font-weight:600;color:var(--blue)">RM ${otRate.toFixed(2)}</span></div>
+              ${lbHtml}
             </div>
           </div>
-          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-            <button class="btn" style="font-size:12px;padding:6px 10px" onclick="openEditEmployeeModal('${emp.id}')">✏️ 编辑</button>
-            <button class="btn btn-danger" style="font-size:12px;padding:6px 10px" onclick="deleteEmployee('${emp.id}')">🗑</button>
+          <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;margin-left:8px">
+            <button class="btn" style="font-size:11px;padding:5px 8px" onclick="openPerfHistory('${emp.id}')">📊</button>
+            <button class="btn" style="font-size:11px;padding:5px 8px" onclick="openEditEmployeeModal('${emp.id}')">✏️</button>
+            <button class="btn btn-danger" style="font-size:11px;padding:5px 8px" onclick="deleteEmployee('${emp.id}')">🗑</button>
           </div>
         </div>
-        ${calcHtml}
+        ${summaryHtml}
         <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="btn" style="flex:1;font-size:13px;padding:10px 0" onclick="openAttendanceModal('${emp.id}')">
-            ${hasData ? '✏️ 修改出勤' : '➕ 录入出勤'}
+          <button class="btn" style="flex:1;font-size:13px;padding:9px 0" onclick="openAttendanceModal('${emp.id}')">
+            ${hasData ? '✏️ 修改月度记录' : '➕ 录入月度记录'}
           </button>
-          ${hasData ? `<button class="btn btn-success" style="flex:1;font-size:13px;padding:10px 0" onclick="generatePayslip('${emp.id}')">📄 生成薪资单 PDF</button>` : ''}
+          ${(hasData || logs.length > 0) ? `<button class="btn btn-success" style="flex:1;font-size:13px;padding:9px 0" onclick="generatePayslip('${emp.id}')">📄 薪资单 PDF</button>` : ''}
         </div>
       </div>`;
   }).join('');
+}
+
+function formatDateShort(d) { if(!d)return''; const [,m,day]=d.split('-'); return day+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]; }
+function formatPayrollMonth(s) { if(!s)return''; const [y,m]=s.split('-'); return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]+' '+y; }
+
+// ── Employee rates preview (in modal) ────────────────────
+function updateEmpRatesPreview() {
+  const salary = parseFloat(document.getElementById('emp-salary')?.value) || 0;
+  const useEpf = document.getElementById('emp-epf')?.checked;
+  const useSocso = document.getElementById('emp-socso')?.checked;
+  const useEis = document.getElementById('emp-eis')?.checked;
+  const prev = document.getElementById('emp-rates-preview');
+  if (!prev || !salary) { if(prev) prev.style.display='none'; return; }
+  const s = calcStatutory(salary, useEpf, useSocso, useEis);
+  prev.style.display = 'block';
+  prev.innerHTML = `<strong>月薪 RM ${salary.toFixed(2)} 时：</strong>
+    员工扣款 RM ${s.totalEmpDeduct.toFixed(2)} (EPF ${s.empEpf.toFixed(2)} + SOCSO ${s.empSocso.toFixed(2)} + EIS ${s.empEis.toFixed(2)}) &nbsp;|&nbsp;
+    雇主贡献 RM ${s.totalErContrib.toFixed(2)} (EPF ${s.erEpf.toFixed(2)} + SOCSO ${s.erSocso.toFixed(2)} + EIS ${s.erEis.toFixed(2)})`;
 }
 
 // ── Employee Modal ────────────────────────────────────────
 function openAddEmployeeModal() {
   _prEditEmpId = null;
   document.getElementById('employee-modal-title').textContent = '新增员工';
-  document.getElementById('emp-name').value = '';
+  ['emp-name','emp-ic','emp-position','emp-joindate'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
   document.getElementById('emp-salary').value = '';
+  document.getElementById('emp-annual-leave').value = 8;
+  document.getElementById('emp-mc-leave').value = 14;
+  document.getElementById('emp-emergency-leave').value = 3;
+  document.getElementById('emp-epf').checked = true;
+  document.getElementById('emp-socso').checked = true;
+  document.getElementById('emp-eis').checked = true;
+  document.getElementById('emp-rates-preview').style.display = 'none';
   document.getElementById('employee-modal').classList.add('open');
   document.body.classList.add('modal-open');
 }
 function openEditEmployeeModal(id) {
-  const employees = prGetEmployees();
-  const emp = employees.find(e => e.id === id);
+  const emp = prGetEmployees().find(e => e.id === id);
   if (!emp) return;
   _prEditEmpId = id;
   document.getElementById('employee-modal-title').textContent = '编辑员工';
-  document.getElementById('emp-name').value = emp.name;
-  document.getElementById('emp-salary').value = emp.salary;
+  document.getElementById('emp-name').value = emp.name || '';
+  document.getElementById('emp-ic').value = emp.ic || '';
+  document.getElementById('emp-position').value = emp.position || '';
+  document.getElementById('emp-joindate').value = emp.joinDate || '';
+  document.getElementById('emp-salary').value = emp.salary || '';
+  document.getElementById('emp-annual-leave').value = emp.annualLeave ?? 8;
+  document.getElementById('emp-mc-leave').value = emp.mcLeave ?? 14;
+  document.getElementById('emp-emergency-leave').value = emp.emergencyLeave ?? 3;
+  document.getElementById('emp-epf').checked = emp.useEpf !== false;
+  document.getElementById('emp-socso').checked = emp.useSocso !== false;
+  document.getElementById('emp-eis').checked = emp.useEis !== false;
+  updateEmpRatesPreview();
   document.getElementById('employee-modal').classList.add('open');
   document.body.classList.add('modal-open');
 }
@@ -8199,13 +8458,25 @@ function saveEmployee() {
   const name = document.getElementById('emp-name').value.trim();
   const salary = parseFloat(document.getElementById('emp-salary').value);
   if (!name) { alert('请输入员工姓名'); return; }
-  if (!salary || salary <= 0) { alert('请输入有效的月薪金额'); return; }
+  if (!salary || salary <= 0) { alert('请输入有效月薪'); return; }
   const employees = prGetEmployees();
+  const data = {
+    name, salary,
+    ic: document.getElementById('emp-ic').value.trim(),
+    position: document.getElementById('emp-position').value.trim(),
+    joinDate: document.getElementById('emp-joindate').value,
+    annualLeave: parseInt(document.getElementById('emp-annual-leave').value) || 8,
+    mcLeave: parseInt(document.getElementById('emp-mc-leave').value) || 14,
+    emergencyLeave: parseInt(document.getElementById('emp-emergency-leave').value) || 3,
+    useEpf: document.getElementById('emp-epf').checked,
+    useSocso: document.getElementById('emp-socso').checked,
+    useEis: document.getElementById('emp-eis').checked,
+  };
   if (_prEditEmpId) {
     const idx = employees.findIndex(e => e.id === _prEditEmpId);
-    if (idx >= 0) { employees[idx].name = name; employees[idx].salary = salary; }
+    if (idx >= 0) employees[idx] = { ...employees[idx], ...data };
   } else {
-    employees.push({ id: Date.now().toString(), name, salary });
+    employees.push({ id: Date.now().toString(), ...data });
   }
   prSaveEmployees(employees);
   closeEmployeeModal();
@@ -8213,14 +8484,12 @@ function saveEmployee() {
   showPosToast('✅ 员工资料已保存');
 }
 function deleteEmployee(id) {
-  if (!confirm('确定要删除这名员工吗？相关出勤记录也会一并删除。')) return;
-  let employees = prGetEmployees();
-  employees = employees.filter(e => e.id !== id);
-  prSaveEmployees(employees);
-  // Remove attendance records
-  const att = prGetAttendance();
-  Object.keys(att).forEach(k => { if (k.startsWith(id + '_')) delete att[k]; });
-  prSaveAttendance(att);
+  if (!confirm('确定删除此员工？相关记录也会删除。')) return;
+  prSaveEmployees(prGetEmployees().filter(e => e.id !== id));
+  const att = prGetAttendance(), ot = prGetOtLogs();
+  Object.keys(att).forEach(k => { if(k.startsWith(id+'_')) delete att[k]; });
+  Object.keys(ot).forEach(k => { if(k.startsWith(id+'_')) delete ot[k]; });
+  prSaveAttendance(att); prSaveOtLogs(ot);
   renderPayrollPage();
   showPosToast('✅ 员工已删除');
 }
@@ -8229,23 +8498,52 @@ function deleteEmployee(id) {
 function openAttendanceModal(empId) {
   _prAttEmpId = empId;
   prInitMonth();
-  const employees = prGetEmployees();
-  const emp = employees.find(e => e.id === empId);
+  const emp = prGetEmployees().find(e => e.id === empId);
   if (!emp) return;
-  document.getElementById('att-modal-title').textContent = emp.name + ' — 出勤记录';
-  document.getElementById('att-modal-subtitle').textContent = formatPayrollMonth(_prCurrentMonth) + ' · 月薪 RM ' + Number(emp.salary).toFixed(2);
+  document.getElementById('att-modal-title').textContent = emp.name + ' — ' + formatPayrollMonth(_prCurrentMonth);
+  document.getElementById('att-modal-subtitle').textContent = emp.position ? emp.position + ' · ' : '' + '月薪 RM ' + Number(emp.salary).toFixed(2) + ' · OT RM ' + (emp.salary/26/8*1.5).toFixed(2) + '/h';
 
   const att = prGetAttendance();
   const key = prAttKey(empId, _prCurrentMonth);
-  const existing = att[key] || {};
-  document.getElementById('att-days').value = existing.workDays !== undefined ? existing.workDays : '';
-  document.getElementById('att-leave').value = existing.leaveDays !== undefined ? existing.leaveDays : '';
-  document.getElementById('att-ot').value = existing.otHours !== undefined ? existing.otHours : '';
+  const ex = att[key] || {};
 
-  // Hook live preview
-  ['att-days','att-leave','att-ot'].forEach(id => {
-    document.getElementById(id).oninput = updateAttCalcPreview;
+  document.getElementById('att-days').value = ex.workDays ?? '';
+  document.getElementById('att-leave').value = ex.leaveDays ?? '';
+  document.getElementById('att-al-used').value = ex.alUsed ?? '';
+  document.getElementById('att-mc-used').value = ex.mcUsed ?? '';
+  document.getElementById('att-el-used').value = ex.elUsed ?? '';
+  document.getElementById('att-allowance').value = ex.allowance ?? '';
+  document.getElementById('att-extra-deduct').value = ex.extraDeduct ?? '';
+  document.getElementById('att-bonus').value = ex.bonus ?? '';
+  document.getElementById('att-bonus-note').value = ex.bonusNote ?? '';
+  document.getElementById('att-perf-note').value = ex.perfNote ?? '';
+  // Statutory — default from employee settings
+  document.getElementById('att-epf-on').checked = ex.epfOn !== undefined ? ex.epfOn : (emp.useEpf !== false);
+  document.getElementById('att-socso-on').checked = ex.socsoOn !== undefined ? ex.socsoOn : (emp.useSocso !== false);
+  document.getElementById('att-eis-on').checked = ex.eisOn !== undefined ? ex.eisOn : (emp.useEis !== false);
+
+  // Performance stars
+  _prPerfRating = ex.perfRating || 0;
+  renderStars();
+
+  // OT draft
+  const otLogs = prGetOtLogs();
+  _prOtDraft = (otLogs[key] || []).map(e => ({...e}));
+  document.getElementById('ot-add-row').style.display = 'none';
+  const now = new Date();
+  const el = document.getElementById('ot-date');
+  if (el) { const t = now.toISOString().split('T')[0]; el.value = t.slice(0,7) === _prCurrentMonth ? t : _prCurrentMonth + '-01'; }
+  const elS = document.getElementById('ot-start'); if(elS) elS.value='';
+  const elE = document.getElementById('ot-end'); if(elE) elE.value='';
+  const dp = document.getElementById('ot-duration-preview'); if(dp) dp.textContent='';
+
+  // Hook statutory checkboxes
+  ['att-epf-on','att-socso-on','att-eis-on'].forEach(id => {
+    const el2 = document.getElementById(id);
+    if (el2) el2.onchange = updateAttCalcPreview;
   });
+
+  renderOtDraftList();
   updateAttCalcPreview();
   document.getElementById('attendance-modal').classList.add('open');
   document.body.classList.add('modal-open');
@@ -8254,191 +8552,323 @@ function closeAttendanceModal() {
   document.getElementById('attendance-modal').classList.remove('open');
   document.body.classList.remove('modal-open');
 }
+
+// ── Stars ─────────────────────────────────────────────────
+function renderStars() {
+  const container = document.getElementById('perf-star-btns');
+  const label = document.getElementById('perf-star-label');
+  if (!container) return;
+  const labels = ['','差','一般','良好','优秀','卓越'];
+  container.innerHTML = [1,2,3,4,5].map(n => `
+    <button onclick="setPerfRating(${n})" style="background:none;border:none;cursor:pointer;font-size:22px;padding:2px;color:${n<=_prPerfRating?'#f59e0b':'#d1d5db'}">${n<=_prPerfRating?'★':'☆'}</button>
+  `).join('');
+  if (label) label.textContent = _prPerfRating ? labels[_prPerfRating] : '未评分';
+}
+function setPerfRating(n) { _prPerfRating = n; renderStars(); }
+
+// ── Calc preview ──────────────────────────────────────────
 function updateAttCalcPreview() {
-  const employees = prGetEmployees();
-  const emp = employees.find(e => e.id === _prAttEmpId);
+  const emp = prGetEmployees().find(e => e.id === _prAttEmpId);
   if (!emp) return;
-  const days = parseFloat(document.getElementById('att-days').value) || 0;
-  const leave = parseFloat(document.getElementById('att-leave').value) || 0;
-  const ot = parseFloat(document.getElementById('att-ot').value) || 0;
-  if (!days && !ot) {
-    document.getElementById('att-calc-lines').textContent = '请填写上方数据';
-    document.getElementById('att-calc-total').textContent = 'RM 0.00';
+  const days = parseFloat(document.getElementById('att-days')?.value) || 0;
+  const leave = parseFloat(document.getElementById('att-leave')?.value) || 0;
+  const allowance = parseFloat(document.getElementById('att-allowance')?.value) || 0;
+  const extraDeduct = parseFloat(document.getElementById('att-extra-deduct')?.value) || 0;
+  const bonus = parseFloat(document.getElementById('att-bonus')?.value) || 0;
+  const ot = prCalcOtHours(_prOtDraft);
+  const epfOn = document.getElementById('att-epf-on')?.checked;
+  const socsoOn = document.getElementById('att-socso-on')?.checked;
+  const eisOn = document.getElementById('att-eis-on')?.checked;
+  const linesEl = document.getElementById('att-calc-lines');
+  const totalEl = document.getElementById('att-calc-total');
+  const erCostEl = document.getElementById('att-calc-employer-cost');
+  const statEl = document.getElementById('att-statutory-breakdown');
+  if (!days && !ot && !bonus && !allowance) {
+    if (linesEl) linesEl.innerHTML = '<span style="color:var(--text3)">请填写出勤数据...</span>';
+    if (totalEl) totalEl.textContent = 'RM 0.00';
+    if (erCostEl) erCostEl.textContent = 'RM 0.00';
     return;
   }
   const c = calcSalary(emp.salary, days, leave, ot);
+  const gross = c.netPay + allowance - extraDeduct + bonus;
+  const stat = calcStatutory(gross, epfOn, socsoOn, eisOn);
+  const netEmployee = gross - stat.totalEmpDeduct;
+  const erTotal = gross + stat.totalErContrib;
   const lines = [];
-  lines.push(`基本薪资：${days} 天 × RM ${c.dailyRate.toFixed(2)} = RM ${c.basicPay.toFixed(2)}`);
-  if (leave > 0) lines.push(`假期扣减：${leave} 天 × RM ${c.dailyRate.toFixed(2)} = − RM ${c.leaveDeduct.toFixed(2)}`);
-  if (ot > 0) lines.push(`OT：${ot}h × RM ${c.otRate.toFixed(2)}/h = + RM ${c.otPay.toFixed(2)}`);
-  document.getElementById('att-calc-lines').innerHTML = lines.map(l => `<div style="margin-bottom:3px">${l}</div>`).join('');
-  document.getElementById('att-calc-total').textContent = 'RM ' + c.netPay.toFixed(2);
+  if (days > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>基本薪资 (${days}d × RM ${c.dailyRate.toFixed(2)})</span><span style="font-family:'DM Mono',monospace;color:var(--green)">+ RM ${c.basicPay.toFixed(2)}</span></div>`);
+  if (leave > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>无薪假扣 (${leave}d)</span><span style="font-family:'DM Mono',monospace;color:var(--red)">− RM ${c.leaveDeduct.toFixed(2)}</span></div>`);
+  if (ot > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>OT (${ot.toFixed(2)}h × RM ${c.otRate.toFixed(2)})</span><span style="font-family:'DM Mono',monospace;color:var(--blue)">+ RM ${c.otPay.toFixed(2)}</span></div>`);
+  if (allowance > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>津贴 (Allowance)</span><span style="font-family:'DM Mono',monospace;color:var(--green)">+ RM ${allowance.toFixed(2)}</span></div>`);
+  if (extraDeduct > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>额外扣款</span><span style="font-family:'DM Mono',monospace;color:var(--red)">− RM ${extraDeduct.toFixed(2)}</span></div>`);
+  if (bonus > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>🎁 Bonus</span><span style="font-family:'DM Mono',monospace;color:var(--purple)">+ RM ${bonus.toFixed(2)}</span></div>`);
+  lines.push(`<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:4px;margin-top:4px;font-weight:600"><span>Gross</span><span style="font-family:'DM Mono',monospace">RM ${gross.toFixed(2)}</span></div>`);
+  if (stat.empEpf > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>EPF (11%)</span><span style="font-family:'DM Mono',monospace;color:var(--red)">− RM ${stat.empEpf.toFixed(2)}</span></div>`);
+  if (stat.empSocso > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>SOCSO (0.5%)</span><span style="font-family:'DM Mono',monospace;color:var(--red)">− RM ${stat.empSocso.toFixed(2)}</span></div>`);
+  if (stat.empEis > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>EIS (0.2%)</span><span style="font-family:'DM Mono',monospace;color:var(--red)">− RM ${stat.empEis.toFixed(2)}</span></div>`);
+  if (linesEl) linesEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:4px;font-size:12px">${lines.join('')}</div>`;
+  if (totalEl) totalEl.textContent = 'RM ' + netEmployee.toFixed(2);
+  if (erCostEl) erCostEl.textContent = 'RM ' + erTotal.toFixed(2);
+  if (statEl) statEl.innerHTML = stat.totalErContrib > 0 ? `雇主贡献：EPF RM ${stat.erEpf.toFixed(2)} · SOCSO RM ${stat.erSocso.toFixed(2)} · EIS RM ${stat.erEis.toFixed(2)} = RM ${stat.totalErContrib.toFixed(2)}` : '';
 }
+
 function saveAttendance() {
   const days = document.getElementById('att-days').value;
-  const leave = document.getElementById('att-leave').value;
-  const ot = document.getElementById('att-ot').value;
   if (days === '' || isNaN(parseFloat(days))) { alert('请输入上班天数'); return; }
-  const att = prGetAttendance();
+  const att = prGetAttendance(), ot = prGetOtLogs();
   const key = prAttKey(_prAttEmpId, _prCurrentMonth);
-  att[key] = { workDays: parseFloat(days), leaveDays: parseFloat(leave || 0), otHours: parseFloat(ot || 0) };
-  prSaveAttendance(att);
+  att[key] = {
+    workDays: parseFloat(days),
+    leaveDays: parseFloat(document.getElementById('att-leave').value || 0),
+    alUsed: parseFloat(document.getElementById('att-al-used').value || 0),
+    mcUsed: parseFloat(document.getElementById('att-mc-used').value || 0),
+    elUsed: parseFloat(document.getElementById('att-el-used').value || 0),
+    allowance: parseFloat(document.getElementById('att-allowance').value || 0),
+    extraDeduct: parseFloat(document.getElementById('att-extra-deduct').value || 0),
+    bonus: parseFloat(document.getElementById('att-bonus').value || 0),
+    bonusNote: document.getElementById('att-bonus-note').value.trim(),
+    perfRating: _prPerfRating,
+    perfNote: document.getElementById('att-perf-note').value.trim(),
+    epfOn: document.getElementById('att-epf-on').checked,
+    socsoOn: document.getElementById('att-socso-on').checked,
+    eisOn: document.getElementById('att-eis-on').checked,
+  };
+  ot[key] = _prOtDraft.slice();
+  prSaveAttendance(att); prSaveOtLogs(ot);
   closeAttendanceModal();
   renderPayrollPage();
-  showPosToast('✅ 出勤记录已保存');
+  showPosToast('✅ 月度记录已保存');
 }
 
-// ── Helpers ───────────────────────────────────────────────
-function formatPayrollMonth(str) {
-  if (!str) return '';
-  const [y, m] = str.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return months[parseInt(m) - 1] + ' ' + y;
+// ── OT Entry ──────────────────────────────────────────────
+function openOtEntryRow() { document.getElementById('ot-add-row').style.display='block'; }
+function cancelOtEntry() { document.getElementById('ot-add-row').style.display='none'; }
+function updateOtDuration() {
+  const s=document.getElementById('ot-start').value, e=document.getElementById('ot-end').value, dp=document.getElementById('ot-duration-preview');
+  if (!s||!e||!dp) return;
+  const [sh,sm]=s.split(':').map(Number), [eh,em]=e.split(':').map(Number);
+  let mins=(eh*60+em)-(sh*60+sm); if(mins<0)mins+=1440;
+  const hrs=mins/60;
+  dp.textContent = hrs>0 ? hrs.toFixed(2)+' 小时 OT' : '⚠️ 时间无效';
+  dp.style.color = hrs>0?'var(--blue)':'var(--red)';
+}
+function confirmOtEntry() {
+  const date=document.getElementById('ot-date').value, s=document.getElementById('ot-start').value, e=document.getElementById('ot-end').value;
+  if (!date||!s||!e) { alert('请填写日期和时间'); return; }
+  const [sh,sm]=s.split(':').map(Number), [eh,em]=e.split(':').map(Number);
+  let mins=(eh*60+em)-(sh*60+sm); if(mins<0)mins+=1440;
+  if (mins<=0) { alert('结束时间必须晚于开始时间'); return; }
+  if (!date.startsWith(_prCurrentMonth) && !confirm(`日期 ${date} 不在所选月份，仍然添加？`)) return;
+  _prOtDraft.push({id:Date.now().toString(), date, start:s, end:e, hours:parseFloat((mins/60).toFixed(4))});
+  document.getElementById('ot-start').value=''; document.getElementById('ot-end').value='';
+  document.getElementById('ot-duration-preview').textContent='';
+  document.getElementById('ot-add-row').style.display='none';
+  renderOtDraftList(); updateAttCalcPreview();
+}
+function deleteOtEntry(id) { _prOtDraft=_prOtDraft.filter(e=>e.id!==id); renderOtDraftList(); updateAttCalcPreview(); }
+function renderOtDraftList() {
+  const c=document.getElementById('ot-entries-list'), tr=document.getElementById('ot-total-row');
+  if (!c) return;
+  const sorted=_prOtDraft.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));
+  if (!sorted.length) {
+    c.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0;text-align:center">暂无 OT 记录</div>';
+    if(tr)tr.style.display='none'; return;
+  }
+  c.innerHTML=sorted.map(e=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface2);border-radius:var(--radius-xs);margin-bottom:4px;border:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);min-width:60px">${formatDateShort(e.date)}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:12px;flex:1">${e.start} → ${e.end}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--blue)">${Number(e.hours).toFixed(2)}h</div>
+      <button onclick="deleteOtEntry('${e.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 4px">✕</button>
+    </div>`).join('');
+  const total=prCalcOtHours(sorted);
+  if(tr){tr.style.display='flex';const th=document.getElementById('ot-total-hours');if(th)th.textContent=total.toFixed(2)+' 小时';}
 }
 
-// ── PDF Payslip (using HTML + print) ─────────────────────
+// ── OT Log Modal ──────────────────────────────────────────
+function openOtLogModal(empId) {
+  prInitMonth();
+  const emp=prGetEmployees().find(e=>e.id===empId); if(!emp)return;
+  const logs=(prGetOtLogs()[prAttKey(empId,_prCurrentMonth)]||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('ot-log-modal-title').textContent=emp.name+' — OT 明细';
+  document.getElementById('ot-log-modal-subtitle').textContent=formatPayrollMonth(_prCurrentMonth);
+  const total=prCalcOtHours(logs), otRate=emp.salary/26/8*1.5;
+  const listEl=document.getElementById('ot-log-modal-list');
+  listEl.innerHTML=logs.length?logs.map(e=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius-xs);margin-bottom:6px"><div style="font-size:13px;font-weight:700;min-width:70px">${formatDateShort(e.date)}</div><div style="font-family:'DM Mono',monospace;font-size:13px;flex:1">${e.start}→${e.end}</div><div style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue)">${Number(e.hours).toFixed(2)}h</div><div style="font-family:'DM Mono',monospace;font-weight:700;color:var(--green)">RM ${(e.hours*otRate).toFixed(2)}</div></div>`).join('')+`<div style="display:flex;justify-content:space-between;padding:10px 12px;border-top:2px solid var(--border);font-weight:700"><span>合计 ${total.toFixed(2)}h</span><span style="color:var(--green)">RM ${(total*otRate).toFixed(2)}</span></div>`:'<div class="empty">本月暂无 OT</div>';
+  document.getElementById('ot-log-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+function closeOtLogModal() { document.getElementById('ot-log-modal').classList.remove('open'); document.body.classList.remove('modal-open'); }
+
+// ── Performance History Modal ─────────────────────────────
+function openPerfHistory(empId) {
+  const emp = prGetEmployees().find(e => e.id === empId); if(!emp) return;
+  const att = prGetAttendance();
+  const months = Object.keys(att).filter(k => k.startsWith(empId+'_')).map(k => k.replace(empId+'_','')).sort().reverse();
+  document.getElementById('perf-history-title').textContent = emp.name + ' — 表现记录';
+  document.getElementById('perf-history-subtitle').textContent = '历史月度记录（最新在前）';
+  const labels = ['','差','一般','良好','优秀','卓越'];
+  const listEl = document.getElementById('perf-history-list');
+  if (!months.length) { listEl.innerHTML='<div class="empty">暂无记录</div>'; }
+  else {
+    const otLogs = prGetOtLogs();
+    listEl.innerHTML = months.map(m => {
+      const key = empId+'_'+m, a = att[key]||{};
+      const logs = otLogs[key]||[], totalOt = prCalcOtHours(logs);
+      const c = calcSalary(emp.salary, Number(a.workDays||0), Number(a.leaveDays||0), totalOt);
+      const gross = c.netPay + Number(a.allowance||0) - Number(a.extraDeduct||0) + Number(a.bonus||0);
+      const stat = calcStatutory(gross, a.epfOn, a.socsoOn, a.eisOn);
+      const net = gross - stat.totalEmpDeduct;
+      const r = a.perfRating||0, stars='★'.repeat(r)+'☆'.repeat(5-r);
+      return `
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:14px;font-weight:700">${formatPayrollMonth(m)}</div>
+            <div style="font-size:16px;color:#f59e0b">${stars} <span style="font-size:11px;color:var(--text3)">${r?labels[r]:''}</span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center;font-size:11px;margin-bottom:8px">
+            <div><div style="color:var(--text3)">上班</div><div style="font-weight:700;font-family:'DM Mono',monospace">${a.workDays??'—'}</div></div>
+            <div><div style="color:var(--text3)">OT</div><div style="font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)">${totalOt.toFixed(1)}h</div></div>
+            <div><div style="color:var(--text3)">Bonus</div><div style="font-weight:700;font-family:'DM Mono',monospace;color:var(--purple)">RM ${Number(a.bonus||0).toFixed(0)}</div></div>
+            <div><div style="color:var(--text3)">实发</div><div style="font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${net.toFixed(0)}</div></div>
+          </div>
+          ${a.perfNote?`<div style="font-size:11px;color:var(--text2);font-style:italic">📝 ${a.perfNote}</div>`:''}
+        </div>`;
+    }).join('');
+  }
+  document.getElementById('perf-history-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+
+// ── PDF Payslip ───────────────────────────────────────────
 function generatePayslip(empId) {
   prInitMonth();
-  const employees = prGetEmployees();
-  const emp = employees.find(e => e.id === empId);
-  if (!emp) return;
-  const att = prGetAttendance();
+  const emp = prGetEmployees().find(e => e.id === empId); if(!emp) return;
   const key = prAttKey(empId, _prCurrentMonth);
-  const a = att[key];
-  if (!a) { alert('请先录入出勤记录'); return; }
-
-  const c = calcSalary(emp.salary, Number(a.workDays), Number(a.leaveDays || 0), Number(a.otHours || 0));
+  const a = prGetAttendance()[key] || {};
+  const logs = (prGetOtLogs()[key] || []).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const totalOtHours = prCalcOtHours(logs);
+  if (!a.workDays && !logs.length && !a.bonus) { alert('请先录入月度记录'); return; }
+  const c = calcSalary(emp.salary, Number(a.workDays||0), Number(a.leaveDays||0), totalOtHours);
+  const allowance = Number(a.allowance||0), extraDeduct = Number(a.extraDeduct||0), bonus = Number(a.bonus||0);
+  const gross = c.netPay + allowance - extraDeduct + bonus;
+  const stat = calcStatutory(gross, a.epfOn, a.socsoOn, a.eisOn);
+  const netPay = gross - stat.totalEmpDeduct;
+  const erCost = gross + stat.totalErContrib;
   const monthLabel = formatPayrollMonth(_prCurrentMonth);
-  const today = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' });
+  const today = new Date().toLocaleDateString('en-MY',{day:'2-digit',month:'short',year:'numeric'});
+  const stars = '★'.repeat(a.perfRating||0)+'☆'.repeat(5-(a.perfRating||0));
+  const perfLabels = ['','Poor','Below Avg','Good','Excellent','Outstanding'];
+  const lb = prCalcLeaveBalance(emp, prGetAttendance());
 
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Payslip - ${emp.name} - ${monthLabel}</title>
+  const otRowsHtml = logs.map(e=>`
+    <tr><td style="font-size:11px;color:#6b6560;padding-left:20px">OT — ${formatDateShort(e.date)} &nbsp;${e.start}–${e.end}</td><td style="text-align:center">${Number(e.hours).toFixed(2)} hrs</td><td style="text-align:right;font-family:'Courier New',monospace">RM ${c.otRate.toFixed(2)}/hr</td><td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">RM ${(e.hours*c.otRate).toFixed(2)}</td></tr>`).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Payslip ${emp.name} ${monthLabel}</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1a1814; padding: 0; }
-  .page { width: 210mm; min-height: 148mm; margin: 0 auto; padding: 24px 28px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2.5px solid #1a1814; }
-  .company { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
-  .company-sub { font-size: 10px; color: #6b6560; margin-top: 2px; }
-  .payslip-label { text-align: right; }
-  .payslip-label h2 { font-size: 14px; font-weight: 700; color: #1a1814; letter-spacing: 1px; text-transform: uppercase; }
-  .payslip-label .month { font-size: 22px; font-weight: 800; color: #1e6641; }
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-  .info-box { background: #f5f2ee; border-radius: 8px; padding: 10px 14px; }
-  .info-label { font-size: 9px; font-weight: 700; color: #9e9890; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 3px; }
-  .info-value { font-size: 14px; font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-  th { font-size: 9px; font-weight: 700; color: #9e9890; text-transform: uppercase; letter-spacing: .8px; padding: 6px 10px; text-align: left; border-bottom: 1px solid #ddd8d0; }
-  td { font-size: 13px; padding: 8px 10px; border-bottom: 1px solid #f0ede8; }
-  td.amount { font-family: 'Courier New', monospace; font-weight: 600; text-align: right; }
-  td.deduct { color: #8b2318; }
-  td.earn { color: #1e6641; }
-  .net-row { background: #1a1814; color: #fff; }
-  .net-row td { font-size: 15px; font-weight: 800; padding: 12px 10px; border-bottom: none; }
-  .net-row td.amount { color: #fff; font-size: 20px; }
-  .footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid #ddd8d0; display: flex; justify-content: space-between; align-items: center; }
-  .footer-note { font-size: 10px; color: #9e9890; }
-  .sig-line { border-top: 1px solid #ddd8d0; width: 140px; padding-top: 5px; font-size: 9px; color: #9e9890; text-align: center; }
-  @media print { body { padding: 0; } .page { padding: 20px 24px; } }
-</style>
-</head>
-<body>
-<div class="page">
-  <div class="header">
-    <div>
-      <div class="company">CFT GLOBAL ENTERPRISE</div>
-      <div class="company-sub">Employer Payroll Record</div>
-    </div>
-    <div class="payslip-label">
-      <h2>Payslip</h2>
-      <div class="month">${monthLabel}</div>
-    </div>
-  </div>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1a1814;font-size:13px}
+.page{width:210mm;margin:0 auto;padding:22px 26px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:3px solid #1a1814;margin-bottom:16px}
+.co{font-size:17px;font-weight:800;letter-spacing:-.3px}.co-sub{font-size:10px;color:#6b6560;margin-top:2px}
+.ps-label{text-align:right}.ps-label h2{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.ps-label .month{font-size:20px;font-weight:800;color:#1e6641}
+.info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:14px}
+.info-box{background:#f5f2ee;border-radius:7px;padding:8px 12px}
+.info-label{font-size:8px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px}
+.info-value{font-size:13px;font-weight:700}
+table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px}
+th{font-size:8px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.7px;padding:5px 8px;text-align:left;border-bottom:1px solid #ddd8d0}
+td{padding:6px 8px;border-bottom:1px solid #f0ede8}
+.sec-hdr td{background:#f0f5f0;font-size:10px;font-weight:700;color:#1e6641;letter-spacing:.5px;padding:5px 8px}
+.ded-hdr td{background:#fff5f5;font-size:10px;font-weight:700;color:#8b2318;letter-spacing:.5px;padding:5px 8px}
+.net-row{background:#1a1814;color:#fff}
+.net-row td{font-size:14px;font-weight:800;padding:11px 8px;border:none}
+.leave-box{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px}
+.lb{border:1px solid #ddd8d0;border-radius:6px;padding:7px 10px;text-align:center}
+.lb-label{font-size:8px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px}
+.lb-val{font-size:14px;font-weight:700;font-family:'Courier New',monospace}
+.lb-rem{font-size:10px;color:#6b6560;margin-top:1px}
+.stat-box{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#f5f2ee;border-radius:7px;padding:10px;margin-bottom:12px;font-size:11px}
+.perf-box{background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:10px 12px;margin-bottom:12px}
+.footer{display:flex;justify-content:space-between;align-items:flex-end;padding-top:10px;border-top:1px solid #ddd8d0;margin-top:10px}
+.footer-note{font-size:9px;color:#9e9890}
+.sig-line{border-top:1px solid #9e9890;width:130px;padding-top:4px;font-size:8px;color:#9e9890;text-align:center}
+@media print{body{padding:0}.page{padding:16px 20px}}
+</style></head><body><div class="page">
 
-  <div class="info-grid">
-    <div class="info-box">
-      <div class="info-label">Employee Name</div>
-      <div class="info-value">${emp.name}</div>
-    </div>
-    <div class="info-box">
-      <div class="info-label">Date Issued</div>
-      <div class="info-value">${today}</div>
-    </div>
-    <div class="info-box">
-      <div class="info-label">Basic Monthly Salary</div>
-      <div class="info-value">RM ${Number(emp.salary).toFixed(2)}</div>
-    </div>
-    <div class="info-box">
-      <div class="info-label">Pay Period</div>
-      <div class="info-value">${monthLabel}</div>
-    </div>
-  </div>
-
-  <table>
-    <thead>
-      <tr><th>Description</th><th style="text-align:center">Days / Hours</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Basic Pay (${a.workDays} days worked)</td>
-        <td style="text-align:center">${a.workDays} days</td>
-        <td class="amount">RM ${c.dailyRate.toFixed(2)}/day</td>
-        <td class="amount earn">RM ${c.basicPay.toFixed(2)}</td>
-      </tr>
-      ${Number(a.otHours) > 0 ? `<tr>
-        <td>Overtime Pay</td>
-        <td style="text-align:center">${a.otHours} hrs</td>
-        <td class="amount">RM ${c.otRate.toFixed(2)}/hr</td>
-        <td class="amount earn">RM ${c.otPay.toFixed(2)}</td>
-      </tr>` : ''}
-      ${Number(a.leaveDays) > 0 ? `<tr>
-        <td>Unpaid Leave Deduction</td>
-        <td style="text-align:center">${a.leaveDays} days</td>
-        <td class="amount">RM ${c.dailyRate.toFixed(2)}/day</td>
-        <td class="amount deduct">− RM ${c.leaveDeduct.toFixed(2)}</td>
-      </tr>` : ''}
-      <tr class="net-row">
-        <td colspan="3"><strong>NET PAY</strong></td>
-        <td class="amount">RM ${c.netPay.toFixed(2)}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div style="background:#d4f0dc;border-radius:8px;padding:10px 14px;margin-bottom:16px">
-    <div style="font-size:9px;font-weight:700;color:#1e6641;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">OT Rate Calculation</div>
-    <div style="font-size:11px;color:#1e6641">RM ${Number(emp.salary).toFixed(2)} ÷ 26 days ÷ 8 hrs × 1.5 = <strong>RM ${c.otRate.toFixed(2)} per OT hour</strong></div>
-  </div>
-
-  <div class="footer">
-    <div class="footer-note">This is a computer-generated payslip. CFT Global Enterprise.</div>
-    <div class="sig-line">Authorised Signature</div>
-  </div>
+<div class="hdr">
+  <div><div class="co">CFT GLOBAL ENTERPRISE</div><div class="co-sub">Employer Payroll Record · Confidential</div></div>
+  <div class="ps-label"><h2>Pay Slip</h2><div class="month">${monthLabel}</div></div>
 </div>
-<script>window.onload = function() { window.print(); }<\/script>
-</body>
-</html>`;
 
-  const blob = new Blob([html], { type: 'text/html' });
+<div class="info-grid">
+  <div class="info-box"><div class="info-label">Employee</div><div class="info-value">${emp.name}</div></div>
+  <div class="info-box"><div class="info-label">Position</div><div class="info-value">${emp.position||'—'}</div></div>
+  <div class="info-box"><div class="info-label">IC / Employee No.</div><div class="info-value">${emp.ic||'—'}</div></div>
+  <div class="info-box"><div class="info-label">Join Date</div><div class="info-value">${emp.joinDate||'—'}</div></div>
+  <div class="info-box"><div class="info-label">Basic Monthly Salary</div><div class="info-value">RM ${Number(emp.salary).toFixed(2)}</div></div>
+  <div class="info-box"><div class="info-label">Date Issued</div><div class="info-value">${today}</div></div>
+</div>
+
+<div class="leave-box">
+  <div class="lb"><div class="lb-label">Annual Leave</div><div class="lb-val" style="color:#1e6641">${lb.alLeft}/${lb.alTotal}</div><div class="lb-rem">Remaining days</div></div>
+  <div class="lb"><div class="lb-label">Medical Leave</div><div class="lb-val" style="color:#1a4d7a">${lb.mcLeft}/${lb.mcTotal}</div><div class="lb-rem">Remaining days</div></div>
+  <div class="lb"><div class="lb-label">Emergency Leave</div><div class="lb-val" style="color:#7a4800">${lb.elLeft}/${lb.elTotal}</div><div class="lb-rem">Remaining days</div></div>
+</div>
+
+<table>
+<thead><tr><th>Description</th><th style="text-align:center">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
+<tbody>
+<tr class="sec-hdr"><td colspan="4">EARNINGS</td></tr>
+<tr><td>Basic Pay (${a.workDays||0} days worked)</td><td style="text-align:center">${a.workDays||0} days</td><td style="text-align:right;font-family:'Courier New',monospace">RM ${c.dailyRate.toFixed(2)}/day</td><td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">RM ${c.basicPay.toFixed(2)}</td></tr>
+${logs.length?`<tr class="sec-hdr"><td colspan="4" style="background:#eef3ff;color:#1a4d7a">OVERTIME</td></tr>${otRowsHtml}<tr style="background:#eef3ff"><td><strong>OT Total (${totalOtHours.toFixed(2)} hrs)</strong></td><td style="text-align:center"><strong>${totalOtHours.toFixed(2)} hrs</strong></td><td style="text-align:right;font-family:'Courier New',monospace">RM ${c.otRate.toFixed(2)}/hr</td><td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#1e6641">RM ${c.otPay.toFixed(2)}</td></tr>`:''}
+${allowance>0?`<tr><td>Allowance</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">RM ${allowance.toFixed(2)}</td></tr>`:''}
+${bonus>0?`<tr><td>Bonus${a.bonusNote?' — '+a.bonusNote:''}</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#5b21b6">RM ${bonus.toFixed(2)}</td></tr>`:''}
+<tr style="font-weight:700;border-top:2px solid #ddd8d0"><td>Gross Earnings</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace">RM ${(c.basicPay+c.otPay+allowance+bonus).toFixed(2)}</td></tr>
+${(c.leaveDeduct>0||extraDeduct>0||stat.totalEmpDeduct>0)?`
+<tr class="ded-hdr"><td colspan="4">DEDUCTIONS</td></tr>
+${c.leaveDeduct>0?`<tr><td>Unpaid Leave (${a.leaveDays||0} days)</td><td style="text-align:center">${a.leaveDays||0} days</td><td style="text-align:right;font-family:'Courier New',monospace">RM ${c.dailyRate.toFixed(2)}/day</td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${c.leaveDeduct.toFixed(2)}</td></tr>`:''}
+${extraDeduct>0?`<tr><td>Other Deduction</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${extraDeduct.toFixed(2)}</td></tr>`:''}
+${stat.empEpf>0?`<tr><td>EPF Employee (11%)</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${stat.empEpf.toFixed(2)}</td></tr>`:''}
+${stat.empSocso>0?`<tr><td>SOCSO Employee (0.5%)</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${stat.empSocso.toFixed(2)}</td></tr>`:''}
+${stat.empEis>0?`<tr><td>EIS Employee (0.2%)</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${stat.empEis.toFixed(2)}</td></tr>`:''}
+<tr style="font-weight:700"><td>Total Deductions</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${(c.leaveDeduct+extraDeduct+stat.totalEmpDeduct).toFixed(2)}</td></tr>`:''}
+<tr class="net-row"><td colspan="3"><strong>NET PAY (Take-Home)</strong></td><td style="text-align:right;font-family:'Courier New',monospace;font-size:18px">RM ${netPay.toFixed(2)}</td></tr>
+</tbody></table>
+
+${stat.totalErContrib>0?`
+<div class="stat-box">
+  <div><div style="font-size:9px;font-weight:700;color:#6b6560;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">Employer Contributions</div><div>EPF (13%): RM ${stat.erEpf.toFixed(2)}</div><div>SOCSO (1.75%): RM ${stat.erSocso.toFixed(2)}</div><div>EIS (0.2%): RM ${stat.erEis.toFixed(2)}</div><div style="font-weight:700;margin-top:4px">Total: RM ${stat.totalErContrib.toFixed(2)}</div></div>
+  <div><div style="font-size:9px;font-weight:700;color:#6b6560;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">Total Employer Cost</div><div style="font-size:17px;font-weight:800;font-family:'Courier New',monospace;color:#1a1814">RM ${erCost.toFixed(2)}</div><div style="font-size:10px;color:#9e9890;margin-top:4px">Gross + Employer Contributions</div></div>
+</div>`:''}
+
+${a.perfRating?`
+<div class="perf-box">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div><div style="font-size:9px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px">Performance Rating — ${monthLabel}</div>
+    <div style="font-size:18px;color:#f59e0b">${stars} <span style="font-size:12px;font-weight:700;color:#92400e">${perfLabels[a.perfRating]||''}</span></div>
+    ${a.perfNote?`<div style="font-size:11px;color:#92400e;margin-top:4px;font-style:italic">${a.perfNote}</div>`:''}</div>
+  </div>
+</div>`:''}
+
+<div class="footer">
+  <div class="footer-note">Computer-generated payslip · CFT Global Enterprise · Confidential</div>
+  <div class="sig-line">Authorised Signature / Stamp</div>
+</div>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  const blob = new Blob([html], {type:'text/html'});
   const url = URL.createObjectURL(blob);
   const win = window.open(url, '_blank');
-  if (!win) {
-    showPosToast('❌ 请允许弹出窗口以生成PDF');
-  } else {
-    showPosToast('✅ 正在生成薪资单...');
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-  }
+  if (!win) showPosToast('❌ 请允许弹出窗口'); else { showPosToast('✅ 正在生成薪资单...'); setTimeout(()=>URL.revokeObjectURL(url),10000); }
 }
 
-// ── Init payroll month on load ────────────────────────────
+// ── Init ──────────────────────────────────────────────────
 (function() {
   const el = document.getElementById('payroll-month');
-  if (el) {
-    const now = new Date();
-    el.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  }
+  if (el) { const n=new Date(); el.value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
 })();
 
 </script>
