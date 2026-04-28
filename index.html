@@ -8259,15 +8259,120 @@ function calcSalary(salary, workDays, leaveDays, otHours) {
   return { dailyRate, hourlyRate, otRate, otPay, basicPay, leaveDeduct, netPay };
 }
 
-// ── Storage helpers ───────────────────────────────────────
-function prGetEmployees() { try { return JSON.parse(localStorage.getItem('payroll_employees') || '[]'); } catch { return []; } }
-function prSaveEmployees(a) { localStorage.setItem('payroll_employees', JSON.stringify(a)); }
-function prGetAttendance() { try { return JSON.parse(localStorage.getItem('payroll_attendance') || '{}'); } catch { return {}; } }
-function prSaveAttendance(o) { localStorage.setItem('payroll_attendance', JSON.stringify(o)); }
-function prGetOtLogs() { try { return JSON.parse(localStorage.getItem('payroll_ot_logs') || '{}'); } catch { return {}; } }
-function prSaveOtLogs(o) { localStorage.setItem('payroll_ot_logs', JSON.stringify(o)); }
+// ── Supabase Payroll Helpers ──────────────────────────────
+// All functions are async and talk directly to Supabase
+
+async function prFetchEmployees() {
+  const { data, error } = await sb.from('payroll_employees').select('*').order('created_at');
+  if (error) { console.error('prFetchEmployees:', error); return []; }
+  // Map snake_case → camelCase for compatibility
+  return (data || []).map(prRowToEmp);
+}
+function prRowToEmp(r) {
+  return {
+    id: r.id, name: r.name, ic: r.ic || '', position: r.position || '',
+    joinDate: r.join_date || '', salary: Number(r.salary),
+    annualLeave: r.annual_leave ?? 8, mcLeave: r.mc_leave ?? 14,
+    emergencyLeave: r.emergency_leave ?? 3,
+    useEpf: r.use_epf !== false, useSocso: r.use_socso !== false, useEis: r.use_eis !== false,
+  };
+}
+async function prUpsertEmployee(emp) {
+  const row = {
+    id: emp.id, name: emp.name, ic: emp.ic || null, position: emp.position || null,
+    join_date: emp.joinDate || null, salary: emp.salary,
+    annual_leave: emp.annualLeave, mc_leave: emp.mcLeave, emergency_leave: emp.emergencyLeave,
+    use_epf: emp.useEpf, use_socso: emp.useSocso, use_eis: emp.useEis,
+  };
+  const { error } = await sb.from('payroll_employees').upsert(row, { onConflict: 'id' });
+  if (error) { console.error('prUpsertEmployee:', error); return false; }
+  return true;
+}
+async function prDeleteEmployee(id) {
+  const { error } = await sb.from('payroll_employees').delete().eq('id', id);
+  if (error) { console.error('prDeleteEmployee:', error); return false; }
+  return true;
+}
+
+async function prFetchAttendance(empId, month) {
+  const { data, error } = await sb.from('payroll_attendance').select('*').eq('emp_id', empId).eq('month', month).maybeSingle();
+  if (error) { console.error('prFetchAttendance:', error); return null; }
+  if (!data) return null;
+  return {
+    workDays: data.work_days, leaveDays: data.leave_days,
+    alUsed: data.al_used, mcUsed: data.mc_used, elUsed: data.el_used,
+    allowance: data.allowance, extraDeduct: data.extra_deduct,
+    bonus: data.bonus, bonusNote: data.bonus_note || '',
+    perfRating: data.perf_rating, perfNote: data.perf_note || '',
+    epfOn: data.epf_on, socsoOn: data.socso_on, eisOn: data.eis_on,
+  };
+}
+async function prFetchAllAttendanceForEmp(empId) {
+  const { data, error } = await sb.from('payroll_attendance').select('*').eq('emp_id', empId);
+  if (error) { console.error('prFetchAllAtt:', error); return {}; }
+  const result = {};
+  (data || []).forEach(r => {
+    result[r.month] = {
+      workDays: r.work_days, leaveDays: r.leave_days,
+      alUsed: r.al_used, mcUsed: r.mc_used, elUsed: r.el_used,
+      allowance: r.allowance, extraDeduct: r.extra_deduct,
+      bonus: r.bonus, bonusNote: r.bonus_note || '',
+      perfRating: r.perf_rating, perfNote: r.perf_note || '',
+      epfOn: r.epf_on, socsoOn: r.socso_on, eisOn: r.eis_on,
+    };
+  });
+  return result;
+}
+async function prUpsertAttendance(empId, month, att) {
+  const row = {
+    emp_id: empId, month,
+    work_days: att.workDays, leave_days: att.leaveDays,
+    al_used: att.alUsed, mc_used: att.mcUsed, el_used: att.elUsed,
+    allowance: att.allowance, extra_deduct: att.extraDeduct,
+    bonus: att.bonus, bonus_note: att.bonusNote,
+    perf_rating: att.perfRating, perf_note: att.perfNote,
+    epf_on: att.epfOn, socso_on: att.socsoOn, eis_on: att.eisOn,
+  };
+  const { error } = await sb.from('payroll_attendance').upsert(row, { onConflict: 'emp_id,month' });
+  if (error) { console.error('prUpsertAtt:', error); return false; }
+  return true;
+}
+
+async function prFetchOtLogs(empId, month) {
+  const { data, error } = await sb.from('payroll_ot_logs').select('*').eq('emp_id', empId).eq('month', month).order('ot_date').order('start_time');
+  if (error) { console.error('prFetchOtLogs:', error); return []; }
+  return (data || []).map(r => ({ id: r.id, date: r.ot_date, start: r.start_time.slice(0,5), end: r.end_time.slice(0,5), hours: Number(r.hours) }));
+}
+async function prFetchAllOtForEmp(empId) {
+  const { data, error } = await sb.from('payroll_ot_logs').select('*').eq('emp_id', empId);
+  if (error) return {};
+  const result = {};
+  (data || []).forEach(r => {
+    if (!result[r.month]) result[r.month] = [];
+    result[r.month].push({ id: r.id, date: r.ot_date, start: r.start_time.slice(0,5), end: r.end_time.slice(0,5), hours: Number(r.hours) });
+  });
+  return result;
+}
+async function prSyncOtLogs(empId, month, logs) {
+  // Delete all existing for this emp+month, then insert fresh
+  await sb.from('payroll_ot_logs').delete().eq('emp_id', empId).eq('month', month);
+  if (!logs.length) return true;
+  const rows = logs.map(l => ({ emp_id: empId, month, ot_date: l.date, start_time: l.start, end_time: l.end, hours: l.hours }));
+  const { error } = await sb.from('payroll_ot_logs').insert(rows);
+  if (error) { console.error('prSyncOtLogs:', error); return false; }
+  return true;
+}
+
 function prAttKey(empId, monthStr) { return empId + '_' + monthStr; }
 function prCalcOtHours(logs) { return logs.reduce((s, e) => s + Number(e.hours), 0); }
+
+// ── In-memory cache (loaded on render) ───────────────────
+let _prEmployees = [];        // array of emp objects
+let _prAttCache = {};         // { "empId_month": attObj }
+let _prOtCache = {};          // { "empId_month": [logs] }
+let _prAllAttByEmp = {};      // { empId: { month: attObj } } for leave balance
+let _prAllOtByEmp = {};       // { empId: { month: [logs] } }
+let _prLoading = false;
 
 // ── State ─────────────────────────────────────────────────
 let _prEditEmpId = null, _prAttEmpId = null, _prCurrentMonth = '', _prOtDraft = [], _prPerfRating = 0;
@@ -8280,12 +8385,10 @@ function prInitMonth() {
 }
 
 // ── Leave balance calculation ─────────────────────────────
-function prCalcLeaveBalance(emp, allAtt) {
-  // Sum all months' leave used
+// ── Leave balance from cached all-attendance ──────────────
+function prCalcLeaveBalance(emp, allAttForEmp) {
   let alUsed = 0, mcUsed = 0, elUsed = 0;
-  Object.keys(allAtt).forEach(k => {
-    if (!k.startsWith(emp.id + '_')) return;
-    const a = allAtt[k];
+  Object.values(allAttForEmp || {}).forEach(function(a) {
     alUsed += Number(a.alUsed || 0);
     mcUsed += Number(a.mcUsed || 0);
     elUsed += Number(a.elUsed || 0);
@@ -8297,26 +8400,35 @@ function prCalcLeaveBalance(emp, allAtt) {
   };
 }
 
-// ── RENDER PAYROLL PAGE ───────────────────────────────────
-function renderPayrollPage() {
+// ── RENDER PAYROLL PAGE (async, Supabase) ─────────────────
+async function renderPayrollPage() {
   prInitMonth();
-  const employees = prGetEmployees();
-  const attendance = prGetAttendance();
-  const otLogs = prGetOtLogs();
   const list = document.getElementById('payroll-employee-list');
   const empty = document.getElementById('payroll-empty');
   if (!list) return;
-  if (!employees.length) { list.innerHTML = ''; if (empty) empty.style.display = ''; return; }
+  list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">⏳ 载入员工资料...</div>';
   if (empty) empty.style.display = 'none';
-  const month = _prCurrentMonth;
 
-  list.innerHTML = employees.map(emp => {
-    const key = prAttKey(emp.id, month);
-    const att = attendance[key] || {};
-    const logs = (otLogs[key] || []).slice().sort((a,b) => a.date.localeCompare(b.date));
+  _prEmployees = await prFetchEmployees();
+  if (!_prEmployees.length) { list.innerHTML = ''; if (empty) empty.style.display = ''; return; }
+
+  const month = _prCurrentMonth;
+  const attArr = await Promise.all(_prEmployees.map(function(emp){ return prFetchAttendance(emp.id, month); }));
+  const otArr  = await Promise.all(_prEmployees.map(function(emp){ return prFetchOtLogs(emp.id, month); }));
+  const allAttArr = await Promise.all(_prEmployees.map(function(emp){ return prFetchAllAttendanceForEmp(emp.id); }));
+
+  _prEmployees.forEach(function(emp, i) {
+    _prAttCache[prAttKey(emp.id, month)] = attArr[i];
+    _prOtCache[prAttKey(emp.id, month)]  = otArr[i] || [];
+    _prAllAttByEmp[emp.id] = allAttArr[i] || {};
+  });
+
+  list.innerHTML = _prEmployees.map(function(emp) {
+    const att = _prAttCache[prAttKey(emp.id, month)] || {};
+    const logs = (_prOtCache[prAttKey(emp.id, month)] || []).slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
     const totalOtHours = prCalcOtHours(logs);
-    const hasData = att.workDays !== undefined && att.workDays !== '';
-    const lb = prCalcLeaveBalance(emp, attendance);
+    const hasData = att.workDays !== undefined && att.workDays !== null;
+    const lb = prCalcLeaveBalance(emp, _prAllAttByEmp[emp.id]);
     const otRate = emp.salary / 26 / 8 * 1.5;
     const statShort = [emp.useEpf && 'EPF', emp.useSocso && 'SOCSO', emp.useEis && 'EIS'].filter(Boolean).join(' · ') || '无';
 
@@ -8330,69 +8442,47 @@ function renderPayrollPage() {
       const netEmployee = gross - stat.totalEmpDeduct;
       const rating = att.perfRating || 0;
       const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
-      const otRowsHtml = logs.map(e => `
-        <div style="display:flex;gap:8px;font-size:11px;padding:3px 0;border-bottom:1px solid var(--border)">
-          <span style="color:var(--text3);min-width:60px">${formatDateShort(e.date)}</span>
-          <span style="font-family:'DM Mono',monospace;color:var(--text2);flex:1">${e.start}–${e.end}</span>
-          <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue)">${Number(e.hours).toFixed(2)}h</span>
-        </div>`).join('');
-      summaryHtml = `
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px;margin-top:12px">
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;text-align:center">
-            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">上班</div><div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace">${att.workDays}</div></div>
-            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">无薪假</div><div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--amber)">${att.leaveDays || 0}</div></div>
-            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">OT 小时</div><div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)">${totalOtHours.toFixed(2)}</div></div>
-            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">表现</div><div style="font-size:13px;color:#f59e0b">${stars}</div></div>
-          </div>
-          ${logs.length ? `<div style="margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">OT 明细</div>${otRowsHtml}<div style="font-size:11px;color:var(--blue);font-weight:700;text-align:right;margin-top:3px">OT 合计：${totalOtHours.toFixed(2)}h = RM ${c.otPay.toFixed(2)}</div></div>` : ''}
-          ${att.bonus > 0 ? `<div style="font-size:11px;color:var(--purple);margin-bottom:6px">🎁 Bonus: RM ${Number(att.bonus).toFixed(2)} ${att.bonusNote ? '('+att.bonusNote+')' : ''}</div>` : ''}
-          ${att.perfNote ? `<div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-style:italic">📝 ${att.perfNote}</div>` : ''}
-          <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;align-items:flex-end">
-            <div>
-              <div style="font-size:10px;color:var(--text3)">Gross: RM ${gross.toFixed(2)} ${stat.totalEmpDeduct>0?'− 扣款: RM '+stat.totalEmpDeduct.toFixed(2):''}</div>
-            </div>
-            <div style="text-align:right">
-              <div style="font-size:10px;color:var(--text3)">实发</div>
-              <div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:var(--green)">RM ${netEmployee.toFixed(2)}</div>
-            </div>
-          </div>
-        </div>`;
+      const otRowsHtml = logs.map(function(e){ return '<div style="display:flex;gap:8px;font-size:11px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text3);min-width:60px">'+formatDateShort(e.date)+'</span><span style="font-family:\'DM Mono\',monospace;color:var(--text2);flex:1">'+e.start+'–'+e.end+'</span><span style="font-family:\'DM Mono\',monospace;font-weight:700;color:var(--blue)">'+Number(e.hours).toFixed(2)+'h</span></div>'; }).join('');
+      summaryHtml = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px;margin-top:12px">'
+        + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;text-align:center">'
+        + '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">上班</div><div style="font-size:16px;font-weight:700;font-family:\'DM Mono\',monospace">'+att.workDays+'</div></div>'
+        + '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">无薪假</div><div style="font-size:16px;font-weight:700;font-family:\'DM Mono\',monospace;color:var(--amber)">'+(att.leaveDays||0)+'</div></div>'
+        + '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">OT 小时</div><div style="font-size:16px;font-weight:700;font-family:\'DM Mono\',monospace;color:var(--blue)">'+totalOtHours.toFixed(2)+'</div></div>'
+        + '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:3px">表现</div><div style="font-size:13px;color:#f59e0b">'+stars+'</div></div>'
+        + '</div>'
+        + (logs.length ? '<div style="margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">OT 明细</div>'+otRowsHtml+'<div style="font-size:11px;color:var(--blue);font-weight:700;text-align:right;margin-top:3px">OT 合计：'+totalOtHours.toFixed(2)+'h = RM '+c.otPay.toFixed(2)+'</div></div>' : '')
+        + (att.bonus > 0 ? '<div style="font-size:11px;color:var(--purple);margin-bottom:6px">🎁 Bonus: RM '+Number(att.bonus).toFixed(2)+(att.bonusNote?' ('+att.bonusNote+')':'')+' </div>' : '')
+        + (att.perfNote ? '<div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-style:italic">📝 '+att.perfNote+'</div>' : '')
+        + '<div style="border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;align-items:flex-end">'
+        + '<div><div style="font-size:10px;color:var(--text3)">Gross: RM '+gross.toFixed(2)+(stat.totalEmpDeduct>0?' − 扣款: RM '+stat.totalEmpDeduct.toFixed(2):'')+' </div></div>'
+        + '<div style="text-align:right"><div style="font-size:10px;color:var(--text3)">实发</div><div style="font-size:22px;font-weight:800;font-family:\'DM Mono\',monospace;color:var(--green)">RM '+netEmployee.toFixed(2)+'</div></div>'
+        + '</div></div>';
     }
 
-    // Leave balance badges
-    const lbHtml = `
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-        <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--green-bg);color:var(--green);font-weight:600">AL: ${lb.alLeft}/${lb.alTotal}</span>
-        <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--blue-bg);color:var(--blue);font-weight:600">MC: ${lb.mcLeft}/${lb.mcTotal}</span>
-        <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--amber-bg);color:var(--amber);font-weight:600">EL: ${lb.elLeft}/${lb.elTotal}</span>
-        <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--surface2);color:var(--text3);font-weight:600">${statShort}</span>
-      </div>`;
+    const lbHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'
+      + '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--green-bg);color:var(--green);font-weight:600">AL: '+lb.alLeft+'/'+lb.alTotal+'</span>'
+      + '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--blue-bg);color:var(--blue);font-weight:600">MC: '+lb.mcLeft+'/'+lb.mcTotal+'</span>'
+      + '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--amber-bg);color:var(--amber);font-weight:600">EL: '+lb.elLeft+'/'+lb.elTotal+'</span>'
+      + '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--surface2);color:var(--text3);font-weight:600">'+statShort+'</span></div>';
 
-    return `
-      <div class="card" style="margin-bottom:14px">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between">
-          <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
-            <div style="width:40px;height:40px;border-radius:50%;background:var(--text);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0">${emp.name.charAt(0).toUpperCase()}</div>
-            <div style="min-width:0;flex:1">
-              <div style="font-size:15px;font-weight:700">${emp.name} <span style="font-size:11px;color:var(--text3);font-weight:400">${emp.position||''}</span></div>
-              <div style="font-size:11px;color:var(--text3);margin-top:1px">月薪 <span style="font-family:'DM Mono',monospace;font-weight:600;color:var(--text2)">RM ${Number(emp.salary).toFixed(2)}</span> &nbsp;·&nbsp; OT/h <span style="font-family:'DM Mono',monospace;font-weight:600;color:var(--blue)">RM ${otRate.toFixed(2)}</span></div>
-              ${lbHtml}
-            </div>
-          </div>
-          <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;margin-left:8px">
-            <button class="btn" style="font-size:11px;padding:5px 8px" onclick="openPerfHistory('${emp.id}')">📊</button>
-            <button class="btn" style="font-size:11px;padding:5px 8px" onclick="openEditEmployeeModal('${emp.id}')">✏️</button>
-            <button class="btn btn-danger" style="font-size:11px;padding:5px 8px" onclick="deleteEmployee('${emp.id}')">🗑</button>
-          </div>
-        </div>
-        ${summaryHtml}
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="btn" style="flex:1;font-size:13px;padding:9px 0" onclick="openAttendanceModal('${emp.id}')">
-            ${hasData ? '✏️ 修改月度记录' : '➕ 录入月度记录'}
-          </button>
-          ${(hasData || logs.length > 0) ? `<button class="btn btn-success" style="flex:1;font-size:13px;padding:9px 0" onclick="generatePayslip('${emp.id}')">📄 薪资单 PDF</button>` : ''}
-        </div>
-      </div>`;
+    return '<div class="card" style="margin-bottom:14px">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between">'
+      + '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">'
+      + '<div style="width:40px;height:40px;border-radius:50%;background:var(--text);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0">'+emp.name.charAt(0).toUpperCase()+'</div>'
+      + '<div style="min-width:0;flex:1">'
+      + '<div style="font-size:15px;font-weight:700">'+emp.name+' <span style="font-size:11px;color:var(--text3);font-weight:400">'+(emp.position||'')+'</span></div>'
+      + '<div style="font-size:11px;color:var(--text3);margin-top:1px">月薪 <span style="font-family:\'DM Mono\',monospace;font-weight:600;color:var(--text2)">RM '+Number(emp.salary).toFixed(2)+'</span> &nbsp;·&nbsp; OT/h <span style="font-family:\'DM Mono\',monospace;font-weight:600;color:var(--blue)">RM '+otRate.toFixed(2)+'</span></div>'
+      + lbHtml + '</div></div>'
+      + '<div style="display:flex;gap:5px;align-items:center;flex-shrink:0;margin-left:8px">'
+      + '<button class="btn" style="font-size:11px;padding:5px 8px" onclick="openPerfHistory(\''+emp.id+'\')">📊</button>'
+      + '<button class="btn" style="font-size:11px;padding:5px 8px" onclick="openEditEmployeeModal(\''+emp.id+'\')">✏️</button>'
+      + '<button class="btn btn-danger" style="font-size:11px;padding:5px 8px" onclick="deleteEmployee(\''+emp.id+'\')">🗑</button>'
+      + '</div></div>'
+      + summaryHtml
+      + '<div style="display:flex;gap:8px;margin-top:12px">'
+      + '<button class="btn" style="flex:1;font-size:13px;padding:9px 0" onclick="openAttendanceModal(\''+emp.id+'\')">'+( hasData ? '✏️ 修改月度记录' : '➕ 录入月度记录' )+'</button>'
+      + ( (hasData || logs.length > 0) ? '<button class="btn btn-success" style="flex:1;font-size:13px;padding:9px 0" onclick="generatePayslip(\''+emp.id+'\')">📄 薪资单 PDF</button>' : '' )
+      + '</div></div>';
   }).join('');
 }
 
@@ -8431,7 +8521,7 @@ function openAddEmployeeModal() {
   document.body.classList.add('modal-open');
 }
 function openEditEmployeeModal(id) {
-  const emp = prGetEmployees().find(e => e.id === id);
+  const emp = _prEmployees.find(function(e){ return e.id === id; });
   if (!emp) return;
   _prEditEmpId = id;
   document.getElementById('employee-modal-title').textContent = '编辑员工';
@@ -8454,13 +8544,13 @@ function closeEmployeeModal() {
   document.getElementById('employee-modal').classList.remove('open');
   document.body.classList.remove('modal-open');
 }
-function saveEmployee() {
+async function saveEmployee() {
   const name = document.getElementById('emp-name').value.trim();
   const salary = parseFloat(document.getElementById('emp-salary').value);
   if (!name) { alert('请输入员工姓名'); return; }
   if (!salary || salary <= 0) { alert('请输入有效月薪'); return; }
-  const employees = prGetEmployees();
   const data = {
+    id: _prEditEmpId || Date.now().toString(),
     name, salary,
     ic: document.getElementById('emp-ic').value.trim(),
     position: document.getElementById('emp-position').value.trim(),
@@ -8472,63 +8562,50 @@ function saveEmployee() {
     useSocso: document.getElementById('emp-socso').checked,
     useEis: document.getElementById('emp-eis').checked,
   };
-  if (_prEditEmpId) {
-    const idx = employees.findIndex(e => e.id === _prEditEmpId);
-    if (idx >= 0) employees[idx] = { ...employees[idx], ...data };
-  } else {
-    employees.push({ id: Date.now().toString(), ...data });
-  }
-  prSaveEmployees(employees);
+  const ok = await prUpsertEmployee(data);
+  if (!ok) { showPosToast('❌ 保存失败，请检查网络'); return; }
   closeEmployeeModal();
   renderPayrollPage();
   showPosToast('✅ 员工资料已保存');
 }
-function deleteEmployee(id) {
+async function deleteEmployee(id) {
   if (!confirm('确定删除此员工？相关记录也会删除。')) return;
-  prSaveEmployees(prGetEmployees().filter(e => e.id !== id));
-  const att = prGetAttendance(), ot = prGetOtLogs();
-  Object.keys(att).forEach(k => { if(k.startsWith(id+'_')) delete att[k]; });
-  Object.keys(ot).forEach(k => { if(k.startsWith(id+'_')) delete ot[k]; });
-  prSaveAttendance(att); prSaveOtLogs(ot);
+  const ok = await prDeleteEmployee(id);
+  if (!ok) { showPosToast('❌ 删除失败'); return; }
   renderPayrollPage();
   showPosToast('✅ 员工已删除');
 }
 
 // ── Attendance Modal ──────────────────────────────────────
-function openAttendanceModal(empId) {
+async function openAttendanceModal(empId) {
   _prAttEmpId = empId;
   prInitMonth();
-  const emp = prGetEmployees().find(e => e.id === empId);
+  const emp = _prEmployees.find(function(e){ return e.id === empId; });
   if (!emp) return;
   document.getElementById('att-modal-title').textContent = emp.name + ' — ' + formatPayrollMonth(_prCurrentMonth);
-  document.getElementById('att-modal-subtitle').textContent = emp.position ? emp.position + ' · ' : '' + '月薪 RM ' + Number(emp.salary).toFixed(2) + ' · OT RM ' + (emp.salary/26/8*1.5).toFixed(2) + '/h';
+  document.getElementById('att-modal-subtitle').textContent = (emp.position ? emp.position + ' · ' : '') + '月薪 RM ' + Number(emp.salary).toFixed(2) + ' · OT RM ' + (emp.salary/26/8*1.5).toFixed(2) + '/h';
 
-  const att = prGetAttendance();
-  const key = prAttKey(empId, _prCurrentMonth);
-  const ex = att[key] || {};
+  const ex = await prFetchAttendance(empId, _prCurrentMonth) || {};
+  const otLogsLoaded = await prFetchOtLogs(empId, _prCurrentMonth);
 
-  document.getElementById('att-days').value = ex.workDays ?? '';
-  document.getElementById('att-leave').value = ex.leaveDays ?? '';
-  document.getElementById('att-al-used').value = ex.alUsed ?? '';
-  document.getElementById('att-mc-used').value = ex.mcUsed ?? '';
-  document.getElementById('att-el-used').value = ex.elUsed ?? '';
-  document.getElementById('att-allowance').value = ex.allowance ?? '';
-  document.getElementById('att-extra-deduct').value = ex.extraDeduct ?? '';
-  document.getElementById('att-bonus').value = ex.bonus ?? '';
-  document.getElementById('att-bonus-note').value = ex.bonusNote ?? '';
-  document.getElementById('att-perf-note').value = ex.perfNote ?? '';
-  // Statutory — default from employee settings
+  document.getElementById('att-days').value = ex.workDays != null ? ex.workDays : '';
+  document.getElementById('att-leave').value = ex.leaveDays != null ? ex.leaveDays : '';
+  document.getElementById('att-al-used').value = ex.alUsed != null ? ex.alUsed : '';
+  document.getElementById('att-mc-used').value = ex.mcUsed != null ? ex.mcUsed : '';
+  document.getElementById('att-el-used').value = ex.elUsed != null ? ex.elUsed : '';
+  document.getElementById('att-allowance').value = ex.allowance != null ? ex.allowance : '';
+  document.getElementById('att-extra-deduct').value = ex.extraDeduct != null ? ex.extraDeduct : '';
+  document.getElementById('att-bonus').value = ex.bonus != null ? ex.bonus : '';
+  document.getElementById('att-bonus-note').value = ex.bonusNote || '';
+  document.getElementById('att-perf-note').value = ex.perfNote || '';
   document.getElementById('att-epf-on').checked = ex.epfOn !== undefined ? ex.epfOn : (emp.useEpf !== false);
   document.getElementById('att-socso-on').checked = ex.socsoOn !== undefined ? ex.socsoOn : (emp.useSocso !== false);
   document.getElementById('att-eis-on').checked = ex.eisOn !== undefined ? ex.eisOn : (emp.useEis !== false);
 
-  // Performance stars
   _prPerfRating = ex.perfRating || 0;
   renderStars();
 
-  // OT draft
-  const otLogs = prGetOtLogs();
-  _prOtDraft = (otLogs[key] || []).map(e => ({...e}));
+  _prOtDraft = otLogsLoaded.map(function(e){ return Object.assign({}, e); });
   document.getElementById('ot-add-row').style.display = 'none';
   const now = new Date();
   const el = document.getElementById('ot-date');
@@ -8537,9 +8614,8 @@ function openAttendanceModal(empId) {
   const elE = document.getElementById('ot-end'); if(elE) elE.value='';
   const dp = document.getElementById('ot-duration-preview'); if(dp) dp.textContent='';
 
-  // Hook statutory checkboxes
-  ['att-epf-on','att-socso-on','att-eis-on'].forEach(id => {
-    const el2 = document.getElementById(id);
+  ['att-epf-on','att-socso-on','att-eis-on'].forEach(function(id2) {
+    const el2 = document.getElementById(id2);
     if (el2) el2.onchange = updateAttCalcPreview;
   });
 
@@ -8568,7 +8644,7 @@ function setPerfRating(n) { _prPerfRating = n; renderStars(); }
 
 // ── Calc preview ──────────────────────────────────────────
 function updateAttCalcPreview() {
-  const emp = prGetEmployees().find(e => e.id === _prAttEmpId);
+  const emp = _prEmployees.find(function(e){ return e.id === _prAttEmpId; });
   if (!emp) return;
   const days = parseFloat(document.getElementById('att-days')?.value) || 0;
   const leave = parseFloat(document.getElementById('att-leave')?.value) || 0;
@@ -8611,12 +8687,10 @@ function updateAttCalcPreview() {
   if (statEl) statEl.innerHTML = stat.totalErContrib > 0 ? `雇主贡献：EPF RM ${stat.erEpf.toFixed(2)} · SOCSO RM ${stat.erSocso.toFixed(2)} · EIS RM ${stat.erEis.toFixed(2)} = RM ${stat.totalErContrib.toFixed(2)}` : '';
 }
 
-function saveAttendance() {
+async function saveAttendance() {
   const days = document.getElementById('att-days').value;
   if (days === '' || isNaN(parseFloat(days))) { alert('请输入上班天数'); return; }
-  const att = prGetAttendance(), ot = prGetOtLogs();
-  const key = prAttKey(_prAttEmpId, _prCurrentMonth);
-  att[key] = {
+  const attData = {
     workDays: parseFloat(days),
     leaveDays: parseFloat(document.getElementById('att-leave').value || 0),
     alUsed: parseFloat(document.getElementById('att-al-used').value || 0),
@@ -8632,8 +8706,9 @@ function saveAttendance() {
     socsoOn: document.getElementById('att-socso-on').checked,
     eisOn: document.getElementById('att-eis-on').checked,
   };
-  ot[key] = _prOtDraft.slice();
-  prSaveAttendance(att); prSaveOtLogs(ot);
+  const ok1 = await prUpsertAttendance(_prAttEmpId, _prCurrentMonth, attData);
+  const ok2 = await prSyncOtLogs(_prAttEmpId, _prCurrentMonth, _prOtDraft);
+  if (!ok1 || !ok2) { showPosToast('❌ 保存失败，请检查网络'); return; }
   closeAttendanceModal();
   renderPayrollPage();
   showPosToast('✅ 月度记录已保存');
@@ -8685,10 +8760,10 @@ function renderOtDraftList() {
 }
 
 // ── OT Log Modal ──────────────────────────────────────────
-function openOtLogModal(empId) {
+async function openOtLogModal(empId) {
   prInitMonth();
-  const emp=prGetEmployees().find(e=>e.id===empId); if(!emp)return;
-  const logs=(prGetOtLogs()[prAttKey(empId,_prCurrentMonth)]||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const emp=_prEmployees.find(function(e){return e.id===empId;}); if(!emp)return;
+  const logs=(await prFetchOtLogs(empId,_prCurrentMonth)).slice().sort(function(a,b){return a.date.localeCompare(b.date);});
   document.getElementById('ot-log-modal-title').textContent=emp.name+' — OT 明细';
   document.getElementById('ot-log-modal-subtitle').textContent=formatPayrollMonth(_prCurrentMonth);
   const total=prCalcOtHours(logs), otRate=emp.salary/26/8*1.5;
@@ -8700,20 +8775,20 @@ function openOtLogModal(empId) {
 function closeOtLogModal() { document.getElementById('ot-log-modal').classList.remove('open'); document.body.classList.remove('modal-open'); }
 
 // ── Performance History Modal ─────────────────────────────
-function openPerfHistory(empId) {
-  const emp = prGetEmployees().find(e => e.id === empId); if(!emp) return;
-  const att = prGetAttendance();
-  const months = Object.keys(att).filter(k => k.startsWith(empId+'_')).map(k => k.replace(empId+'_','')).sort().reverse();
+async function openPerfHistory(empId) {
+  const emp = _prEmployees.find(function(e){ return e.id === empId; }); if(!emp) return;
+  const att = await prFetchAllAttendanceForEmp(empId);
+  const allOt = await prFetchAllOtForEmp(empId);
+  const months = Object.keys(att).sort().reverse();
   document.getElementById('perf-history-title').textContent = emp.name + ' — 表现记录';
   document.getElementById('perf-history-subtitle').textContent = '历史月度记录（最新在前）';
   const labels = ['','差','一般','良好','优秀','卓越'];
   const listEl = document.getElementById('perf-history-list');
   if (!months.length) { listEl.innerHTML='<div class="empty">暂无记录</div>'; }
   else {
-    const otLogs = prGetOtLogs();
-    listEl.innerHTML = months.map(m => {
-      const key = empId+'_'+m, a = att[key]||{};
-      const logs = otLogs[key]||[], totalOt = prCalcOtHours(logs);
+    listEl.innerHTML = months.map(function(m) {
+      const a = att[m]||{};
+      const logs = allOt[m]||[], totalOt = prCalcOtHours(logs);
       const c = calcSalary(emp.salary, Number(a.workDays||0), Number(a.leaveDays||0), totalOt);
       const gross = c.netPay + Number(a.allowance||0) - Number(a.extraDeduct||0) + Number(a.bonus||0);
       const stat = calcStatutory(gross, a.epfOn, a.socsoOn, a.eisOn);
@@ -8740,12 +8815,11 @@ function openPerfHistory(empId) {
 }
 
 // ── PDF Payslip ───────────────────────────────────────────
-function generatePayslip(empId) {
+async function generatePayslip(empId) {
   prInitMonth();
-  const emp = prGetEmployees().find(e => e.id === empId); if(!emp) return;
-  const key = prAttKey(empId, _prCurrentMonth);
-  const a = prGetAttendance()[key] || {};
-  const logs = (prGetOtLogs()[key] || []).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const emp = _prEmployees.find(function(e){ return e.id === empId; }); if(!emp) return;
+  const a = await prFetchAttendance(empId, _prCurrentMonth) || {};
+  const logs = (await prFetchOtLogs(empId, _prCurrentMonth)).slice().sort(function(x,y){ return x.date.localeCompare(y.date); });
   const totalOtHours = prCalcOtHours(logs);
   if (!a.workDays && !logs.length && !a.bonus) { alert('请先录入月度记录'); return; }
   const c = calcSalary(emp.salary, Number(a.workDays||0), Number(a.leaveDays||0), totalOtHours);
@@ -8758,7 +8832,8 @@ function generatePayslip(empId) {
   const today = new Date().toLocaleDateString('en-MY',{day:'2-digit',month:'short',year:'numeric'});
   const stars = '★'.repeat(a.perfRating||0)+'☆'.repeat(5-(a.perfRating||0));
   const perfLabels = ['','Poor','Below Avg','Good','Excellent','Outstanding'];
-  const lb = prCalcLeaveBalance(emp, prGetAttendance());
+  const allAttEmp = await prFetchAllAttendanceForEmp(empId);
+  const lb = prCalcLeaveBalance(emp, allAttEmp);
 
   const otRowsHtml = logs.map(e=>`
     <tr><td style="font-size:11px;color:#6b6560;padding-left:20px">OT — ${formatDateShort(e.date)} &nbsp;${e.start}–${e.end}</td><td style="text-align:center">${Number(e.hours).toFixed(2)} hrs</td><td style="text-align:right;font-family:'Courier New',monospace">RM ${c.otRate.toFixed(2)}/hr</td><td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">RM ${(e.hours*c.otRate).toFixed(2)}</td></tr>`).join('');
