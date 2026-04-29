@@ -1470,6 +1470,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAdj()">取消</button>
+      <button id="adj-tier-btn" class="btn" style="display:none;background:var(--blue-bg);color:var(--blue);border-color:#bfdbfe" onclick="openTierModalFromAdj()">⚙️ 阶梯定价</button>
       <button class="btn btn-block" style="width:auto;margin:0" onclick="saveAdj()">保存</button>
     </div>
   </div>
@@ -1783,6 +1784,25 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     <div class="modal-footer">
       <button class="btn" onclick="closeLhdnAssetModal()">取消</button>
       <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveLhdnAsset()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SERVICE TIER PRICING MODAL ══════════════════════ -->
+<div class="modal-overlay" id="tier-modal">
+  <div class="modal" style="max-width:420px">
+    <h3>⚙️ 阶梯定价设置</h3>
+    <div id="tier-item-name" style="font-size:13px;color:var(--text3);margin-bottom:14px"></div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px">设置数量阶梯价，系统会自动按数量选最优价格</div>
+    <div id="tier-rows" style="margin-bottom:12px"></div>
+    <button class="btn" onclick="addTierRow()" style="width:100%;margin-bottom:12px">＋ 添加阶梯</button>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px;font-size:11px;color:var(--text3);margin-bottom:14px">
+      💡 例子：1张 RM0.50、超过10张 RM0.40/张、超过100张 RM0.30/张<br>
+      第一行的「最少张数」填 <b>1</b>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeTierModal()">取消</button>
+      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveTiers()">保存</button>
     </div>
   </div>
 </div>
@@ -2535,6 +2555,9 @@ function openAdj(id) {
     if(bc.battery_id) document.getElementById('adj-bundle-battery').value = bc.battery_id;
     if(bc.cartridge_id) document.getElementById('adj-bundle-cartridge').value = bc.cartridge_id;
   }
+  // Show/hide tier pricing button
+  const tierBtn = document.getElementById('adj-tier-btn');
+  if (tierBtn) tierBtn.style.display = it.is_service ? '' : 'none';
   document.getElementById('adj-modal').classList.add('open');
 }
 
@@ -2878,34 +2901,44 @@ function addToInstoreCart(item) {
 }
 
 function removeFromInstoreCart(itemId) {
-  itemId = parseInt(itemId);
-  instoreCart = instoreCart.filter(c => c.item.id !== itemId);
+  instoreCart = instoreCart.filter(c => String(c.item.id) !== String(itemId));
   renderInstoreCart();
 }
 
 function updateInstoreQty(itemId, val) {
-  itemId = parseInt(itemId);
-  const entry = instoreCart.find(c => c.item.id === itemId);
+  const entry = instoreCart.find(c => String(c.item.id) === String(itemId));
   if(entry) entry.qty = Math.max(1, parseInt(val)||1);
   renderInstoreCart();
 }
 
 function toggleInstoreBulk(itemId) {
-  itemId = parseInt(itemId);
-  const entry = instoreCart.find(c => c.item.id === itemId);
+  const entry = instoreCart.find(c => String(c.item.id) === String(itemId));
   if(!entry) return;
   entry.useBulk = !entry.useBulk;
   renderInstoreCart();
 }
 
+function getServiceTierPrice(item, qty) {
+  // service_tiers: [{min_qty: 1, price: 0.50}, {min_qty: 11, price: 0.40}, {min_qty: 101, price: 0.30}]
+  const tiers = item.service_tiers;
+  if (!tiers || !tiers.length) return +(item.price||0);
+  // Sort descending by min_qty, pick first tier where qty >= min_qty
+  const sorted = [...tiers].sort((a,b) => b.min_qty - a.min_qty);
+  const tier = sorted.find(t => qty >= t.min_qty);
+  return tier ? +tier.price : +(item.price||0);
+}
+
 function getInstoreItemPricing(c) {
+  if (c.item.is_service && c.item.service_tiers && c.item.service_tiers.length) {
+    const unitPrice = getServiceTierPrice(c.item, c.qty);
+    return { totalPrice: unitPrice * c.qty, unitPrice, tiered: true };
+  }
   const unitPrice = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
   return { totalPrice: unitPrice * c.qty };
 }
 
 function editInstorePrice(itemId) {
-  itemId = parseInt(itemId);
-  const entry = instoreCart.find(c => c.item.id === itemId);
+  const entry = instoreCart.find(c => String(c.item.id) === String(itemId));
   if(!entry) return;
   const curPrice = entry.unitPrice !== undefined ? entry.unitPrice : +(entry.item.price||0);
   // Always recreate to avoid stale refs
@@ -2973,11 +3006,18 @@ function renderInstoreCart() {
     return;
   }
   el.innerHTML = instoreCart.map(c => {
-    const unitPrice = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
-    const subtotal = (unitPrice * c.qty).toFixed(2);
-    const priceRow = unitPrice > 0
-      ? `<div style="margin-top:3px"><span class="price-tag" style="cursor:pointer" onclick="editInstorePrice(${c.item.id})">RM ${unitPrice.toFixed(2)} × ${c.qty} = </span><span class="subtotal-tag" style="cursor:pointer;text-decoration:underline dotted" onclick="editInstorePrice(${c.item.id})">RM ${subtotal}</span></div>`
-      : `<div style="margin-top:2px"><span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="editInstorePrice(${c.item.id})">＋ 设置价格</span></div>`;
+    const pricing = getInstoreItemPricing(c);
+    const unitPrice = pricing.unitPrice !== undefined ? pricing.unitPrice : (c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0));
+    const subtotal = pricing.totalPrice.toFixed(2);
+    let priceRow;
+    if (pricing.tiered) {
+      // Show tiered rate indicator
+      priceRow = `<div style="margin-top:3px"><span class="price-tag" style="color:var(--blue)">RM ${unitPrice.toFixed(2)}/张 × ${c.qty} = </span><span class="subtotal-tag">RM ${subtotal}</span><span style="font-size:9px;background:var(--blue-bg);color:var(--blue);padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700">阶梯价</span></div>`;
+    } else if (unitPrice > 0) {
+      priceRow = `<div style="margin-top:3px"><span class="price-tag" style="cursor:pointer" onclick="editInstorePrice('${c.item.id}')">RM ${unitPrice.toFixed(2)} × ${c.qty} = </span><span class="subtotal-tag" style="cursor:pointer;text-decoration:underline dotted" onclick="editInstorePrice('${c.item.id}')">RM ${subtotal}</span></div>`;
+    } else {
+      priceRow = `<div style="margin-top:2px"><span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="editInstorePrice('${c.item.id}')">＋ 设置价格</span></div>`;
+    }
     return `
     <div class="cart-item" id="ins-row-${c.item.id}">
       <div class="cart-item-name" style="flex:1;min-width:0">${c.item.business==='K19'?'<span style="background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;margin-right:3px">杂货</span>':''} ${c.item.name}${priceRow}</div>
@@ -7254,7 +7294,103 @@ async function deleteStock(id) {
   renderFinancePage(); showPosToast('✅ 已删除');
 }
 
-// ── FX Rate Modal ─────────────────────────────────────────
+// ── SERVICE TIER PRICING ──────────────────────────────────
+let _tierItemId = null;
+
+function openTierModal(itemId) {
+  _tierItemId = String(itemId);
+  const it = items.find(i => String(i.id) === _tierItemId);
+  if (!it) return;
+  document.getElementById('tier-item-name').textContent = it.name;
+  const tiers = it.service_tiers || (it.price ? [{min_qty:1, price:+(it.price)}] : [{min_qty:1, price:0}]);
+  renderTierRows(tiers);
+  document.getElementById('tier-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+
+function openTierModalFromAdj() {
+  const id = adjId;
+  closeAdj();
+  setTimeout(() => openTierModal(id), 100);
+}
+
+function closeTierModal() {
+  document.getElementById('tier-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+  _tierItemId = null;
+}
+
+function renderTierRows(tiers) {
+  const el = document.getElementById('tier-rows');
+  if (!el) return;
+  el.innerHTML = tiers.map((t,i) => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:3px">${i===0?'基础（最少张数）':'超过 N 张时'}</div>
+        <input type="number" min="1" value="${t.min_qty}" placeholder="最少张数"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)"
+          oninput="updateTierRow(${i},'min_qty',this.value)">
+      </div>
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:3px">每张价格 (RM)</div>
+        <input type="number" min="0" step="0.01" value="${t.price}" placeholder="0.00"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)"
+          oninput="updateTierRow(${i},'price',this.value)">
+      </div>
+      ${tiers.length > 1 ? `<button onclick="removeTierRow(${i})" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:12px;margin-top:14px">✕</button>` : '<div style="width:34px"></div>'}
+    </div>`).join('');
+}
+
+function _getTierRowsData() {
+  const tiers = [];
+  document.querySelectorAll('#tier-rows > div').forEach((row, i) => {
+    const inputs = row.querySelectorAll('input');
+    const min_qty = parseInt(inputs[0]?.value) || 1;
+    const price   = parseFloat(inputs[1]?.value) || 0;
+    tiers.push({ min_qty, price });
+  });
+  return tiers;
+}
+
+function updateTierRow(i, field, val) { /* live update handled by reading DOM on save */ }
+
+function addTierRow() {
+  const tiers = _getTierRowsData();
+  const lastMin = tiers.length ? tiers[tiers.length-1].min_qty : 1;
+  tiers.push({ min_qty: lastMin + 10, price: 0 });
+  renderTierRows(tiers);
+}
+
+function removeTierRow(i) {
+  const tiers = _getTierRowsData();
+  tiers.splice(i, 1);
+  renderTierRows(tiers);
+}
+
+async function saveTiers() {
+  const tiers = _getTierRowsData();
+  if (!tiers.length || tiers.some(t => t.price <= 0)) {
+    alert('请填写所有阶梯的价格'); return;
+  }
+  // Sort by min_qty asc
+  tiers.sort((a,b) => a.min_qty - b.min_qty);
+  const it = items.find(i => String(i.id) === _tierItemId);
+  if (!it) return;
+  const tbl = itemTable(it);
+  // Save to Supabase and update base price to first tier price
+  const { error } = await sb.from(tbl).update({
+    service_tiers: tiers,
+    price: tiers[0].price  // base price = first tier
+  }).eq('id', it.id);
+  if (error) { alert('保存失败: ' + error.message); return; }
+  it.service_tiers = tiers;
+  it.price = tiers[0].price;
+  closeTierModal();
+  showPosToast('✅ 阶梯定价已保存');
+  await loadItems();
+}
+
+
 function openFxRateModal() {
   const rates = fxGetRates();
   showFlModal('✏️ 更新汇率 (对 MYR)', `
