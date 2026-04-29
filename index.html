@@ -6130,34 +6130,58 @@ async function confirmTransfer() {
 
 // ── INDEPENDENT COLUMN SCROLL ───────────────────────────────────────
 (function() {
+  let _colWheelHandler = null;
+
   function setupColumnScroll() {
     const left = document.querySelector('.stock-left');
     const right = document.querySelector('.stock-right');
     if(!left || !right) return;
 
-    function handleWheel(e) {
-      // Find which column the mouse is over
-      const lRect = left.getBoundingClientRect();
-      const rRect = right.getBoundingClientRect();
-      const x = e.clientX;
-      const y = e.clientY;
-
-      const overLeft  = x >= lRect.left && x <= lRect.right && y >= lRect.top && y <= lRect.bottom;
-      const overRight = x >= rRect.left && x <= rRect.right && y >= rRect.top && y <= rRect.bottom;
-
-      if(overLeft || overRight) {
-        e.preventDefault();
-        const target = overLeft ? left : right;
-        target.scrollTop += e.deltaY;
+    // On mobile/tablet (column layout), stock-left and stock-right are
+    // stacked — the page itself scrolls. Don't intercept wheel at all.
+    const isColumnLayout = left.getBoundingClientRect().left === right.getBoundingClientRect().left
+      || window.getComputedStyle(left.parentElement).flexDirection === 'column';
+    if (isColumnLayout) {
+      if (_colWheelHandler) {
+        document.removeEventListener('wheel', _colWheelHandler, { passive: false });
+        _colWheelHandler = null;
       }
+      return;
     }
 
-    // Remove old listener if any, then add fresh
-    document.removeEventListener('wheel', handleWheel, { passive: false });
-    document.addEventListener('wheel', handleWheel, { passive: false });
+    // Desktop: give each column overflow-y:auto + height so they scroll independently
+    const pageEl = document.getElementById('page-stock');
+    const pageH = pageEl ? pageEl.clientHeight : window.innerHeight;
+    const metricsH = pageEl ? (pageEl.querySelector('.metrics')?.offsetHeight||0) : 0;
+    const colH = pageH - metricsH - 36;
+    left.style.overflowY  = 'auto';
+    left.style.maxHeight  = colH + 'px';
+    right.style.overflowY = 'auto';
+    right.style.maxHeight = colH + 'px';
+
+    if (_colWheelHandler) document.removeEventListener('wheel', _colWheelHandler, { passive: false });
+
+    _colWheelHandler = function(e) {
+      const lRect = left.getBoundingClientRect();
+      const rRect = right.getBoundingClientRect();
+      const x = e.clientX, y = e.clientY;
+      const overLeft  = x >= lRect.left && x <= lRect.right && y >= lRect.top && y <= lRect.bottom;
+      const overRight = x >= rRect.left && x <= rRect.right && y >= rRect.top && y <= rRect.bottom;
+      if (!overLeft && !overRight) return;
+      // Let inner scrollable elements (collapse-body) handle their own scroll
+      let el = e.target;
+      const col = overLeft ? left : right;
+      while (el && el !== col) {
+        const oy = window.getComputedStyle(el).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 2) return;
+        el = el.parentElement;
+      }
+      e.preventDefault();
+      col.scrollTop += e.deltaY;
+    };
+    document.addEventListener('wheel', _colWheelHandler, { passive: false });
   }
 
-  // Run after DOM ready and whenever tab switches to stock
   document.addEventListener('DOMContentLoaded', setupColumnScroll);
   const origSwitch = window.switchTab;
   window.switchTab = function(t, el) {
@@ -6812,7 +6836,7 @@ function showFlModal(title, bodyHtml, onSave) {
   document.getElementById('fl-modal-body').innerHTML = bodyHtml;
   document.getElementById('fl-modal-save').onclick = async () => {
     const ok = await onSave();
-    if (ok !== false) { closeFlModal(); renderFinancePage(); showPosToast('✅ 已保存'); }
+    if (ok !== false) { closeFlModal(); await renderFinancePage(); showPosToast('✅ 已保存'); }
   };
   m.classList.add('open');
   document.body.classList.add('modal-open');
