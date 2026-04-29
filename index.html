@@ -765,6 +765,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn hq-only" id="navbtn-payroll" onclick="posSwitchTab('payroll')" style="display:none">
         <span class="nav-icon">💼</span> 员工薪资
       </button>
+      <button class="nav-btn hq-only" id="navbtn-lhdn" onclick="posSwitchTab('lhdn')" style="display:none">
+        <span class="nav-icon">🗂️</span> 税务 LHDN
+      </button>
 
     </div>
 
@@ -1243,7 +1246,80 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 </div>
 
 
-            <!-- ══ CUSTOMERS PAGE ════════════════════════════ -->
+            <!-- ══ LHDN PAGE ══════════════════════════════════ -->
+      <div id="page-lhdn" class="page">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:20px;font-weight:700">🗂️ 税务 / LHDN 报账</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">Enterprise · Borang B · 整理给 Accountant 的资料</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="lhdn-year" onchange="renderLhdnPage()" style="padding:7px 12px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:700"></select>
+            <button class="btn btn-success" onclick="lhdnGeneratePdf()">📄 生成报告 PDF</button>
+          </div>
+        </div>
+
+        <!-- Sub tabs -->
+        <div style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:16px">
+          <button class="lhdn-tab" id="ltab-summary" onclick="setLhdnTab('summary')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">📊 总览</button>
+          <button class="lhdn-tab" id="ltab-sales" onclick="setLhdnTab('sales')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">💰 Sales</button>
+          <button class="lhdn-tab" id="ltab-stock" onclick="setLhdnTab('stock')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📦 库存</button>
+          <button class="lhdn-tab" id="ltab-expenses" onclick="setLhdnTab('expenses')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🧾 支出</button>
+          <button class="lhdn-tab" id="ltab-assets" onclick="setLhdnTab('assets')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🏗️ 资产</button>
+        </div>
+
+        <!-- Summary tab -->
+        <div id="lpage-summary">
+          <div id="lhdn-summary-cards" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px"></div>
+          <div id="lhdn-pl-table"></div>
+          <div style="background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--radius-xs);padding:12px;margin-top:14px;font-size:12px;color:var(--amber)">
+            ⚠️ 以上数据仅供参考，最终报税数字请与你的 Accountant 核实。税务申报需由专业人士处理。
+          </div>
+        </div>
+
+        <!-- Sales tab -->
+        <div id="lpage-sales" style="display:none">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:12px">销售额来自 POS 系统记录。如需调整，请在下方填入 Accountant 核定的金额。</div>
+          <div id="lhdn-sales-table"></div>
+          <div style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">📝 Accountant 核定 Sales（如有调整）</div>
+            <div class="form-row"><label style="font-size:12px">核定 Sales (RM)</label><input type="number" id="lhdn-adj-sales" placeholder="留空则用 POS 实际数字" step="0.01" style="flex:1"></div>
+            <div class="form-row"><label style="font-size:12px">备注</label><input type="text" id="lhdn-adj-sales-note" placeholder="例：已扣除退货" style="flex:1"></div>
+            <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text);margin-top:6px" onclick="saveLhdnAdjSales()">保存</button>
+          </div>
+        </div>
+
+        <!-- Stock tab -->
+        <div id="lpage-stock" style="display:none">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:12px">期末库存 = 库存数量 × 成本价。数据来自库存管理系统。</div>
+          <div id="lhdn-stock-table"></div>
+          <div style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">📝 期初库存 (Opening Stock)</div>
+            <div class="form-row"><label style="font-size:12px">期初库存金额 (RM)</label><input type="number" id="lhdn-opening-stock" placeholder="上一年期末库存" step="0.01" style="flex:1"></div>
+            <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text);margin-top:6px" onclick="saveLhdnOpeningStock()">保存</button>
+          </div>
+        </div>
+
+        <!-- Expenses tab -->
+        <div id="lpage-expenses" style="display:none">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+            <button class="btn btn-success" onclick="openLhdnExpModal()">+ 新增支出</button>
+          </div>
+          <div id="lhdn-exp-list"></div>
+          <div id="lhdn-exp-summary" style="margin-top:12px"></div>
+        </div>
+
+        <!-- Assets tab -->
+        <div id="lpage-assets" style="display:none">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Capital Allowance：固定资产购置费用可按 LHDN 规定逐年折旧 claim。</div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+            <button class="btn btn-success" onclick="openLhdnAssetModal()">+ 新增资产</button>
+          </div>
+          <div id="lhdn-asset-list"></div>
+        </div>
+      </div>
+
+      <!-- ══ CUSTOMERS PAGE ════════════════════════════ -->
       <div id="page-customers" class="page">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <div>
@@ -1634,6 +1710,63 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     <div class="modal-footer">
       <button class="btn" onclick="closeAddCustomerModal()">取消</button>
       <button class="btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="saveCustomer()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LHDN MODALS ═════════════════════════════════════ -->
+<div class="modal-overlay" id="lhdn-exp-modal">
+  <div class="modal" style="max-width:460px">
+    <h3 id="lhdn-exp-modal-title">新增 Claimable 支出</h3>
+    <div class="form-row"><label>日期</label><input type="date" id="le-date" style="flex:1"></div>
+    <div class="form-row"><label>类别</label>
+      <select id="le-cat" style="flex:1">
+        <option value="车油/Toll">🚗 车油 / Toll</option>
+        <option value="租金">🏠 租金</option>
+        <option value="水电费">💡 水电费</option>
+        <option value="电话/网络">📱 电话 / 网络</option>
+        <option value="员工薪资">👥 员工薪资</option>
+        <option value="EPF雇主">🏦 EPF（雇主部分）</option>
+        <option value="SOCSO雇主">🏦 SOCSO（雇主部分）</option>
+        <option value="进货成本">📦 进货成本</option>
+        <option value="维修保养">🔧 维修 / 保养</option>
+        <option value="保险">🛡️ 保险</option>
+        <option value="广告宣传">📢 广告 / 宣传</option>
+        <option value="杂费">📂 杂费</option>
+        <option value="其他">📌 其他</option>
+      </select>
+    </div>
+    <div class="form-row"><label>金额 (RM)</label><input type="number" id="le-amount" step="0.01" placeholder="0.00" style="flex:1"></div>
+    <div class="form-row"><label>单据号 / 备注</label><input type="text" id="le-note" placeholder="Invoice no. / 备注" style="flex:1"></div>
+    <div class="form-row"><label>供应商</label><input type="text" id="le-vendor" placeholder="可选" style="flex:1"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeLhdnExpModal()">取消</button>
+      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveLhdnExp()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="lhdn-asset-modal">
+  <div class="modal" style="max-width:460px">
+    <h3 id="lhdn-asset-modal-title">新增固定资产</h3>
+    <div class="form-row"><label>资产名称</label><input type="text" id="la-name" placeholder="例：冷气机、收银机、送货车" style="flex:1"></div>
+    <div class="form-row"><label>类别</label>
+      <select id="la-cat" style="flex:1" onchange="updateLhdnAllowanceRate()">
+        <option value="plant_machinery">Plant & Machinery（机器设备）IA 20% / AA 14%</option>
+        <option value="motor_vehicle">Motor Vehicle（商用车辆）IA 20% / AA 20%</option>
+        <option value="office_equipment">Office Equipment（办公设备）IA 20% / AA 10%</option>
+        <option value="furniture">Furniture & Fittings（家具）IA 20% / AA 10%</option>
+        <option value="computer">Computer & Software（电脑）IA 20% / AA 20%</option>
+        <option value="renovation">Renovation（装修）IA — / AA 10%</option>
+      </select>
+    </div>
+    <div class="form-row"><label>购买日期</label><input type="date" id="la-date" style="flex:1"></div>
+    <div class="form-row"><label>购买价格 (RM)</label><input type="number" id="la-cost" step="0.01" placeholder="0.00" style="flex:1" oninput="updateLhdnAllowanceCalc()"></div>
+    <div class="form-row"><label>Invoice / 备注</label><input type="text" id="la-note" placeholder="Invoice no." style="flex:1"></div>
+    <div id="la-allowance-preview" style="background:var(--green-bg);border:1px solid var(--green-border);border-radius:var(--radius-xs);padding:10px;font-size:12px;color:var(--green);margin-top:8px;display:none"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeLhdnAssetModal()">取消</button>
+      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveLhdnAsset()">保存</button>
     </div>
   </div>
 </div>
@@ -6221,6 +6354,30 @@ const FL_BIZ_COLORS  = {bank:'#1e40af',cash:'#065f46',topup:'#7c3aed'};
 const FL_PER_COLORS  = {bank:'#1e40af',ewallet:'#dc2626',cash:'#065f46'};
 const FL_WALLET_ICONS = {bank:'🏦',cash:'💵',topup:'📲',ewallet:'📱'};
 const FL_INVEST_ICONS = {fd:'🏛',unit_trust:'📊',bond:'📜',other:'📂'};
+
+// ── FX: Market currency & rates ───────────────────────────
+// Rates are manually updatable by user; stored in localStorage
+const FL_MARKET_CCY = { KLSE:'MYR', US:'USD', SG:'SGD', HK:'HKD' };
+const FL_CCY_SYMBOL = { MYR:'RM', USD:'US$', SGD:'S$', HKD:'HK$' };
+const FL_DEFAULT_FX = { MYR:1, USD:4.70, SGD:3.50, HKD:0.60 }; // approx MYR per 1 foreign unit
+
+function fxGetRates() {
+  try { return JSON.parse(localStorage.getItem('fl_fx_rates')||'null') || {...FL_DEFAULT_FX}; } catch { return {...FL_DEFAULT_FX}; }
+}
+function fxSetRates(r) { localStorage.setItem('fl_fx_rates', JSON.stringify(r)); }
+// Convert amount in foreign currency to MYR
+function fxToMYR(amount, market) {
+  const ccy = FL_MARKET_CCY[market] || 'MYR';
+  if (ccy === 'MYR') return Number(amount);
+  const rates = fxGetRates();
+  return Number(amount) * (rates[ccy] || FL_DEFAULT_FX[ccy] || 1);
+}
+function fxSymbol(market) { return FL_CCY_SYMBOL[FL_MARKET_CCY[market]||'MYR'] || 'RM'; }
+function fxRate(market) {
+  const ccy = FL_MARKET_CCY[market]||'MYR';
+  if (ccy==='MYR') return 1;
+  return fxGetRates()[ccy] || FL_DEFAULT_FX[ccy] || 1;
+}
 const FL_TYPE_COLORS  = {income:'var(--green)',expense:'var(--red)',transfer:'var(--blue)'};
 
 function flThisMonth() { const n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
@@ -6485,51 +6642,77 @@ function renderFlStocks() {
     if(updEl) updEl.textContent='';
     return;
   }
-  const totalCost = stocks.reduce((s,x)=>s+Number(x.shares||0)*Number(x.avg_cost||0),0);
-  // Calculate PL only for stocks that have current_price filled in
+  // Total cost in MYR (FX-converted)
+  const totalCostMYR = stocks.reduce((s,x)=>s + fxToMYR(Number(x.shares||0)*Number(x.avg_cost||0), x.market||'KLSE'), 0);
+
+  // PL only for stocks with current_price, converted to MYR
   const priced   = stocks.filter(s=>s.current_price);
   const unpriced = stocks.length - priced.length;
-  const partialPL = priced.reduce((s,x)=>{
-    const pl = (Number(x.current_price)-Number(x.avg_cost))*Number(x.shares||0);
-    return s + pl;
+  const partialPL_MYR = priced.reduce((s,x)=>{
+    const plLocal = (Number(x.current_price)-Number(x.avg_cost))*Number(x.shares||0);
+    return s + fxToMYR(plLocal, x.market||'KLSE');
   }, 0);
-  const partialCost = priced.reduce((s,x)=>s+Number(x.shares||0)*Number(x.avg_cost||0),0);
+  const partialCostMYR = priced.reduce((s,x)=>s + fxToMYR(Number(x.shares||0)*Number(x.avg_cost||0), x.market||'KLSE'), 0);
   const hasPriced = priced.length > 0;
-  const plPct = hasPriced && partialCost > 0 ? (partialPL/partialCost*100).toFixed(1) : null;
-  const plLabel = hasPriced
-    ? (partialPL>=0?'+':'')+' RM '+partialPL.toFixed(2)+(plPct?' ('+plPct+'%)':'')+(unpriced>0?' *':'')
+  const plPctSum  = hasPriced && partialCostMYR > 0 ? (partialPL_MYR/partialCostMYR*100).toFixed(1) : null;
+  const plLabel   = hasPriced
+    ? (partialPL_MYR>=0?'+':'')+' RM '+partialPL_MYR.toFixed(2)+(plPctSum?' ('+plPctSum+'%)':'')+(unpriced>0?' *':'')
     : '请填入现价';
-  const plColor = !hasPriced ? 'var(--text3)' : partialPL>=0 ? 'var(--green)' : 'var(--red)';
+  const plColor = !hasPriced ? 'var(--text3)' : partialPL_MYR>=0 ? 'var(--green)' : 'var(--red)';
 
-  if(sumEl) sumEl.innerHTML = [
-    {label:'持仓数量', val:stocks.length+' 只', color:'var(--text)'},
-    {label:'总成本',   val:'RM '+totalCost.toFixed(2), color:'var(--text)'},
-    {label:'未实现盈亏'+(unpriced>0&&hasPriced?' ('+priced.length+'/'+stocks.length+' 只)':''),
-      val: plLabel, color: plColor },
-  ].map(c=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px;text-align:center">
-    <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${c.label}</div>
-    <div style="font-size:14px;font-weight:700;color:${c.color}">${c.val}</div>
-  </div>`).join('');
+  // FX rate badges for non-MYR markets
+  const rates = fxGetRates();
+  const nonMyrMarkets = [...new Set(stocks.filter(s=>FL_MARKET_CCY[s.market||'KLSE']!=='MYR').map(s=>s.market||'KLSE'))];
+  const fxBadges = nonMyrMarkets.map(m=>{
+    const ccy = FL_MARKET_CCY[m]||'MYR';
+    const r   = rates[ccy]||FL_DEFAULT_FX[ccy]||1;
+    return `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--blue-bg);color:var(--blue);font-weight:600">${FL_CCY_SYMBOL[ccy]||ccy} 1 = RM ${r.toFixed(4)}</span>`;
+  }).join(' ');
 
-  // Show last price update time
+  if(sumEl) sumEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:${nonMyrMarkets.length?'8':'12'}px">
+      ${[
+        {label:'持仓数量', val:stocks.length+' 只', color:'var(--text)'},
+        {label:'总成本 (MYR)', val:'RM '+totalCostMYR.toFixed(2), color:'var(--text)'},
+        {label:'未实现盈亏'+(unpriced>0&&hasPriced?' ('+priced.length+'/'+stocks.length+')':''), val:plLabel, color:plColor},
+      ].map(c=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px;text-align:center">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${c.label}</div>
+        <div style="font-size:14px;font-weight:700;color:${c.color}">${c.val}</div>
+      </div>`).join('')}
+    </div>
+    ${nonMyrMarkets.length ? `<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-size:10px;color:var(--text3)">汇率：</span>${fxBadges}
+      <button class="btn" style="font-size:10px;padding:3px 8px;margin-left:auto" onclick="openFxRateModal()">✏️ 更新汇率</button>
+    </div>` : ''}`;
+
   const latestUpdate = stocks.filter(s=>s.price_updated_at).map(s=>s.price_updated_at).sort().pop();
   if(updEl) updEl.textContent = latestUpdate
     ? '现价更新于：' + new Date(latestUpdate).toLocaleString('zh-MY',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
-    : '现价尚未更新';
+    : '';
 
   el.innerHTML = stocks.map(s=>{
-    const cost = Number(s.shares||0)*Number(s.avg_cost||0);
-    const mktVal = s.current_price ? Number(s.current_price)*Number(s.shares) : null;
-    const plAmt = s.current_price ? ((Number(s.current_price)-Number(s.avg_cost))*Number(s.shares)).toFixed(2) : null;
-    const plPct = s.current_price ? ((Number(s.current_price)-Number(s.avg_cost))/Number(s.avg_cost)*100).toFixed(1) : null;
-    const updTime = s.price_updated_at
+    const mkt      = s.market || 'KLSE';
+    const ccy      = FL_MARKET_CCY[mkt] || 'MYR';
+    const sym      = fxSymbol(mkt);
+    const rate     = fxRate(mkt);
+    const isForeign= ccy !== 'MYR';
+    const costLocal= Number(s.shares||0)*Number(s.avg_cost||0);
+    const costMYR  = fxToMYR(costLocal, mkt);
+    const plLocal  = s.current_price!=null ? (Number(s.current_price)-Number(s.avg_cost))*Number(s.shares) : null;
+    const plMYR    = plLocal !== null ? fxToMYR(plLocal, mkt) : null;
+    const plPct    = plMYR !== null && costMYR > 0 ? (plMYR/costMYR*100).toFixed(1) : null;
+    const mktValMYR= s.current_price!=null ? fxToMYR(Number(s.current_price)*Number(s.shares), mkt) : null;
+    const updTime  = s.price_updated_at
       ? new Date(s.price_updated_at).toLocaleString('zh-MY',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
       : null;
     return `<div class="card" style="margin-bottom:8px;padding:14px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
         <div>
-          <div style="font-size:15px;font-weight:800">${s.ticker} <span style="font-size:11px;color:var(--text3);font-weight:400">${s.market||'KLSE'}</span></div>
-          <div style="font-size:11px;color:var(--text3)">${s.name||''}</div>
+          <div style="font-size:15px;font-weight:800">${s.ticker}
+            <span style="font-size:11px;color:var(--text3);font-weight:400">${mkt}</span>
+            ${isForeign?`<span style="font-size:10px;padding:2px 6px;border-radius:8px;background:var(--blue-bg);color:var(--blue);font-weight:700;margin-left:4px">${sym}</span>`:''}
+          </div>
+          <div style="font-size:11px;color:var(--text3)">${s.name||''}${isForeign?` · 1 ${sym} = RM ${rate.toFixed(4)}`:''}</div>
         </div>
         <div style="display:flex;gap:5px">
           <button class="btn" style="font-size:11px;padding:4px 7px" onclick="openStockModal('${s.id}')">✏️</button>
@@ -6537,18 +6720,34 @@ function renderFlStocks() {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center;margin-bottom:8px">
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">持股数</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${Number(s.shares).toLocaleString()}</div></div>
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">均价</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${Number(s.avg_cost).toFixed(3)}</div></div>
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">现价</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)">${s.current_price ? Number(s.current_price).toFixed(3) : '—'}</div></div>
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">市值</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${mktVal!=null?'RM '+mktVal.toFixed(2):'—'}</div></div>
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">盈亏</div>
-          <div style="font-size:13px;font-weight:700;color:${plAmt===null?'var(--text3)':Number(plAmt)>=0?'var(--green)':'var(--red)'}">
-            ${plAmt!==null ? (Number(plAmt)>=0?'+':'')+plAmt : '—'}
+        <div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">持股数</div>
+          <div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${Number(s.shares).toLocaleString()}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">均价 (${sym})</div>
+          <div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${sym}${Number(s.avg_cost).toFixed(3)}</div>
+          ${isForeign?`<div style="font-size:9px;color:var(--text3)">≈ RM ${fxToMYR(s.avg_cost,mkt).toFixed(3)}</div>`:''}
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">现价 (${sym})</div>
+          <div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)">${s.current_price!=null?sym+Number(s.current_price).toFixed(3):'—'}</div>
+          ${isForeign&&s.current_price!=null?`<div style="font-size:9px;color:var(--text3)">≈ RM ${fxToMYR(s.current_price,mkt).toFixed(3)}</div>`:''}
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">市值 (MYR)</div>
+          <div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${mktValMYR!=null?'RM '+mktValMYR.toFixed(2):'—'}</div>
+          ${isForeign&&mktValMYR!=null?`<div style="font-size:9px;color:var(--text3)">${sym}${(Number(s.current_price)*Number(s.shares)).toFixed(2)}</div>`:''}
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">盈亏 (MYR)</div>
+          <div style="font-size:13px;font-weight:700;color:${plMYR===null?'var(--text3)':plMYR>=0?'var(--green)':'var(--red)'}">
+            ${plMYR!==null?(plMYR>=0?'+':'')+'RM '+plMYR.toFixed(2):'—'}
           </div>
           ${plPct!==null?`<div style="font-size:10px;color:${Number(plPct)>=0?'var(--green)':'var(--red)'}">(${plPct}%)</div>`:''}
         </div>
       </div>
-      ${updTime ? `<div style="font-size:10px;color:var(--text3);text-align:right">现价更新：${updTime}</div>` : '<div style="font-size:10px;color:var(--amber);text-align:right">⚠️ 现价未更新</div>'}
+      ${updTime ? `<div style="font-size:10px;color:var(--text3);text-align:right">现价更新：${updTime}</div>` : ''}
       ${s.notes?`<div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic">📝 ${s.notes}</div>`:''}
     </div>`;
   }).join('');
@@ -6908,11 +7107,11 @@ function openStockModal(id) {
   showFlModal(id?'编辑持仓':'新增股票持仓', `
     <div class="form-row"><label>股票代码</label><input id="fls-ticker" value="${s?.ticker||''}" placeholder="例：MAYBANK" style="flex:1;text-transform:uppercase"></div>
     <div class="form-row"><label>公司名称</label><input id="fls-name" value="${s?.name||''}" placeholder="可选" style="flex:1"></div>
-    <div class="form-row"><label>市场</label><select id="fls-market" style="flex:1">${marketOpts}</select></div>
+    <div class="form-row"><label>市场</label><select id="fls-market" style="flex:1" onchange="updateStockModalCcy()">${marketOpts}</select></div>
     <div class="form-row"><label>持股数量</label><input id="fls-shares" type="number" step="0.01" value="${s?.shares||''}" style="flex:1"></div>
-    <div class="form-row"><label>平均成本价</label><input id="fls-cost" type="number" step="0.0001" value="${s?.avg_cost||''}" placeholder="每股" style="flex:1"></div>
+    <div class="form-row"><label>平均成本价 <span id="fls-ccy-label" style="color:var(--blue);font-size:11px"></span></label><input id="fls-cost" type="number" step="0.0001" value="${s?.avg_cost||''}" placeholder="每股原币" style="flex:1"></div>
     <div class="form-row"><label>来源账户</label><select id="fls-wallet" style="flex:1"><option value="">不指定</option>${walletOpts}</select></div>
-    <div class="form-row"><label>现价 (可选)</label><input id="fls-price" type="number" step="0.0001" value="${s?.current_price||''}" placeholder="手动填入" style="flex:1"></div>
+    <div class="form-row"><label>现价 <span id="fls-ccy-label2" style="color:var(--blue);font-size:11px"></span> (可选)</label><input id="fls-price" type="number" step="0.0001" value="${s?.current_price||''}" placeholder="原币现价，留空可稍后填" style="flex:1"></div>
     <div class="form-row"><label>备注</label><input id="fls-notes" value="${s?.notes||''}" style="flex:1"></div>
   `, async () => {
     const ticker  = document.getElementById('fls-ticker').value.trim().toUpperCase();
@@ -6950,7 +7149,39 @@ async function deleteStock(id) {
   renderFinancePage(); showPosToast('✅ 已删除');
 }
 
-// ── Generic Modal helper ─────────────────────────────────────────
+// ── FX Rate Modal ─────────────────────────────────────────
+function openFxRateModal() {
+  const rates = fxGetRates();
+  showFlModal('✏️ 更新汇率 (对 MYR)', `
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px">填入 1 外币 = 多少 MYR。例如 USD 4.70 表示 1 美元 = RM 4.70</div>
+    <div class="form-row"><label>🇺🇸 USD (美元)</label><input id="fx-usd" type="number" step="0.0001" value="${(rates.USD||FL_DEFAULT_FX.USD).toFixed(4)}" style="flex:1"></div>
+    <div class="form-row"><label>🇸🇬 SGD (新币)</label><input id="fx-sgd" type="number" step="0.0001" value="${(rates.SGD||FL_DEFAULT_FX.SGD).toFixed(4)}" style="flex:1"></div>
+    <div class="form-row"><label>🇭🇰 HKD (港币)</label><input id="fx-hkd" type="number" step="0.0001" value="${(rates.HKD||FL_DEFAULT_FX.HKD).toFixed(4)}" style="flex:1"></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px">💡 汇率需手动更新，建议每次查看持仓时更新一下</div>
+  `, async () => {
+    const usd = parseFloat(document.getElementById('fx-usd').value);
+    const sgd = parseFloat(document.getElementById('fx-sgd').value);
+    const hkd = parseFloat(document.getElementById('fx-hkd').value);
+    if (!usd||!sgd||!hkd) { alert('请填写所有汇率'); return false; }
+    fxSetRates({ MYR:1, USD:usd, SGD:sgd, HKD:hkd });
+    return true;
+  });
+}
+
+// Update currency label in stock modal when market changes
+function updateStockModalCcy() {
+  const market = document.getElementById('fls-market')?.value || 'KLSE';
+  const sym = fxSymbol(market);
+  const rate = fxRate(market);
+  const isForeign = FL_MARKET_CCY[market] !== 'MYR';
+  const lbl1 = document.getElementById('fls-ccy-label');
+  const lbl2 = document.getElementById('fls-ccy-label2');
+  const hint = isForeign ? `(${sym}, 1${sym}=RM${rate.toFixed(4)})` : '(MYR)';
+  if (lbl1) lbl1.textContent = hint;
+  if (lbl2) lbl2.textContent = hint;
+}
+
+
 function showFlModal(title, bodyHtml, onSave) {
   let m = document.getElementById('fl-generic-modal');
   if (!m) {
@@ -7332,6 +7563,7 @@ function posSwitchTab(t) {
   else if(t === 'hq') { renderHqDashboard(); }
   else if(t === 'customers') { renderCustomerList(); }
   else if(t === 'payroll') { renderPayrollPage(); }
+  else if(t === 'lhdn') { renderLhdnPage(); }
 }
 
 function posSidebarFinanceUnlock() {
@@ -7527,7 +7759,7 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders',
-     'navbtn-finance','navbtn-hq','navbtn-customers','navbtn-payroll'].forEach(id => {
+     'navbtn-finance','navbtn-hq','navbtn-customers','navbtn-payroll','navbtn-lhdn'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
@@ -8375,6 +8607,7 @@ async function refreshAllData() {
       else if(id === 'page-hq') { renderHqDashboard(); }
       else if(id === 'page-customers') { renderCustomerList(); }
       else if(id === 'page-payroll') { renderPayrollPage(); }
+      else if(id === 'page-lhdn') { renderLhdnPage(); }
     }
     setSync('ok', '✅ 已更新');
     showPosToast('✅ 数据已刷新');
@@ -9118,7 +9351,7 @@ ${a.perfRating?`
   <div class="sig-line">Authorised Signature / Stamp</div>
 </div>
 </div>
-<script>window.onload=function(){window.print();}<\/script>
+<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>
 </body></html>`;
 
   const blob = new Blob([html], {type:'text/html'});
@@ -9132,6 +9365,599 @@ ${a.perfRating?`
   const el = document.getElementById('payroll-month');
   if (el) { const n=new Date(); el.value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
 })();
+
+// ══════════════════════════════════════════════════════════
+// LHDN MODULE — Enterprise / Borang B
+// Sales · Stock · Claimable Expenses · Capital Allowance
+// ══════════════════════════════════════════════════════════
+
+// ── Capital Allowance rates (LHDN Schedule 3) ────────────
+const LHDN_CA = {
+  plant_machinery: { ia: 0.20, aa: 0.14, label: 'Plant & Machinery' },
+  motor_vehicle:   { ia: 0.20, aa: 0.20, label: 'Motor Vehicle' },
+  office_equipment:{ ia: 0.20, aa: 0.10, label: 'Office Equipment' },
+  furniture:       { ia: 0.20, aa: 0.10, label: 'Furniture & Fittings' },
+  computer:        { ia: 0.20, aa: 0.20, label: 'Computer & Software' },
+  renovation:      { ia: 0.00, aa: 0.10, label: 'Renovation' },
+};
+
+// ── Storage (localStorage — no sensitive LHDN data sent to server) ──
+function lhdnGet(key)     { try { return JSON.parse(localStorage.getItem('lhdn_'+key)||'null'); } catch { return null; } }
+function lhdnSet(key, val){ localStorage.setItem('lhdn_'+key, JSON.stringify(val)); }
+function lhdnGetExp(year) { return lhdnGet('exp_'+year) || []; }
+function lhdnSetExp(year, arr){ lhdnSet('exp_'+year, arr); }
+function lhdnGetAssets()  { return lhdnGet('assets') || []; }
+function lhdnSetAssets(arr){ lhdnSet('assets', arr); }
+function lhdnGetMeta(year){ return lhdnGet('meta_'+year) || {}; }
+function lhdnSetMeta(year,obj){ lhdnSet('meta_'+year, obj); }
+
+// ── State ─────────────────────────────────────────────────
+let _lhdnYear = new Date().getFullYear();
+let _lhdnTab  = 'summary';
+let _lhdnEditExpId   = null;
+let _lhdnEditAssetId = null;
+
+// ── Init ──────────────────────────────────────────────────
+function renderLhdnPage() {
+  // Populate year selector
+  const sel = document.getElementById('lhdn-year');
+  if (sel && !sel.options.length) {
+    const cur = new Date().getFullYear();
+    for (let y = cur; y >= cur - 5; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y + ' (YA ' + y + ')';
+      if (y === cur) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+  _lhdnYear = parseInt(document.getElementById('lhdn-year')?.value) || new Date().getFullYear();
+  setLhdnTab(_lhdnTab);
+}
+
+function setLhdnTab(t) {
+  _lhdnTab = t;
+  ['summary','sales','stock','expenses','assets'].forEach(tab => {
+    const p = document.getElementById('lpage-'+tab);
+    const b = document.getElementById('ltab-'+tab);
+    if (p) p.style.display = tab===t ? 'block' : 'none';
+    if (b) { b.style.background = tab===t ? 'var(--text)' : 'var(--surface)'; b.style.color = tab===t ? '#fff' : 'var(--text2)'; }
+  });
+  if (t==='summary')  renderLhdnSummary();
+  else if (t==='sales')   renderLhdnSales();
+  else if (t==='stock')   renderLhdnStock();
+  else if (t==='expenses')renderLhdnExpenses();
+  else if (t==='assets')  renderLhdnAssets();
+}
+
+// ── Helpers ───────────────────────────────────────────────
+const lFmt = v => 'RM ' + Number(v||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+
+// Get total annual sales from POS txns (biz_transactions type=income, category=POS销售)
+function lhdnGetPosSales(year) {
+  if (typeof _flBizTxns === 'undefined' || !_flBizTxns.length) return 0;
+  return _flBizTxns
+    .filter(t => t.type==='income' && (t.date||'').startsWith(year+''))
+    .reduce((s,t) => s + Number(t.amount||0), 0);
+}
+
+// Get closing stock value from items (quantity × cost_price)
+function lhdnGetClosingStock() {
+  if (typeof items === 'undefined') return { total: 0, rows: [] };
+  const rows = items
+    .filter(it => (it.home_qty||0) + (it.shop_qty||0) > 0 && it.cost_price > 0)
+    .map(it => ({
+      name: it.name,
+      qty:  (it.home_qty||0) + (it.shop_qty||0),
+      cost: Number(it.cost_price||0),
+      val:  ((it.home_qty||0) + (it.shop_qty||0)) * Number(it.cost_price||0),
+    }));
+  const total = rows.reduce((s,r) => s+r.val, 0);
+  return { total, rows };
+}
+
+// Get total claimable expenses for year
+function lhdnGetTotalExp(year) {
+  return lhdnGetExp(year).reduce((s,e) => s+Number(e.amount||0), 0);
+}
+
+// Get capital allowance for year
+function lhdnGetCA(year) {
+  const assets = lhdnGetAssets().filter(a => {
+    const ay = new Date(a.date||'').getFullYear();
+    return ay <= year;
+  });
+  let totalIA = 0, totalAA = 0;
+  assets.forEach(a => {
+    const rate = LHDN_CA[a.cat] || { ia:0.20, aa:0.10 };
+    const cost = Number(a.cost||0);
+    const purchaseYear = new Date(a.date||'').getFullYear();
+    if (purchaseYear === year) totalIA += cost * rate.ia; // Initial Allowance only in purchase year
+    totalAA += cost * rate.aa; // Annual Allowance every year until fully written off
+  });
+  return { totalIA, totalAA, total: totalIA + totalAA };
+}
+
+// ── Summary ───────────────────────────────────────────────
+function renderLhdnSummary() {
+  const year = _lhdnYear;
+  const meta = lhdnGetMeta(year);
+  const posSales    = lhdnGetPosSales(year);
+  const adjSales    = meta.adjSales || null;
+  const sales       = adjSales !== null ? adjSales : posSales;
+  const openStock   = Number(meta.openingStock || 0);
+  const closeStock  = lhdnGetClosingStock().total;
+  const purchases   = (typeof _flBizTxns !== 'undefined')
+    ? _flBizTxns.filter(t=>t.type==='expense'&&t.category==='进货'&&(t.date||'').startsWith(year+'')).reduce((s,t)=>s+Number(t.amount||0),0)
+    : 0;
+  const cogs        = openStock + purchases - closeStock;
+  const grossProfit = sales - cogs;
+  const expenses    = lhdnGetTotalExp(year);
+  const ca          = lhdnGetCA(year);
+  const totalDed    = expenses + ca.total;
+  const netProfit   = grossProfit - totalDed;
+
+  // Tax estimate (Enterprise = Borang B personal rates 2024)
+  function estTax(income) {
+    const brackets = [
+      [5000,0],[15000,.01],[15000,.03],[15000,.06],[15000,.11],
+      [20000,.19],[30000,.25],[Infinity,.30]
+    ];
+    let tax=0, rem=Math.max(0,income);
+    for (const [limit,rate] of brackets) {
+      const chunk = Math.min(rem,limit);
+      tax += chunk*rate; rem -= chunk;
+      if(rem<=0) break;
+    }
+    return tax;
+  }
+  const estTaxAmt = netProfit > 0 ? estTax(netProfit) : 0;
+
+  const cards = document.getElementById('lhdn-summary-cards');
+  if (cards) cards.innerHTML = [
+    { label:'Sales / 营业额', val: lFmt(sales), sub: adjSales!==null ? '(已调整)' : '(POS实际)', color:'var(--text)', dark:true },
+    { label:'销售成本 COGS',  val: lFmt(Math.max(0,cogs)), sub:'进货+期初−期末', color:'var(--text)', dark:false },
+    { label:'毛利润 Gross Profit', val: lFmt(grossProfit), sub:'Sales − COGS', color: grossProfit>=0?'var(--green)':'var(--red)', dark:false },
+    { label:'Claimable 支出', val: lFmt(totalDed), sub:'支出 + Capital Allowance', color:'var(--text)', dark:false },
+    { label:'净利润 Net Profit', val: lFmt(netProfit), sub:'应税收入估算', color: netProfit>=0?'var(--green)':'var(--red)', dark:false },
+    { label:'估算税款 Est. Tax', val: lFmt(estTaxAmt), sub:'个人累进税率（参考）', color:'var(--amber)', dark:false },
+  ].map(c=>`
+    <div class="card" style="padding:14px;${c.dark?'background:var(--text)':''}">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;${c.dark?'color:rgba(255,255,255,.6)':'color:var(--text3)'}">${c.label}</div>
+      <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace;color:${c.dark?'#fff':c.color}">${c.val}</div>
+      <div style="font-size:10px;margin-top:3px;${c.dark?'color:rgba(255,255,255,.5)':'color:var(--text3)'}">${c.sub}</div>
+    </div>`).join('');
+
+  const plEl = document.getElementById('lhdn-pl-table');
+  if (plEl) plEl.innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px">📋 P&L 摘要 — ${year}</div>
+      ${[
+        ['Sales（营业额）', sales, 'var(--green)', false],
+        ['期初库存 Opening Stock', openStock, 'var(--text2)', true],
+        ['进货 Purchases', purchases, 'var(--text2)', true],
+        ['期末库存 Closing Stock', -closeStock, 'var(--text2)', true],
+        ['── 销售成本 COGS ──', Math.max(0,cogs), 'var(--red)', true],
+        ['毛利润 Gross Profit', grossProfit, grossProfit>=0?'var(--green)':'var(--red)', false],
+        ['Claimable 支出', -expenses, 'var(--text2)', true],
+        ['Capital Allowance', -ca.total, 'var(--text2)', true],
+        ['── 净利润 Net Profit ──', netProfit, netProfit>=0?'var(--green)':'var(--red)', false],
+      ].map(([label,val,color,indent])=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);${indent?'':'font-weight:700'}">
+          <span style="font-size:12px;color:var(--text2);${indent?'padding-left:14px;font-size:11px':''}">${label}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${color}">${lFmt(Math.abs(val))}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ── Sales ─────────────────────────────────────────────────
+function renderLhdnSales() {
+  const year = _lhdnYear;
+  const meta = lhdnGetMeta(year);
+  document.getElementById('lhdn-adj-sales').value = meta.adjSales || '';
+  document.getElementById('lhdn-adj-sales-note').value = meta.adjSalesNote || '';
+
+  // Monthly breakdown from POS
+  const months = Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const txns = typeof _flBizTxns !== 'undefined' ? _flBizTxns : [];
+  const rows = months.map((m,i) => {
+    const amt = txns.filter(t=>t.type==='income'&&(t.date||'').startsWith(year+'-'+m)).reduce((s,t)=>s+Number(t.amount||0),0);
+    return { month: monthNames[i], amt };
+  });
+  const total = rows.reduce((s,r)=>s+r.amt,0);
+  const el = document.getElementById('lhdn-sales-table');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0">
+        ${rows.map((r,i)=>`
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);border-right:${i%3!==2?'1px solid var(--border)':'none'}">
+            <div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:3px">${r.month} ${year}</div>
+            <div style="font-size:14px;font-weight:700;font-family:'DM Mono',monospace;color:${r.amt>0?'var(--green)':'var(--text3)'}">${r.amt>0?lFmt(r.amt):'—'}</div>
+          </div>`).join('')}
+      </div>
+      <div style="padding:12px 14px;background:var(--text);color:#fff;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;font-weight:700;opacity:.8">全年 Sales 合计</span>
+        <span style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace">${lFmt(total)}</span>
+      </div>
+    </div>
+    ${meta.adjSales ? `<div style="margin-top:8px;padding:10px 14px;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--radius-xs);font-size:12px;color:var(--amber)">⚠️ Accountant 核定 Sales：${lFmt(meta.adjSales)}${meta.adjSalesNote?' — '+meta.adjSalesNote:''}</div>` : ''}`;
+}
+function saveLhdnAdjSales() {
+  const meta = lhdnGetMeta(_lhdnYear);
+  const val = parseFloat(document.getElementById('lhdn-adj-sales').value);
+  meta.adjSales = isNaN(val) ? null : val;
+  meta.adjSalesNote = document.getElementById('lhdn-adj-sales-note').value.trim();
+  lhdnSetMeta(_lhdnYear, meta);
+  showPosToast('✅ Sales 调整已保存');
+  renderLhdnSales();
+}
+
+// ── Stock ─────────────────────────────────────────────────
+function renderLhdnStock() {
+  const meta = lhdnGetMeta(_lhdnYear);
+  document.getElementById('lhdn-opening-stock').value = meta.openingStock || '';
+  const { total, rows } = lhdnGetClosingStock();
+  const el = document.getElementById('lhdn-stock-table');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div class="card" style="padding:14px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">期初库存 Opening</div>
+        <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace">${lFmt(meta.openingStock||0)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">手动输入（下方）</div>
+      </div>
+      <div class="card" style="padding:14px;text-align:center;background:var(--text)">
+        <div style="font-size:10px;color:rgba(255,255,255,.6);font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">期末库存 Closing</div>
+        <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace;color:#fff">${lFmt(total)}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:3px">来自库存系统</div>
+      </div>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden">
+      <div style="padding:10px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid var(--border)">
+        期末库存明细（${rows.filter(r=>r.val>0).length} 种商品有成本价）
+      </div>
+      ${rows.length ? rows.slice(0,30).map(r=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px">
+          <span style="color:var(--text2)">${r.name}</span>
+          <span style="color:var(--text3)">${r.qty} × ${lFmt(r.cost)}</span>
+          <span style="font-family:'DM Mono',monospace;font-weight:700">${lFmt(r.val)}</span>
+        </div>`).join('')
+        + (rows.length>30 ? `<div style="padding:8px 14px;font-size:11px;color:var(--text3)">… 还有 ${rows.length-30} 种商品</div>` : '')
+        : '<div style="padding:14px;text-align:center;color:var(--text3);font-size:12px">没有商品设置成本价，请在库存管理 → 成本价设置中填入</div>'}
+      <div style="padding:10px 14px;background:var(--surface);display:flex;justify-content:space-between;font-weight:700;font-size:13px">
+        <span>合计</span><span style="font-family:'DM Mono',monospace;color:var(--green)">${lFmt(total)}</span>
+      </div>
+    </div>`;
+}
+function saveLhdnOpeningStock() {
+  const meta = lhdnGetMeta(_lhdnYear);
+  meta.openingStock = parseFloat(document.getElementById('lhdn-opening-stock').value) || 0;
+  lhdnSetMeta(_lhdnYear, meta);
+  showPosToast('✅ 期初库存已保存');
+  renderLhdnStock();
+}
+
+// ── Expenses ──────────────────────────────────────────────
+function renderLhdnExpenses() {
+  const year = _lhdnYear;
+  const exps = lhdnGetExp(year);
+  const el = document.getElementById('lhdn-exp-list');
+  const sumEl = document.getElementById('lhdn-exp-summary');
+  if (!el) return;
+
+  // Group by category
+  const byCat = {};
+  exps.forEach(e => { byCat[e.cat] = (byCat[e.cat]||0) + Number(e.amount||0); });
+  const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const total = exps.reduce((s,e)=>s+Number(e.amount||0),0);
+
+  el.innerHTML = exps.length ? `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden">
+      <div style="display:grid;grid-template-columns:80px 1fr 1fr auto auto;gap:0;padding:8px 12px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid var(--border)">
+        <span>日期</span><span>类别</span><span>备注</span><span style="text-align:right">金额</span><span></span>
+      </div>
+      ${exps.sort((a,b)=>a.date.localeCompare(b.date)).map(e=>`
+        <div style="display:grid;grid-template-columns:80px 1fr 1fr auto auto;gap:0;padding:9px 12px;border-bottom:1px solid var(--border);align-items:center;font-size:12px">
+          <span style="color:var(--text3)">${(e.date||'').slice(5)}</span>
+          <span style="font-weight:600">${e.cat}</span>
+          <span style="color:var(--text3);font-size:11px">${e.note||''}${e.vendor?' · '+e.vendor:''}</span>
+          <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--red);padding-right:10px">RM ${Number(e.amount).toFixed(2)}</span>
+          <div style="display:flex;gap:4px">
+            <button class="btn" style="font-size:10px;padding:3px 6px" onclick="openLhdnExpModal('${e.id}')">✏️</button>
+            <button class="btn btn-danger" style="font-size:10px;padding:3px 6px" onclick="deleteLhdnExp('${e.id}')">🗑</button>
+          </div>
+        </div>`).join('')}
+      <div style="padding:10px 12px;background:var(--surface);display:flex;justify-content:space-between;font-weight:700;font-size:13px">
+        <span>合计 (${exps.length} 笔)</span>
+        <span style="font-family:'DM Mono',monospace;color:var(--red)">${lFmt(total)}</span>
+      </div>
+    </div>` : '<div style="text-align:center;padding:30px;color:var(--text3)">暂无支出记录</div>';
+
+  if (sumEl) sumEl.innerHTML = catRows.length ? `
+    <div style="margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:14px">
+      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">按类别汇总</div>
+      ${catRows.map(([cat,amt])=>`
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+          <span style="color:var(--text2)">${cat}</span>
+          <span style="font-family:'DM Mono',monospace;font-weight:700">${lFmt(amt)}</span>
+        </div>`).join('')}
+    </div>` : '';
+}
+
+function openLhdnExpModal(id) {
+  _lhdnEditExpId = id || null;
+  const exps = lhdnGetExp(_lhdnYear);
+  const e = id ? exps.find(x=>x.id===id) : null;
+  document.getElementById('lhdn-exp-modal-title').textContent = id ? '编辑支出' : '新增 Claimable 支出';
+  document.getElementById('le-date').value = e?.date || new Date().toISOString().slice(0,10);
+  document.getElementById('le-cat').value  = e?.cat  || '车油/Toll';
+  document.getElementById('le-amount').value = e?.amount || '';
+  document.getElementById('le-note').value   = e?.note   || '';
+  document.getElementById('le-vendor').value = e?.vendor || '';
+  document.getElementById('lhdn-exp-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+function closeLhdnExpModal() {
+  document.getElementById('lhdn-exp-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+function saveLhdnExp() {
+  const date   = document.getElementById('le-date').value;
+  const cat    = document.getElementById('le-cat').value;
+  const amount = parseFloat(document.getElementById('le-amount').value);
+  const note   = document.getElementById('le-note').value.trim();
+  const vendor = document.getElementById('le-vendor').value.trim();
+  if (!date || !amount || amount <= 0) { alert('请填写日期和金额'); return; }
+  const exps = lhdnGetExp(_lhdnYear);
+  if (_lhdnEditExpId) {
+    const idx = exps.findIndex(x=>x.id===_lhdnEditExpId);
+    if (idx>=0) exps[idx] = { ...exps[idx], date, cat, amount, note, vendor };
+  } else {
+    exps.push({ id: Date.now().toString(), date, cat, amount, note, vendor });
+  }
+  lhdnSetExp(_lhdnYear, exps);
+  closeLhdnExpModal();
+  renderLhdnExpenses();
+  showPosToast('✅ 支出已保存');
+}
+function deleteLhdnExp(id) {
+  if (!confirm('删除此支出记录？')) return;
+  const exps = lhdnGetExp(_lhdnYear).filter(x=>x.id!==id);
+  lhdnSetExp(_lhdnYear, exps);
+  renderLhdnExpenses();
+  showPosToast('✅ 已删除');
+}
+
+// ── Assets ────────────────────────────────────────────────
+function renderLhdnAssets() {
+  const assets = lhdnGetAssets();
+  const year   = _lhdnYear;
+  const el = document.getElementById('lhdn-asset-list');
+  if (!el) return;
+  if (!assets.length) { el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text3)">暂无资产记录</div>'; return; }
+
+  let totalCA = 0;
+  el.innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden">
+      ${assets.map(a=>{
+        const rate = LHDN_CA[a.cat] || { ia:0.20, aa:0.10, label:a.cat };
+        const cost = Number(a.cost||0);
+        const purchaseYear = new Date(a.date||'').getFullYear();
+        const ia  = purchaseYear===year ? cost*rate.ia : 0;
+        const aa  = cost * rate.aa;
+        const ca  = ia + aa;
+        totalCA += ca;
+        const yearsUsed = year - purchaseYear;
+        const writtenOff = Math.min(cost, cost*rate.ia + cost*rate.aa*(yearsUsed+1));
+        const nbv = Math.max(0, cost - writtenOff); // Net Book Value
+        return `<div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div>
+              <div style="font-size:13px;font-weight:700">${a.name}</div>
+              <div style="font-size:11px;color:var(--text3)">${rate.label} · ${a.date||'—'} · ${lFmt(cost)}</div>
+            </div>
+            <div style="display:flex;gap:5px">
+              <button class="btn" style="font-size:10px;padding:3px 6px" onclick="openLhdnAssetModal('${a.id}')">✏️</button>
+              <button class="btn btn-danger" style="font-size:10px;padding:3px 6px" onclick="deleteLhdnAsset('${a.id}')">🗑</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center">
+            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">IA (${(rate.ia*100).toFixed(0)}%)</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:${ia>0?'var(--green)':'var(--text3)'}">${ia>0?lFmt(ia):'—'}</div></div>
+            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">AA (${(rate.aa*100).toFixed(0)}%)</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">${lFmt(aa)}</div></div>
+            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">本年 Claim</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)">${lFmt(ca)}</div></div>
+            <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">剩余账面值</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${lFmt(nbv)}</div></div>
+          </div>
+        </div>`;
+      }).join('')}
+      <div style="padding:10px 14px;background:var(--surface);display:flex;justify-content:space-between;font-weight:700;font-size:13px">
+        <span>${year} 年 Capital Allowance 合计</span>
+        <span style="font-family:'DM Mono',monospace;color:var(--blue)">${lFmt(totalCA)}</span>
+      </div>
+    </div>`;
+}
+
+function openLhdnAssetModal(id) {
+  _lhdnEditAssetId = id || null;
+  const assets = lhdnGetAssets();
+  const a = id ? assets.find(x=>x.id===id) : null;
+  document.getElementById('lhdn-asset-modal-title').textContent = id ? '编辑资产' : '新增固定资产';
+  document.getElementById('la-name').value = a?.name || '';
+  document.getElementById('la-cat').value  = a?.cat  || 'plant_machinery';
+  document.getElementById('la-date').value = a?.date || new Date().toISOString().slice(0,10);
+  document.getElementById('la-cost').value = a?.cost || '';
+  document.getElementById('la-note').value = a?.note || '';
+  document.getElementById('la-allowance-preview').style.display = 'none';
+  updateLhdnAllowanceCalc();
+  document.getElementById('lhdn-asset-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+function closeLhdnAssetModal() {
+  document.getElementById('lhdn-asset-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+function updateLhdnAllowanceRate() { updateLhdnAllowanceCalc(); }
+function updateLhdnAllowanceCalc() {
+  const cost = parseFloat(document.getElementById('la-cost')?.value) || 0;
+  const cat  = document.getElementById('la-cat')?.value || 'plant_machinery';
+  const prev = document.getElementById('la-allowance-preview');
+  if (!prev) return;
+  if (!cost) { prev.style.display='none'; return; }
+  const rate = LHDN_CA[cat] || { ia:0.20, aa:0.10 };
+  const ia = cost * rate.ia, aa = cost * rate.aa;
+  prev.style.display = 'block';
+  prev.innerHTML = `<strong>购买当年 Claim：</strong> IA ${lFmt(ia)} + AA ${lFmt(aa)} = <strong>${lFmt(ia+aa)}</strong><br>
+    <strong>之后每年 AA：</strong> ${lFmt(aa)} / 年`;
+}
+function saveLhdnAsset() {
+  const name = document.getElementById('la-name').value.trim();
+  const cat  = document.getElementById('la-cat').value;
+  const date = document.getElementById('la-date').value;
+  const cost = parseFloat(document.getElementById('la-cost').value);
+  const note = document.getElementById('la-note').value.trim();
+  if (!name || !cost || !date) { alert('请填写名称、日期和金额'); return; }
+  const assets = lhdnGetAssets();
+  if (_lhdnEditAssetId) {
+    const idx = assets.findIndex(x=>x.id===_lhdnEditAssetId);
+    if (idx>=0) assets[idx] = { ...assets[idx], name, cat, date, cost, note };
+  } else {
+    assets.push({ id: Date.now().toString(), name, cat, date, cost, note });
+  }
+  lhdnSetAssets(assets);
+  closeLhdnAssetModal();
+  renderLhdnAssets();
+  showPosToast('✅ 资产已保存');
+}
+function deleteLhdnAsset(id) {
+  if (!confirm('删除此资产记录？')) return;
+  lhdnSetAssets(lhdnGetAssets().filter(x=>x.id!==id));
+  renderLhdnAssets();
+  showPosToast('✅ 已删除');
+}
+
+// ── PDF Report ────────────────────────────────────────────
+function lhdnGeneratePdf() {
+  const year   = _lhdnYear;
+  const meta   = lhdnGetMeta(year);
+  const posSales   = lhdnGetPosSales(year);
+  const sales      = meta.adjSales !== null && meta.adjSales !== undefined ? meta.adjSales : posSales;
+  const openStock  = Number(meta.openingStock||0);
+  const closeStock = lhdnGetClosingStock().total;
+  const purchases  = (typeof _flBizTxns !== 'undefined')
+    ? _flBizTxns.filter(t=>t.type==='expense'&&t.category==='进货'&&(t.date||'').startsWith(year+'')).reduce((s,t)=>s+Number(t.amount||0),0)
+    : 0;
+  const cogs       = openStock + purchases - closeStock;
+  const grossProfit= sales - cogs;
+  const exps       = lhdnGetExp(year);
+  const totalExp   = exps.reduce((s,e)=>s+Number(e.amount||0),0);
+  const ca         = lhdnGetCA(year);
+  const netProfit  = grossProfit - totalExp - ca.total;
+  const assets     = lhdnGetAssets();
+  const today      = new Date().toLocaleDateString('en-MY',{day:'2-digit',month:'long',year:'numeric'});
+
+  // Group expenses by category
+  const byCat = {};
+  exps.forEach(e=>{ byCat[e.cat]=(byCat[e.cat]||0)+Number(e.amount||0); });
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>LHDN Report ${year} — CFT Global Enterprise</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1814;background:#fff;padding:0}
+.page{width:210mm;margin:0 auto;padding:20px 24px}
+h1{font-size:18px;font-weight:800;letter-spacing:-.3px}
+h2{font-size:13px;font-weight:700;margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid #1a1814}
+.meta{font-size:11px;color:#6b6560;margin-top:3px}
+table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px}
+th{background:#1a1814;color:#fff;padding:7px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.7px}
+td{padding:7px 10px;border-bottom:1px solid #e5e0d8}
+tr:nth-child(even)td{background:#f9f7f5}
+.total-row td{font-weight:800;background:#f0ede8;font-size:13px}
+.r{text-align:right;font-family:'Courier New',monospace;font-weight:600}
+.green{color:#1e6641}.red{color:#8b2318}.blue{color:#1a4d7a}
+.pl-table{background:#f9f7f5;border:1px solid #e5e0d8;border-radius:6px;padding:14px;margin-bottom:14px}
+.pl-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #e5e0d8;font-size:12px}
+.pl-bold{font-weight:700;font-size:13px;border-top:2px solid #1a1814;margin-top:4px;padding-top:8px}
+.warn{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px;font-size:10px;color:#92400e;margin-top:12px}
+.footer{margin-top:20px;padding-top:10px;border-top:1px solid #e5e0d8;display:flex;justify-content:space-between;font-size:10px;color:#9e9890}
+.sig{border-top:1px solid #9e9890;width:150px;padding-top:4px;font-size:9px;color:#9e9890;text-align:center}
+@media print{body{padding:0}.page{padding:16px 20px}}
+</style></head><body><div class="page">
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #1a1814">
+  <div>
+    <h1>CFT GLOBAL ENTERPRISE</h1>
+    <div class="meta">Enterprise · Tax Reference for Accountant</div>
+    <div class="meta">Year of Assessment (YA): <strong>${year}</strong></div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:20px;font-weight:800;color:#1e6641">LHDN Report</div>
+    <div class="meta">Generated: ${today}</div>
+    <div class="meta">Borang B — Personal Income Tax</div>
+  </div>
+</div>
+
+<h2>P&L Summary</h2>
+<div class="pl-table">
+  ${[
+    ['Sales (营业额)', lFmt(sales) + (meta.adjSales!=null?' *adj':''), 'green'],
+    ['Less: Opening Stock', '('+lFmt(openStock)+')', ''],
+    ['Add: Purchases', lFmt(purchases), ''],
+    ['Less: Closing Stock', '('+lFmt(closeStock)+')', ''],
+    ['Cost of Goods Sold', lFmt(Math.max(0,cogs)), 'red'],
+    ['GROSS PROFIT', lFmt(grossProfit), grossProfit>=0?'green':'red'],
+    ['Less: Expenses', '('+lFmt(totalExp)+')', ''],
+    ['Less: Capital Allowance', '('+lFmt(ca.total)+')', ''],
+    ['NET PROFIT', lFmt(netProfit), netProfit>=0?'green':'red'],
+  ].map(([l,v,c])=>'<div class="pl-row'+(['GROSS PROFIT','NET PROFIT'].includes(l)?' pl-bold':'')+'"><span>'+l+'</span><span class="r '+c+'">'+v+'</span></div>').join('')}
+</div>
+
+<h2>Expenses — Claimable (${year})</h2>
+<table>
+<thead><tr><th>Category</th><th class="r">Amount</th></tr></thead>
+<tbody>
+${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>'<tr><td>'+cat+'</td><td class="r">'+lFmt(amt)+'</td></tr>').join('')}
+<tr class="total-row"><td>TOTAL EXPENSES</td><td class="r red">${lFmt(totalExp)}</td></tr>
+</tbody></table>
+
+<h2>Capital Allowance (${year})</h2>
+<table>
+<thead><tr><th>Asset</th><th>Category</th><th>Cost</th><th class="r">IA</th><th class="r">AA</th><th class="r">Total CA</th></tr></thead>
+<tbody>
+${assets.map(a=>{
+  const rate=LHDN_CA[a.cat]||{ia:.2,aa:.1,label:a.cat};
+  const cost=Number(a.cost||0);
+  const py=new Date(a.date||'').getFullYear();
+  const ia=py===year?cost*rate.ia:0, aa=cost*rate.aa;
+  return '<tr><td>'+a.name+'</td><td>'+rate.label+'</td><td>'+lFmt(cost)+'</td><td class="r">'+(ia>0?lFmt(ia):'—')+'</td><td class="r">'+lFmt(aa)+'</td><td class="r blue">'+lFmt(ia+aa)+'</td></tr>';
+}).join('')}
+<tr class="total-row"><td colspan="5">TOTAL CAPITAL ALLOWANCE</td><td class="r blue">${lFmt(ca.total)}</td></tr>
+</tbody></table>
+
+<h2>Closing Stock (${year})</h2>
+<table>
+<thead><tr><th>Item</th><th>Qty</th><th class="r">Unit Cost</th><th class="r">Value</th></tr></thead>
+<tbody>
+${lhdnGetClosingStock().rows.slice(0,50).map(r=>'<tr><td>'+r.name+'</td><td>'+r.qty+'</td><td class="r">'+lFmt(r.cost)+'</td><td class="r">'+lFmt(r.val)+'</td></tr>').join('')}
+<tr class="total-row"><td colspan="3">TOTAL CLOSING STOCK</td><td class="r green">${lFmt(closeStock)}</td></tr>
+</tbody></table>
+
+<div class="warn">⚠️ This report is prepared for reference purposes only. Final tax figures must be verified and filed by a qualified accountant. Deliberate misreporting to LHDN may result in penalties.</div>
+
+<div class="footer">
+  <div>CFT Global Enterprise · LHDN Reference Report · YA ${year}</div>
+  <div class="sig">Prepared by / Signature</div>
+</div>
+</div>
+<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>
+</body></html>`;
+
+  const blob = new Blob([html],{type:'text/html'});
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url,'_blank');
+  if (!win) showPosToast('❌ 请允许弹出窗口');
+  else { showPosToast('✅ 正在生成报告...'); setTimeout(()=>URL.revokeObjectURL(url),10000); }
+}
 
 </script>
 </body>
