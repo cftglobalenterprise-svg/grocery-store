@@ -1224,9 +1224,13 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     <div id="flpage-invest-personal" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px">📈 个人股票持仓</div>
-        <button class="btn btn-success" style="font-size:12px" onclick="openStockModal()">+ 新增持仓</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn" style="font-size:12px" onclick="openBulkPriceModal()">💹 批量更新现价</button>
+          <button class="btn btn-success" style="font-size:12px" onclick="openStockModal()">+ 新增持仓</button>
+        </div>
       </div>
       <div id="fl-stock-summary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px"></div>
+      <div id="fl-price-updated-at" style="font-size:11px;color:var(--text3);margin-bottom:8px;text-align:right"></div>
       <div id="fl-stock-list"></div>
     </div>
   </div>
@@ -6472,19 +6476,55 @@ function renderFlBizInvest() {
 function renderFlStocks() {
   const el = document.getElementById('fl-stock-list');
   const sumEl = document.getElementById('fl-stock-summary');
+  const updEl = document.getElementById('fl-price-updated-at');
   if (!el) return;
   const stocks = _flPerStocks.filter(s=>s.status==='holding');
-  if (!stocks.length) { el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text3)">暂无持仓，请点击「新增持仓」</div>'; if(sumEl)sumEl.innerHTML=''; return; }
+  if (!stocks.length) {
+    el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text3)">暂无持仓，请点击「新增持仓」</div>';
+    if(sumEl) sumEl.innerHTML='';
+    if(updEl) updEl.textContent='';
+    return;
+  }
   const totalCost = stocks.reduce((s,x)=>s+Number(x.shares||0)*Number(x.avg_cost||0),0);
+  // Calculate PL only for stocks that have current_price filled in
+  const priced   = stocks.filter(s=>s.current_price);
+  const unpriced = stocks.length - priced.length;
+  const partialPL = priced.reduce((s,x)=>{
+    const pl = (Number(x.current_price)-Number(x.avg_cost))*Number(x.shares||0);
+    return s + pl;
+  }, 0);
+  const partialCost = priced.reduce((s,x)=>s+Number(x.shares||0)*Number(x.avg_cost||0),0);
+  const hasPriced = priced.length > 0;
+  const plPct = hasPriced && partialCost > 0 ? (partialPL/partialCost*100).toFixed(1) : null;
+  const plLabel = hasPriced
+    ? (partialPL>=0?'+':'')+' RM '+partialPL.toFixed(2)+(plPct?' ('+plPct+'%)':'')+(unpriced>0?' *':'')
+    : '请填入现价';
+  const plColor = !hasPriced ? 'var(--text3)' : partialPL>=0 ? 'var(--green)' : 'var(--red)';
+
   if(sumEl) sumEl.innerHTML = [
-    {label:'持仓数量',val:stocks.length+' 只',color:'var(--text)'},
-    {label:'总成本',val:'RM '+totalCost.toFixed(2),color:'var(--text)'},
-    {label:'未实现盈亏',val:'更新现价计算',color:'var(--text3)'},
-  ].map(c=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px;text-align:center"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${c.label}</div><div style="font-size:14px;font-weight:700;color:${c.color}">${c.val}</div></div>`).join('');
+    {label:'持仓数量', val:stocks.length+' 只', color:'var(--text)'},
+    {label:'总成本',   val:'RM '+totalCost.toFixed(2), color:'var(--text)'},
+    {label:'未实现盈亏'+(unpriced>0&&hasPriced?' ('+priced.length+'/'+stocks.length+' 只)':''),
+      val: plLabel, color: plColor },
+  ].map(c=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px;text-align:center">
+    <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${c.label}</div>
+    <div style="font-size:14px;font-weight:700;color:${c.color}">${c.val}</div>
+  </div>`).join('');
+
+  // Show last price update time
+  const latestUpdate = stocks.filter(s=>s.price_updated_at).map(s=>s.price_updated_at).sort().pop();
+  if(updEl) updEl.textContent = latestUpdate
+    ? '现价更新于：' + new Date(latestUpdate).toLocaleString('zh-MY',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
+    : '现价尚未更新';
+
   el.innerHTML = stocks.map(s=>{
     const cost = Number(s.shares||0)*Number(s.avg_cost||0);
-    const plPct = s.current_price ? ((Number(s.current_price)-Number(s.avg_cost))/Number(s.avg_cost)*100).toFixed(1) : null;
+    const mktVal = s.current_price ? Number(s.current_price)*Number(s.shares) : null;
     const plAmt = s.current_price ? ((Number(s.current_price)-Number(s.avg_cost))*Number(s.shares)).toFixed(2) : null;
+    const plPct = s.current_price ? ((Number(s.current_price)-Number(s.avg_cost))/Number(s.avg_cost)*100).toFixed(1) : null;
+    const updTime = s.price_updated_at
+      ? new Date(s.price_updated_at).toLocaleString('zh-MY',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
+      : null;
     return `<div class="card" style="margin-bottom:8px;padding:14px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
         <div>
@@ -6496,17 +6536,99 @@ function renderFlStocks() {
           <button class="btn btn-danger" style="font-size:11px;padding:4px 7px" onclick="deleteStock('${s.id}')">🗑</button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center">
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">持股数</div><div style="font-size:14px;font-weight:700;font-family:'DM Mono',monospace">${Number(s.shares).toLocaleString()}</div></div>
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">均价</div><div style="font-size:14px;font-weight:700;font-family:'DM Mono',monospace">${Number(s.avg_cost).toFixed(3)}</div></div>
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">成本</div><div style="font-size:14px;font-weight:700;font-family:'DM Mono',monospace">RM ${cost.toFixed(2)}</div></div>
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">盈亏</div>
-          ${plAmt!=null?`<div style="font-size:13px;font-weight:700;color:${Number(plAmt)>=0?'var(--green)':'var(--red)'}">${Number(plAmt)>=0?'+':''}RM ${plAmt} (${plPct}%)</div>`:`<input type="number" placeholder="现价" step="0.001" style="width:100%;padding:3px 5px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-family:'DM Mono',monospace" onchange="updateStockPrice('${s.id}',this.value)">`}
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center;margin-bottom:8px">
+        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">持股数</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${Number(s.shares).toLocaleString()}</div></div>
+        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">均价</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${Number(s.avg_cost).toFixed(3)}</div></div>
+        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">现价</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)">${s.current_price ? Number(s.current_price).toFixed(3) : '—'}</div></div>
+        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">市值</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${mktVal!=null?'RM '+mktVal.toFixed(2):'—'}</div></div>
+        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">盈亏</div>
+          <div style="font-size:13px;font-weight:700;color:${plAmt===null?'var(--text3)':Number(plAmt)>=0?'var(--green)':'var(--red)'}">
+            ${plAmt!==null ? (Number(plAmt)>=0?'+':'')+plAmt : '—'}
+          </div>
+          ${plPct!==null?`<div style="font-size:10px;color:${Number(plPct)>=0?'var(--green)':'var(--red)'}">(${plPct}%)</div>`:''}
         </div>
       </div>
-      ${s.notes?`<div style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic">📝 ${s.notes}</div>`:''}
+      ${updTime ? `<div style="font-size:10px;color:var(--text3);text-align:right">现价更新：${updTime}</div>` : '<div style="font-size:10px;color:var(--amber);text-align:right">⚠️ 现价未更新</div>'}
+      ${s.notes?`<div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic">📝 ${s.notes}</div>`:''}
     </div>`;
   }).join('');
+}
+
+// ── Bulk Price Update Modal ───────────────────────────────────────
+function openBulkPriceModal() {
+  const stocks = _flPerStocks.filter(s=>s.status==='holding');
+  if (!stocks.length) { alert('暂无持仓'); return; }
+  const rows = stocks.map(s=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="min-width:0;flex:1">
+        <div style="font-size:13px;font-weight:700">${s.ticker} <span style="font-size:11px;color:var(--text3)">${s.market||'KLSE'}</span></div>
+        <div style="font-size:11px;color:var(--text3)">均价 ${Number(s.avg_cost).toFixed(3)}</div>
+      </div>
+      <div style="flex-shrink:0;text-align:right">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:3px">现价</div>
+        <input type="number" id="bp-${s.id}" step="0.001" value="${s.current_price||''}" placeholder="${Number(s.avg_cost).toFixed(3)}"
+          style="width:90px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text);text-align:right"
+          oninput="flUpdateBulkPricePreview('${s.id}','${s.avg_cost}','${s.shares}',this.value)">
+      </div>
+      <div style="flex-shrink:0;min-width:80px;text-align:right" id="bpp-${s.id}">
+        ${s.current_price ? `<div style="font-size:12px;font-weight:700;color:${((Number(s.current_price)-Number(s.avg_cost))*Number(s.shares))>=0?'var(--green)':'var(--red)'}">${((Number(s.current_price)-Number(s.avg_cost))*Number(s.shares))>=0?'+':''}RM ${((Number(s.current_price)-Number(s.avg_cost))*Number(s.shares)).toFixed(2)}</div>` : '<div style="font-size:11px;color:var(--text3)">填入现价</div>'}
+      </div>
+    </div>`).join('');
+
+  showFlModal('💹 批量更新现价', `
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">填入各股票的最新现价，留空表示不更新</div>
+    <div style="max-height:400px;overflow-y:auto;-webkit-overflow-scrolling:touch">${rows}</div>
+    <div style="background:var(--surface2);border-radius:var(--radius-xs);padding:10px 12px;margin-top:12px">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">总未实现盈亏</div>
+      <div style="font-size:18px;font-weight:800;font-family:'DM Mono',monospace" id="bp-total-pl">—</div>
+    </div>
+  `, async () => {
+    const now = new Date().toISOString();
+    let anyUpdated = false;
+    for (const s of stocks) {
+      const inp = document.getElementById('bp-'+s.id);
+      if (!inp) continue;
+      const val = parseFloat(inp.value);
+      if (!isNaN(val) && val > 0) {
+        const {error} = await sb.from('personal_stocks').update({current_price: val, price_updated_at: now}).eq('id', s.id);
+        if (error) { alert('更新 '+s.ticker+' 失败: '+error.message); return false; }
+        anyUpdated = true;
+      }
+    }
+    if (!anyUpdated) { alert('没有填入任何现价'); return false; }
+    return true;
+  });
+  // Init total PL
+  setTimeout(flRecalcBulkTotal, 100);
+}
+
+function flUpdateBulkPricePreview(id, avgCost, shares, priceVal) {
+  const price = parseFloat(priceVal);
+  const el = document.getElementById('bpp-'+id);
+  if (!el) return;
+  if (isNaN(price)||price<=0) { el.innerHTML='<div style="font-size:11px;color:var(--text3)">填入现价</div>'; flRecalcBulkTotal(); return; }
+  const pl = (price - Number(avgCost)) * Number(shares);
+  el.innerHTML = `<div style="font-size:12px;font-weight:700;color:${pl>=0?'var(--green)':'var(--red)'}">${pl>=0?'+':''}RM ${pl.toFixed(2)}</div><div style="font-size:10px;color:${pl>=0?'var(--green)':'var(--red)'};">(${((price-Number(avgCost))/Number(avgCost)*100).toFixed(1)}%)</div>`;
+  flRecalcBulkTotal();
+}
+
+function flRecalcBulkTotal() {
+  const stocks = _flPerStocks.filter(s=>s.status==='holding');
+  let total = 0, allFilled = true;
+  for (const s of stocks) {
+    const inp = document.getElementById('bp-'+s.id);
+    const price = inp ? parseFloat(inp.value) : NaN;
+    if (!isNaN(price) && price > 0) {
+      total += (price - Number(s.avg_cost)) * Number(s.shares);
+    } else {
+      allFilled = false;
+    }
+  }
+  const el = document.getElementById('bp-total-pl');
+  if (el) {
+    el.textContent = (allFilled?'':'≈ ') + (total>=0?'+':'') + 'RM ' + total.toFixed(2);
+    el.style.color = total>=0 ? 'var(--green)' : 'var(--red)';
+  }
 }
 
 // ── Report ───────────────────────────────────────────────────────
@@ -6815,7 +6937,10 @@ function openStockModal(id) {
   });
 }
 async function updateStockPrice(id, price) {
-  await sb.from('personal_stocks').update({current_price: parseFloat(price)||null}).eq('id',id);
+  const val = parseFloat(price);
+  const payload = {current_price: val||null};
+  if (val && val > 0) payload.price_updated_at = new Date().toISOString();
+  await sb.from('personal_stocks').update(payload).eq('id',id);
   await flLoadPersonal();
   renderFlStocks();
 }
