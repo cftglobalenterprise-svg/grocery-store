@@ -6610,21 +6610,51 @@ function openEditTxnModal(id) {
     if (!date||!amount||amount<=0) { alert('请填写日期和有效金额'); return false; }
     const tbl = _flLedger==='biz' ? 'biz_transactions' : 'personal_transactions';
     const payload = { date, type:txnType, category:cat||txnType, wallet_id:wallet||null, to_wallet_id:txnType==='transfer'?toWallet||null:null, amount, description:desc||null, ref_no:ref||null };
+    const walletTbl = _flLedger==='biz' ? 'biz_wallets' : 'personal_wallets';
     if (_flEditTxnId) {
+      // Reverse old transaction effect on wallet, then apply new
+      const oldTxnRes = await sb.from(tbl).select('*').eq('id',_flEditTxnId).maybeSingle();
+      const oldTxn = oldTxnRes.data;
+      if (oldTxn) {
+        // Reverse old wallet effect
+        const oldW = flWallets().find(x=>x.id===oldTxn.wallet_id);
+        if (oldW) {
+          const reversal = oldTxn.type==='income' ? -Number(oldTxn.amount||0) : oldTxn.type==='expense' ? Number(oldTxn.amount||0) : Number(oldTxn.amount||0);
+          await sb.from(walletTbl).update({balance: Number(oldW.balance||0)+reversal}).eq('id',oldW.id);
+          oldW.balance = Number(oldW.balance||0)+reversal; // update local cache too
+        }
+        if (oldTxn.type==='transfer' && oldTxn.to_wallet_id) {
+          const oldWTo = flWallets().find(x=>x.id===oldTxn.to_wallet_id);
+          if (oldWTo) {
+            await sb.from(walletTbl).update({balance: Number(oldWTo.balance||0)-Number(oldTxn.amount||0)}).eq('id',oldWTo.id);
+            oldWTo.balance = Number(oldWTo.balance||0)-Number(oldTxn.amount||0);
+          }
+        }
+      }
       await sb.from(tbl).update(payload).eq('id',_flEditTxnId);
+      // Apply new wallet effect
+      const newW = flWallets().find(x=>x.id===wallet);
+      if (newW) {
+        const delta = txnType==='income' ? amount : txnType==='expense' ? -amount : -amount;
+        await sb.from(walletTbl).update({balance: Number(newW.balance||0)+delta}).eq('id',wallet);
+      }
+      if (txnType==='transfer' && toWallet) {
+        const newWTo = flWallets().find(x=>x.id===toWallet);
+        if (newWTo) await sb.from(walletTbl).update({balance: Number(newWTo.balance||0)+amount}).eq('id',toWallet);
+      }
     } else {
       await sb.from(tbl).insert(payload);
-      // Auto-update wallet balance
+      // Apply wallet balance effect for new transaction
       if (wallet) {
         const w = flWallets().find(x=>x.id===wallet);
         if (w) {
           const delta = txnType==='income' ? amount : txnType==='expense' ? -amount : -amount;
-          await sb.from(_flLedger==='biz'?'biz_wallets':'personal_wallets').update({balance: Number(w.balance||0)+delta}).eq('id',wallet);
+          await sb.from(walletTbl).update({balance: Number(w.balance||0)+delta}).eq('id',wallet);
         }
       }
       if (txnType==='transfer' && toWallet) {
         const wTo = flWallets().find(x=>x.id===toWallet);
-        if (wTo) await sb.from(_flLedger==='biz'?'biz_wallets':'personal_wallets').update({balance: Number(wTo.balance||0)+amount}).eq('id',toWallet);
+        if (wTo) await sb.from(walletTbl).update({balance: Number(wTo.balance||0)+amount}).eq('id',toWallet);
       }
     }
     return true;
@@ -6640,11 +6670,28 @@ function refreshTxnModalCats(type) {
   if (toRow) toRow.style.display = type==='transfer' ? '' : 'none';
 }
 async function deleteTxn(id) {
-  if (!confirm('删除此记录？')) return;
+  if (!confirm('删除此记录？余额会自动还原。')) return;
   const tbl = _flLedger==='biz' ? 'biz_transactions' : 'personal_transactions';
+  const walletTbl = _flLedger==='biz' ? 'biz_wallets' : 'personal_wallets';
+  // Fetch the transaction first to reverse its wallet effect
+  const res = await sb.from(tbl).select('*').eq('id',id).maybeSingle();
+  const txn = res.data;
+  if (txn) {
+    // Reload fresh wallet data to get accurate balance
+    if (_flLedger==='biz') await flLoadBiz(); else await flLoadPersonal();
+    const w = flWallets().find(x=>x.id===txn.wallet_id);
+    if (w) {
+      const reversal = txn.type==='income' ? -Number(txn.amount||0) : txn.type==='expense' ? Number(txn.amount||0) : Number(txn.amount||0);
+      await sb.from(walletTbl).update({balance: Number(w.balance||0)+reversal}).eq('id',w.id);
+    }
+    if (txn.type==='transfer' && txn.to_wallet_id) {
+      const wTo = flWallets().find(x=>x.id===txn.to_wallet_id);
+      if (wTo) await sb.from(walletTbl).update({balance: Number(wTo.balance||0)-Number(txn.amount||0)}).eq('id',wTo.id);
+    }
+  }
   await sb.from(tbl).delete().eq('id',id);
   renderFinancePage();
-  showPosToast('✅ 已删除');
+  showPosToast('✅ 已删除，余额已还原');
 }
 
 // ── Business Investment CRUD ─────────────────────────────────────
