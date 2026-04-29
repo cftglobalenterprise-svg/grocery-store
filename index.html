@@ -867,6 +867,12 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <div class="form-row"><label>店里数量</label><input type="number" id="new-shop" min="0" value="0"></div>
                 <div class="form-row"><label>低库存警告</label><input type="number" id="new-threshold" min="0" value="10"></div>
                 <div class="form-row"><label>单价 (RM)</label><input type="number" id="new-price" min="0" step="0.01" value="0" placeholder="0.00"></div>
+                <div class="form-row"><label>所属生意</label>
+                  <select id="new-business" style="flex:1">
+                    <option value="A">生意 A</option>
+                    <option value="K19">KEDAI 19</option>
+                  </select>
+                </div>
                 <button class="btn btn-block" onclick="addItem()">+ 添加商品</button>
               </div>
             </div>
@@ -951,6 +957,11 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
               <div class="card-title">库存列表</div>
               <div class="filter-bar">
                 <select id="filter-category" onchange="renderItems()"><option value="">全部 Category</option></select>
+                <select id="filter-business" onchange="renderItems()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:13px">
+                  <option value="">两个生意</option>
+                  <option value="A">生意 A</option>
+                  <option value="K19">KEDAI 19</option>
+                </select>
                 <input type="text" id="stock-search" placeholder="🔍 搜索..." oninput="renderItems()" style="flex:1;min-width:0">
                 <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="toggleSelectAll()">全选</button>
                 <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="openCatModal()">🏷</button>
@@ -2024,6 +2035,11 @@ const SUPABASE_URL = 'https://zyeyhyfdjtgmoocdjgcg.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5ZXloeWZkanRnbW9vY2RqZ2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3NTAxMjIsImV4cCI6MjA5MDMyNjEyMn0.9W1f4KWxj82J8cgD1oPEmMfpqcFe11an9v9-ybjV-Sw';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ── Dual-business table router ─────────────────────────
+// Use item._table to know which Supabase table to write to
+function itemTable(item) { return (item && item._table) ? item._table : 'items'; }
+function orderTable(item) { return (item && (item._table==='g_items' || item.business==='K19')) ? 'g_orders' : 'orders'; }
+
 let items = [], orders = [], adjId = null;
 let scanTarget = null, scannerRunning = false;
 // cart: [{ item: {...}, qty: number }]
@@ -2051,19 +2067,30 @@ async function init() {
 }
 
 async function loadItems() {
-  const { data, error } = await sb.from('items').select('*').order('created_at');
-  if(error) throw error;
-  items = data || [];
+  // Load both businesses in parallel
+  const [resA, resK] = await Promise.all([
+    sb.from('items').select('*').order('created_at'),
+    sb.from('g_items').select('*').order('created_at'),
+  ]);
+  if(resA.error) throw resA.error;
+  // Tag business field
+  const aItems = (resA.data || []).map(x => ({ ...x, business: x.business || 'A', _table: 'items' }));
+  const kItems = (resK.data || []).map(x => ({ ...x, business: x.business || 'K19', _table: 'g_items' }));
+  items = [...aItems, ...kItems];
   renderItems();
-  // Re-render overview if visible
   const ovPage = document.getElementById('page-overview');
   if(ovPage && ovPage.classList.contains('active')) renderOverview();
 }
 
 async function loadOrders() {
-  const { data, error } = await sb.from('orders').select('*').order('created_at', {ascending:false});
-  if(error) throw error;
-  orders = data || [];
+  const [resA, resK] = await Promise.all([
+    sb.from('orders').select('*').order('created_at', {ascending:false}),
+    sb.from('g_orders').select('*').order('created_at', {ascending:false}),
+  ]);
+  if(resA.error) throw resA.error;
+  const aOrds = (resA.data || []).map(x => ({ ...x, business: x.business || 'A' }));
+  const kOrds = (resK.data || []).map(x => ({ ...x, business: x.business || 'K19' }));
+  orders = [...aOrds, ...kOrds].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
   renderOrders();
   renderInstoreHistory();
   renderDashboard();
@@ -2134,13 +2161,16 @@ async function addItem() {
   const catSelect = document.getElementById('new-category');
   const category = (customCat.style.display !== 'none' ? customCat.value.trim() : catSelect.value) || '';
   setSync('busy','保存中...');
-  const { error } = await sb.from('items').insert({
+  const newBiz = document.getElementById('new-business')?.value || 'A';
+  const newTbl = newBiz === 'K19' ? 'g_items' : 'items';
+  const { error } = await sb.from(newTbl).insert({
     name, barcode: barcode||null,
     home_qty: +document.getElementById('new-home').value||0,
     shop_qty: +document.getElementById('new-shop').value||0,
     threshold: +document.getElementById('new-threshold').value||10,
     price: +document.getElementById('new-price').value||0,
-    category: category||null
+    category: category||null,
+    business: newBiz
   });
   if(error) { alert('添加失败：'+error.message); setSync('err','保存失败'); return; }
   document.getElementById('new-name').value='';
@@ -2218,7 +2248,10 @@ async function renameCategory(oldCat, newCatRaw) {
   setSync('busy','更新中...');
   // Update all items with old category
   const count = items.filter(i=>i.category===oldCat).length;
-  if(count > 0) await sb.from('items').update({category: newCat}).eq('category', oldCat);
+  if(count > 0) {
+    await sb.from('items').update({category: newCat}).eq('category', oldCat);
+    await sb.from('g_items').update({category: newCat}).eq('category', oldCat);
+  }
   // Update extraCategories
   const idx = extraCategories.indexOf(oldCat);
   if(idx !== -1) { extraCategories[idx] = newCat; saveExtraCategories(); }
@@ -2252,6 +2285,7 @@ async function deleteCategory(cat) {
   if(count > 0) {
     setSync('busy','更新中...');
     await sb.from('items').update({category:'OTHER'}).eq('category', cat);
+    await sb.from('g_items').update({category:'OTHER'}).eq('category', cat);
   }
   extraCategories = extraCategories.filter(c=>c!==cat);
   saveExtraCategories();
@@ -2299,6 +2333,7 @@ function renderItems() {
   // Save current filter selection before dropdown refresh
   const filterCat = document.getElementById('filter-category');
   const savedCat = filterCat ? filterCat.value : '';
+  const filterBiz = document.getElementById('filter-business')?.value || '';
   updateCategoryDropdowns();
   // Restore selection after dropdown was rebuilt
   if(filterCat && savedCat) filterCat.value = savedCat;
@@ -2309,6 +2344,7 @@ function renderItems() {
   if(!items.length) { el.innerHTML='<div class="empty">还没有商品，先添加吧</div>'; return; }
   let filtered = selectedCat ? items.filter(i=>i.category===selectedCat) : items;
   if(searchQuery) filtered = filtered.filter(i=>i.name.toLowerCase().includes(searchQuery));
+  if(filterBiz) filtered = filtered.filter(i=>(i.business||'A')===filterBiz);
   if(!filtered.length) { el.innerHTML='<div class="empty">没有找到符合的商品</div>'; return; }
   el.innerHTML = filtered.map(it => {
     const total = it.home_qty + it.shop_qty;
@@ -2331,7 +2367,7 @@ function renderItems() {
     return `<div class="${rowClass}" id="row-${it.id}">
       <input type="checkbox" class="item-checkbox" ${checked} onchange="toggleSelect(${it.id}, this.checked)">
       <div class="item-info">
-        <div class="item-name">${it.name} ${warn}</div>
+        <div class="item-name">${it.business==='K19'?'<span style="display:inline-block;background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:2px">K19</span>':''} ${it.name} ${warn}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">${cat} ${price} ${bundleBadge}</div>
         <div class="stock-row">
           <div class="stock-chip"><span class="badge badge-home">家里</span><span class="stock-num">${it.home_qty}</span></div>
@@ -2428,7 +2464,9 @@ async function saveBulkEdit() {
   setSync('busy','批量更新中...');
   closeBulkEdit();
   for(const id of selectedIds) {
-    await sb.from('items').update(update).eq('id', id);
+    const bkItem = items.find(i => i.id == id);
+    const bkTbl = bkItem ? (bkItem._table || 'items') : 'items';
+    await sb.from(bkTbl).update(update).eq('id', id);
   }
   selectedIds.clear();
   await loadItems();
@@ -2439,7 +2477,8 @@ async function delItem(id) {
   const it = items.find(i=>i.id==id);
   if(!confirm('删除 '+it.name+'？')) return;
   setSync('busy','删除中...');
-  await sb.from('items').delete().eq('id',id);
+  const delTbl = it._table || 'items';
+  await sb.from(delTbl).delete().eq('id',id);
   await loadItems();
   setSync('ok','已删除 · '+timeNow());
 }
@@ -2547,7 +2586,9 @@ async function saveAdj() {
     barcode: adjBarcode||null,
     bundle_components
   };
-  await sb.from('items').update(updatePayload).eq('id', adjId);
+  const adjItem = items.find(i => i.id == adjId);
+  const adjTbl = adjItem ? (adjItem._table || 'items') : 'items';
+  await sb.from(adjTbl).update(updatePayload).eq('id', adjId);
   closeAdj();
   await loadItems();
   setSync('ok','已保存 · '+timeNow());
@@ -2607,7 +2648,7 @@ function renderCart() {
     return `
     <div class="cart-item">
       <div class="cart-item-name" style="flex:1;min-width:0">
-        ${item.name}
+        ${item.business==='K19'?'<span style="background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;margin-right:3px">K19</span>':''} ${item.name}
         ${priceRow}
       </div>
       <div class="cart-qty-wrap">
@@ -2702,30 +2743,32 @@ async function addOrder() {
 
   for(const c of cart) {
     const item = items.find(i => i.id === c.item.id);
+    const tbl = itemTable(item);
+    const oTbl = orderTable(item);
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
-      // Bundle: deduct components
       const bat = items.find(i => i.id === item.bundle_components.battery_id);
       const car = items.find(i => i.id === item.bundle_components.cartridge_id);
       const batUpdate = deduct==='home' ? {home_qty: bat.home_qty - c.qty} : {shop_qty: bat.shop_qty - c.qty};
       const carUpdate = deduct==='home' ? {home_qty: car.home_qty - c.qty} : {shop_qty: car.shop_qty - c.qty};
-      await sb.from('items').update(batUpdate).eq('id', bat.id);
+      await sb.from(itemTable(bat)).update(batUpdate).eq('id', bat.id);
       if(deduct==='home') bat.home_qty -= c.qty; else bat.shop_qty -= c.qty;
-      await sb.from('items').update(carUpdate).eq('id', car.id);
+      await sb.from(itemTable(car)).update(carUpdate).eq('id', car.id);
       if(deduct==='home') car.home_qty -= c.qty; else car.shop_qty -= c.qty;
     } else {
       const updateQty = deduct==='home' ? {home_qty: item.home_qty - c.qty} : {shop_qty: item.shop_qty - c.qty};
-      const { error: e1 } = await sb.from('items').update(updateQty).eq('id', item.id);
+      const { error: e1 } = await sb.from(tbl).update(updateQty).eq('id', item.id);
       if(e1) { alert('下单失败：' + item.name); setSync('err','失败'); return; }
       if(deduct==='home') item.home_qty -= c.qty; else item.shop_qty -= c.qty;
     }
     const bundleItemFinalTotals = cart._bundleItemFinalTotals || new Map();
     const baseItemTotal = getCartItemPricing(c).totalPrice;
     const itemTotal = bundleItemFinalTotals.has(item.id) ? bundleItemFinalTotals.get(item.id) : baseItemTotal;
-    await sb.from('orders').insert({
+    await sb.from(oTbl).insert({
       customer, item_id: item.id, item_name: item.name,
       qty: c.qty, location: loc, deduct_from: deduct, status: 'pending',
       total_price: itemTotal, is_delivery: _orderType === 'delivery',
-      payment_status: _payStatus
+      payment_status: _payStatus,
+      business: item.business || 'A'
     });
   }
 
@@ -2753,14 +2796,15 @@ async function voidInstoreSale(idsStr) {
       if(item.bundle_components?.battery_id && item.bundle_components?.cartridge_id) {
         const bat = items.find(i=>i.id===item.bundle_components.battery_id);
         const car = items.find(i=>i.id===item.bundle_components.cartridge_id);
-        if(bat) { await sb.from('items').update({shop_qty: bat.shop_qty+o.qty}).eq('id',bat.id); bat.shop_qty+=o.qty; }
-        if(car) { await sb.from('items').update({shop_qty: car.shop_qty+o.qty}).eq('id',car.id); car.shop_qty+=o.qty; }
+        if(bat) { await sb.from(itemTable(bat)).update({shop_qty: bat.shop_qty+o.qty}).eq('id',bat.id); bat.shop_qty+=o.qty; }
+        if(car) { await sb.from(itemTable(car)).update({shop_qty: car.shop_qty+o.qty}).eq('id',car.id); car.shop_qty+=o.qty; }
       } else {
-        await sb.from('items').update({shop_qty: item.shop_qty+o.qty}).eq('id',item.id);
+        await sb.from(itemTable(item)).update({shop_qty: item.shop_qty+o.qty}).eq('id',item.id);
         item.shop_qty += o.qty;
       }
     }
-    await sb.from('orders').delete().eq('id',id);
+    const oTblVoid = (o.business==='K19') ? 'g_orders' : 'orders';
+    await sb.from(oTblVoid).delete().eq('id',id);
   }
   await loadOrders();
   renderDashboard();
@@ -2778,10 +2822,11 @@ async function voidOrderSale(idsStr) {
     if(item) {
       const field = o.deduct_from==='shop' ? 'shop_qty' : 'home_qty';
       const cur   = o.deduct_from==='shop' ? item.shop_qty : item.home_qty;
-      await sb.from('items').update({[field]: cur+o.qty}).eq('id',item.id);
+      await sb.from(itemTable(item)).update({[field]: cur+o.qty}).eq('id',item.id);
       if(o.deduct_from==='shop') item.shop_qty+=o.qty; else item.home_qty+=o.qty;
     }
-    await sb.from('orders').delete().eq('id',id);
+    const oTblV2 = (o.business==='K19') ? 'g_orders' : 'orders';
+    await sb.from(oTblV2).delete().eq('id',id);
   }
   await loadItems();
   await loadOrders();
@@ -2909,7 +2954,7 @@ function renderInstoreCart() {
       : `<div style="margin-top:2px"><span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="editInstorePrice(${c.item.id})">＋ 设置价格</span></div>`;
     return `
     <div class="cart-item" id="ins-row-${c.item.id}">
-      <div class="cart-item-name" style="flex:1;min-width:0">${c.item.name}${priceRow}</div>
+      <div class="cart-item-name" style="flex:1;min-width:0">${c.item.business==='K19'?'<span style="background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;margin-right:3px">K19</span>':''} ${c.item.name}${priceRow}</div>
       <div class="cart-qty-wrap">
         <label>x</label>
         <input type="number" min="1" value="${c.qty}" style="width:48px"
@@ -2971,24 +3016,26 @@ async function instoreCheckout(payMethod) {
   for(const c of instoreCart) {
     const item = items.find(i => i.id === c.item.id);
     const itemTotal = brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice;
+    const tbl = itemTable(item);
+    const oTbl = orderTable(item);
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
-      // Bundle: deduct components, not the bundle item itself
       const bat = items.find(i => i.id === item.bundle_components.battery_id);
       const car = items.find(i => i.id === item.bundle_components.cartridge_id);
-      await sb.from('items').update({ shop_qty: bat.shop_qty - c.qty }).eq('id', bat.id);
+      await sb.from(itemTable(bat)).update({ shop_qty: bat.shop_qty - c.qty }).eq('id', bat.id);
       bat.shop_qty -= c.qty;
-      await sb.from('items').update({ shop_qty: car.shop_qty - c.qty }).eq('id', car.id);
+      await sb.from(itemTable(car)).update({ shop_qty: car.shop_qty - c.qty }).eq('id', car.id);
       car.shop_qty -= c.qty;
     } else {
-      const { error: e1 } = await sb.from('items').update({ shop_qty: item.shop_qty - c.qty }).eq('id', item.id);
+      const { error: e1 } = await sb.from(tbl).update({ shop_qty: item.shop_qty - c.qty }).eq('id', item.id);
       if(e1) { alert('结账失败：' + item.name); setSync('err','失败'); return; }
       item.shop_qty -= c.qty;
     }
-    await sb.from('orders').insert({
+    await sb.from(oTbl).insert({
       customer: '门市现场', item_id: item.id, item_name: item.name,
       qty: c.qty, location: '门市', deduct_from: 'shop', status: 'instore',
       total_price: itemTotal,
-      payment_status: payMethod || 'paid_cash'
+      payment_status: payMethod || 'paid_cash',
+      business: item.business || 'A'
     });
   }
 
@@ -3301,7 +3348,8 @@ async function applyPickupStatus(gKey, next) {
   g.pickup_status = next;
   window._pendingGroups[gKey] = g;
   for(const o of g.orders) {
-    await sb.from('orders').update({ pickup_status: next }).eq('id', o.id);
+    const puTbl = (o.business==='K19') ? 'g_orders' : 'orders';
+    await sb.from(puTbl).update({ pickup_status: next }).eq('id', o.id);
     o.pickup_status = next;
   }
   const badgeEl = document.getElementById('pg-pickup-badge-' + gKey);
@@ -3350,7 +3398,8 @@ async function applyPayStatus(gKey, next) {
   g.payment_status = next;
   window._pendingGroups[gKey] = g;
   for(const o of g.orders) {
-    await sb.from('orders').update({ payment_status: next }).eq('id', o.id);
+    const payTbl = (o.business==='K19') ? 'g_orders' : 'orders';
+    await sb.from(payTbl).update({ payment_status: next }).eq('id', o.id);
     o.payment_status = next;
   }
   const badgeEl = document.getElementById('pg-pay-badge-' + gKey);
@@ -3380,7 +3429,8 @@ async function savePendingEdit(gKey) {
     const upd = {};
     if(newName) upd.customer = newName;
     if(newLoc)  upd.location = newLoc;
-    await sb.from('orders').update(upd).eq('id', o.id);
+    const updTbl1 = (o.business==='K19') ? 'g_orders' : 'orders';
+    await sb.from(updTbl1).update(upd).eq('id', o.id);
     if(newName) o.customer = newName;
     if(newLoc)  o.location = newLoc;
   }
@@ -3473,7 +3523,9 @@ async function updateOrderItemPrice(orderId, gKey, val) {
   if(!g) return;
   const o = g.orders.find(x => x.id === orderId);
   if(!o) return;
-  await sb.from('orders').update({ total_price: price }).eq('id', orderId);
+  const priceOrd = orders.find(x=>x.id===orderId);
+  const priceTbl = (priceOrd && priceOrd.business==='K19') ? 'g_orders' : 'orders';
+  await sb.from(priceTbl).update({ total_price: price }).eq('id', orderId);
   o.total_price = price;
   refreshPendingTotal(gKey);
 }
@@ -3506,13 +3558,15 @@ async function updateOrderItemQty(orderId, gKey, val) {
   const newTotal = parseFloat((unitPrice * newQty).toFixed(2));
 
   // Update order record
-  await sb.from('orders').update({ qty: newQty, total_price: newTotal }).eq('id', orderId);
+  const qtyOrd = orders.find(x=>x.id===orderId);
+  const qtyTbl = (qtyOrd && qtyOrd.business==='K19') ? 'g_orders' : 'orders';
+  await sb.from(qtyTbl).update({ qty: newQty, total_price: newTotal }).eq('id', orderId);
 
   // Adjust stock by the difference
   if(item) {
     const field = o.deduct_from === 'shop' ? 'shop_qty' : 'home_qty';
     const newStock = item[field] - diff;
-    await sb.from('items').update({ [field]: newStock }).eq('id', item.id);
+    await sb.from(itemTable(item)).update({ [field]: newStock }).eq('id', item.id);
     item[field] = newStock;
   }
 
@@ -3549,10 +3603,11 @@ async function removeOrderItem(orderId, gKey) {
     const item = items.find(i => i.id === o.item_id);
     if(item) {
       const field = o.deduct_from === 'shop' ? 'shop_qty' : 'home_qty';
-      await sb.from('items').update({ [field]: item[field] + o.qty }).eq('id', item.id);
+      await sb.from(itemTable(item)).update({ [field]: item[field] + o.qty }).eq('id', item.id);
     }
   }
-  await sb.from('orders').delete().eq('id', orderId);
+  const delOrdTbl = (o && o.business==='K19') ? 'g_orders' : 'orders';
+  await sb.from(delOrdTbl).delete().eq('id', orderId);
   g.orders = g.orders.filter(x => x.id !== orderId);
   window._pendingGroups[gKey] = g;
   // Remove the li from DOM
@@ -3597,7 +3652,9 @@ async function addItemToPending(gKey, itemId) {
   if(avail < 1) { alert(`库存不足！${item.name} 只剩 ${avail} 个`); return; }
 
   const total_price = +(item.price||0);
-  const { data, error } = await sb.from('orders').insert({
+  const quickItem = items.find(i => i.id === item.id);
+  const quickOrdTbl = orderTable(quickItem);
+  const { data, error } = await sb.from(quickOrdTbl).insert({
     customer: g.customer, item_id: item.id, item_name: item.name,
     qty: 1, location: g.location, deduct_from: deduct,
     status: 'pending', total_price, is_delivery: !!g.is_delivery
@@ -3606,7 +3663,7 @@ async function addItemToPending(gKey, itemId) {
 
   // Deduct stock
   const field = deduct === 'shop' ? 'shop_qty' : 'home_qty';
-  await sb.from('items').update({ [field]: item[field] - 1 }).eq('id', item.id);
+  await sb.from(itemTable(item)).update({ [field]: item[field] - 1 }).eq('id', item.id);
 
   g.orders.push(data);
   window._pendingGroups[gKey] = g;
@@ -3682,7 +3739,9 @@ async function collectGroup(idsStr, payMethod) {
   for(const id of ids) {
     const upd = { status: 'collected' };
     if(payMethod) upd.payment_status = payMethod;
-    await sb.from('orders').update(upd).eq('id', id);
+    const cnclOrd = orders.find(x=>x.id===id);
+    const cnclTbl = (cnclOrd && cnclOrd.business==='K19') ? 'g_orders' : 'orders';
+    await sb.from(cnclTbl).update(upd).eq('id', id);
   }
   await loadOrders();
   setSync('ok','已取货 · '+timeNow());
@@ -3698,9 +3757,9 @@ async function cancelGroup(idsStr) {
     const item = items.find(i=>i.id==o.item_id);
     if(item) {
       const restore = o.deduct_from==='shop' ? {shop_qty: item.shop_qty+o.qty} : {home_qty: item.home_qty+o.qty};
-      await sb.from('items').update(restore).eq('id', item.id);
+      await sb.from(itemTable(item)).update(restore).eq('id', item.id);
     }
-    await sb.from('orders').update({status:'cancelled'}).eq('id',id);
+    await sb.from((orders.find(x=>x.id===id)||{}).business==='K19' ? 'g_orders' : 'orders').update({status:'cancelled'}).eq('id',id);
   }
   await loadItems();
   await loadOrders();
@@ -4545,7 +4604,7 @@ async function confirmRestock() {
     if(!it) continue;
     const newQty = loc === 'home' ? it.home_qty + r.qty : it.shop_qty + r.qty;
     const update = loc === 'home' ? { home_qty: newQty } : { shop_qty: newQty };
-    const { error } = await sb.from('items').update(update).eq('id', it.id);
+    const { error } = await sb.from(itemTable(it)).update(update).eq('id', it.id);
     if(error) { alert('进货失败：' + it.name); setSync('err','失败'); return; }
   }
   setSync('ok', `已进货 ${restockCart.length} 项 → ${locName} · ${timeNow()}`);
@@ -4637,9 +4696,11 @@ function getProfitDateRange() {
 
 function renderProfitReport() {
   const { start, end } = getProfitDateRange();
+  const bizFilter = document.getElementById('profit-biz-filter')?.value || '';
   const salesOrders = orders.filter(o => {
     const dt = new Date(o.created_at);
-    return (o.status === 'instore' || o.status === 'collected') && dt >= start && dt <= end;
+    const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
+    return (o.status === 'instore' || o.status === 'collected') && dt >= start && dt <= end && bizMatch;
   });
 
   const byItem = {};
@@ -4751,7 +4812,9 @@ function renderCostEditor() {
 
 async function saveCostPrice(itemId, val) {
   const cost = parseFloat(val)||0;
-  await sb.from('items').update({cost_price: cost}).eq('id', itemId);
+  const cpItem = items.find(i => i.id == itemId);
+  const cpTbl = cpItem ? (cpItem._table || 'items') : 'items';
+  await sb.from(cpTbl).update({cost_price: cost}).eq('id', itemId);
   const it = items.find(i=>i.id===itemId);
   if(it) it.cost_price = cost;
   renderProfitReport();
@@ -5776,7 +5839,9 @@ async function confirmPdfNewItem(idx) {
   const btn = document.querySelector(`#pdf-new-form-${idx} .btn-success`);
   if(btn) { btn.disabled = true; btn.textContent = '保存中...'; }
 
-  const { data, error } = await sb.from('items').insert([{
+  const pdfBiz = document.getElementById('new-business')?.value || 'A';
+  const pdfTbl = pdfBiz === 'K19' ? 'g_items' : 'items';
+  const { data, error } = await sb.from(pdfTbl).insert([{
     name, category: cat, price, barcode: barcode || null,
     home_qty: 0, shop_qty: 0, threshold: 10
   }]).select().single();
@@ -6248,7 +6313,9 @@ async function confirmTransfer() {
   for(const r of transferCart) {
     const it = items.find(i => i.id === r.itemId);
     if(!it) continue;
-    const { error } = await sb.from('items').update({
+    const scanIt = items.find(i => i.id == _scanTarget?.itemId);
+  const scanTbl = scanIt ? (scanIt._table || 'items') : 'items';
+  const { error } = await sb.from(scanTbl).update({
       home_qty: it.home_qty - r.qty,
       shop_qty: it.shop_qty + r.qty
     }).eq('id', it.id);
@@ -7796,6 +7863,7 @@ function renderHqDashboard() {
   const period = document.getElementById('hq-period')?.value || 'month';
   const dateFrom = document.getElementById('hq-date-from')?.value;
   const dateTo = document.getElementById('hq-date-to')?.value;
+  const bizFilter = document.getElementById('hq-biz-filter')?.value || '';
 
   // Filter orders by period
   const now = new Date();
@@ -7822,16 +7890,17 @@ function renderHqDashboard() {
   // 门市收银记录 (instore POS)
   const instoreOrders = orders.filter(o => {
     const d = new Date(o.created_at);
-    return o.status === 'instore' && d >= startDate && d <= endDate;
+    const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
+    return o.status === 'instore' && d >= startDate && d <= endDate && bizMatch;
   });
   // 订单收款记录：只计算已付款(paid_qr / paid_cash)的完成订单
-  // 时间以 updated_at 或 created_at 为准（有收款动作的）
   const paidOrders = orders.filter(o => {
     const d = new Date(o.created_at);
+    const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status !== 'instore'
       && o.status !== 'pending'
       && (o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash')
-      && d >= startDate && d <= endDate;
+      && d >= startDate && d <= endDate && bizMatch;
   });
   const allSales = [...instoreOrders, ...paidOrders];
 
@@ -8074,7 +8143,7 @@ async function applyBulkPrice() {
     if(_bulkPriceMode === 'add') newPrice = (+(it.price||0)) + val;
     if(_bulkPriceMode === 'pct') newPrice = (+(it.price||0)) * (1 + val/100);
     newPrice = Math.max(0, Math.round(newPrice * 100) / 100);
-    const { error } = await sb.from('items').update({ price: newPrice }).eq('id', it.id);
+    const { error } = await sb.from(itemTable(it)).update({ price: newPrice }).eq('id', it.id);
     if(error) fail++;
     else { it.price = newPrice; success++; }
   }
