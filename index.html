@@ -2421,8 +2421,8 @@ function renderItems() {
         ${bc}
       </div>
       <div class="item-actions">
-        <button class="btn" style="font-size:12px;padding:6px 12px" onclick="openAdj(${it.id})">✏️ 调整</button>
-        <button class="btn btn-danger" style="font-size:12px;padding:6px 12px" onclick="delItem(${it.id})">🗑 删除</button>
+        <button class="btn" style="font-size:12px;padding:6px 12px" onclick="openAdj('${it.id}')">✏️ 调整</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:6px 12px" onclick="delItem('${it.id}')">🗑 删除</button>
       </div>
     </div>`;
   }).join('');
@@ -2517,7 +2517,7 @@ async function saveBulkEdit() {
 }
 
 async function delItem(id) {
-  const it = items.find(i=>i.id==id);
+  const it = items.find(i=>String(i.id)===String(id));
   if(!confirm('删除 '+it.name+'？')) return;
   setSync('busy','删除中...');
   const delTbl = it._table || 'items';
@@ -2527,7 +2527,7 @@ async function delItem(id) {
 }
 
 function openAdj(id) {
-  const it = items.find(i=>i.id==id);
+  const it = items.find(i=>String(i.id)===String(id));
   adjId = it.id;
   document.getElementById('adj-title').textContent = '调整：'+it.name;
   document.getElementById('adj-name').value = it.name;
@@ -2632,7 +2632,7 @@ async function saveAdj() {
     barcode: adjBarcode||null,
     bundle_components
   };
-  const adjItem = items.find(i => i.id == adjId);
+  const adjItem = items.find(i => String(i.id) === String(adjId));
   const adjTbl = adjItem ? (adjItem._table || 'items') : 'items';
   await sb.from(adjTbl).update(updatePayload).eq('id', adjId);
   closeAdj();
@@ -2649,21 +2649,18 @@ function addToCart(item) {
 }
 
 function removeFromCart(itemId) {
-  itemId = parseInt(itemId);
-  cart = cart.filter(c => c.item.id !== itemId);
+  cart = cart.filter(c => String(c.item.id) !== String(itemId));
   renderCart();
 }
 
 function updateCartQty(itemId, val) {
-  itemId = parseInt(itemId);
-  const entry = cart.find(c => c.item.id === itemId);
+  const entry = cart.find(c => String(c.item.id) === String(itemId));
   if(entry) entry.qty = Math.max(1, parseInt(val)||1);
   renderCart();
 }
 
 function toggleCartBulk(itemId) {
-  itemId = parseInt(itemId);
-  const entry = cart.find(c => c.item.id === itemId);
+  const entry = cart.find(c => String(c.item.id) === String(itemId));
   if(!entry) return;
   entry.useBulk = !entry.useBulk;
   renderCart();
@@ -3703,7 +3700,7 @@ function searchAddToPending(gKey, query) {
   const filtered = items.filter(i => !i.bundle_components && i.name.toLowerCase().includes(query)).slice(0,6);
   if(!filtered.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3)">没有找到</div>'; return; }
   el.innerHTML = filtered.map(it =>
-    `<div onclick="addItemToPending('${gKey}',${it.id})" style="padding:6px 8px;cursor:pointer;border-radius:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+    `<div onclick="addItemToPending('${gKey}','${it.id}')" style="padding:6px 8px;cursor:pointer;border-radius:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
       <span>${it.name}</span>
       <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">${it.price ? 'RM '+((+it.price).toFixed(2)) : ''}</span>
     </div>`
@@ -3855,7 +3852,7 @@ function renderOrderSearch() {
       const canMakeShop = (bat&&car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
       stockMeta = `🎁 套装 · 家里可组 ${canMakeHome} 套 / 店里可组 ${canMakeShop} 套${price}`;
     }
-    return `<div class="search-result-item" onclick="addToCart(items.find(i=>i.id==${it.id}));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
+    return `<div class="search-result-item" onclick="addToCart('items.find(i=>i.id==${it.id}'));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
       <div>
         <div class="search-result-name">${it.name}${catLabel}</div>
         <div class="search-result-meta">${stockMeta}</div>
@@ -3884,7 +3881,7 @@ function renderInstoreSearch() {
       const canMake = (bat&&car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
       stockMeta = `🎁 套装 · 店里可组 ${canMake} 套${price}`;
     }
-    return `<div class="search-result-item" onclick="addToInstoreCart(items.find(i=>i.id==${it.id}));document.getElementById('ins-search-name').value='';document.getElementById('ins-search-results').innerHTML=''">
+    return `<div class="search-result-item" onclick="addToInstoreCart('items.find(i=>i.id==${it.id}'));document.getElementById('ins-search-name').value='';document.getElementById('ins-search-results').innerHTML=''">
       <div>
         <div class="search-result-name">${it.name}${catLabel}</div>
         <div class="search-result-meta">${stockMeta}</div>
@@ -4075,8 +4072,8 @@ function renderBundleRulesList() {
     return `<div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:6px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
         <span style="font-size:13px;font-weight:700;color:var(--text);flex:1">${r.name}</span>
-        <button onclick="openEditBundleRule(${r.id})" style="background:none;border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--text2)">✏️ 编辑</button>
-        <button onclick="deleteBundleRule(${r.id})" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 4px">✕</button>
+        <button onclick="openEditBundleRule('${r.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--text2)">✏️ 编辑</button>
+        <button onclick="deleteBundleRule('${r.id}')" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 4px">✕</button>
       </div>
       <div style="font-size:12px;color:var(--text2)">买 <b>${r.min_qty}</b> 个 = <b style="color:#2d6a4f">RM${totalPrice.toFixed(2)}</b> <span style="color:var(--text3)">(约 RM${unitPrice}/个)</span></div>
       <div style="font-size:11px;color:var(--text3);margin-top:2px">${scope}</div>
@@ -4581,7 +4578,7 @@ function renderRestockSearch() {
   el.innerHTML = '<div class="search-results">' + filtered.map(it => {
     const inCart = restockCart.find(r => r.itemId === it.id);
     const tag = inCart ? `<span style="font-size:11px;color:var(--green);font-weight:600">已加 ${inCart.qty} 个</span>` : '';
-    return `<div class="search-result-item" onclick="addToRestockCart(${it.id});document.getElementById('restock-search').value='';document.getElementById('restock-search-results').innerHTML=''">
+    return `<div class="search-result-item" onclick="addToRestockCart('${it.id}');document.getElementById('restock-search').value='';document.getElementById('restock-search-results').innerHTML=''">
       <div>
         <div class="search-result-name">${it.name} ${tag}</div>
         <div class="search-result-meta">家里:${it.home_qty} 店里:${it.shop_qty}</div>
@@ -4613,7 +4610,7 @@ function addToRestockCart(id) {
   if(wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function removeFromRestockCart(id) {
+function removeFromRestockCart(id) { id = String(id);
   restockCart = restockCart.filter(r => r.itemId !== id);
   renderRestockCart();
 }
@@ -4647,7 +4644,7 @@ function renderRestockCart() {
           oninput="updateRestockQty(${it.id}, this.value)"
           onchange="updateRestockQty(${it.id}, this.value)">
       </div>
-      <button class="cart-remove" onclick="removeFromRestockCart(${it.id})">✕</button>
+      <button class="cart-remove" onclick="removeFromRestockCart('${it.id}')">✕</button>
     </div>`;
   }).join('');
 }
@@ -4966,8 +4963,8 @@ function renderPnL() {
         style="width:90px;padding:4px 6px;font-size:12px;border:1px solid ${e.overridden?'var(--amber-border)':'var(--border)'};border-radius:6px;background:${e.overridden?'var(--amber-bg)':'var(--bg)'};text-align:right;font-family:'DM Mono',monospace;color:var(--text)"
         onchange="overrideExpenseAmount('${ym}',${e.id},this.value)"
         title="${e.overridden?'本月已修改（点✕还原默认）':'默认金额'}">
-      ${e.overridden ? `<button onclick="resetExpenseOverride('${ym}',${e.id})" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:0" title="还原默认金额">↩</button>` : '<span style="width:16px"></span>'}
-      <button onclick="deleteFixedExpense(${e.id})" style="background:none;border:none;color:var(--text3);font-size:15px;cursor:pointer;padding:0 2px">✕</button>
+      ${e.overridden ? `<button onclick="resetExpenseOverride('${ym}','${e.id}')" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:0" title="还原默认金额">↩</button>` : '<span style="width:16px"></span>'}
+      <button onclick="deleteFixedExpense('${e.id}')" style="background:none;border:none;color:var(--text3);font-size:15px;cursor:pointer;padding:0 2px">✕</button>
     </div>`).join('');
 
   el.innerHTML = `
@@ -6290,7 +6287,7 @@ function renderTransferSearch() {
   el.innerHTML = '<div class="search-results">' + filtered.map(it => {
     const inCart = transferCart.find(r => r.itemId === it.id);
     const tag = inCart ? `<span style="font-size:11px;color:var(--blue);font-weight:600">已加 ${inCart.qty} 个</span>` : '';
-    return `<div class="search-result-item" onclick="addToTransferCart(${it.id});document.getElementById('transfer-search').value='';document.getElementById('transfer-search-results').innerHTML=''">
+    return `<div class="search-result-item" onclick="addToTransferCart('${it.id}');document.getElementById('transfer-search').value='';document.getElementById('transfer-search-results').innerHTML=''">
       <div>
         <div class="search-result-name">${it.name} ${tag}</div>
         <div class="search-result-meta">家里:${it.home_qty} → 店里:${it.shop_qty}</div>
@@ -6318,7 +6315,7 @@ function addToTransferCart(id) {
   if(wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function removeFromTransferCart(id) {
+function removeFromTransferCart(id) { id = String(id);
   transferCart = transferCart.filter(r => r.itemId !== id);
   renderTransferCart();
 }
@@ -6353,7 +6350,7 @@ function renderTransferCart() {
           oninput="updateTransferQty(${it.id}, this.value)"
           onchange="updateTransferQty(${it.id}, this.value)">
       </div>
-      <button class="cart-remove" onclick="removeFromTransferCart(${it.id})">✕</button>
+      <button class="cart-remove" onclick="removeFromTransferCart('${it.id}')">✕</button>
     </div>`;
   }).join('');
 }
@@ -7667,14 +7664,14 @@ function updatePosCartUI() {
     return `<div class="pos-cart-item">
       <div style="flex:1;min-width:0">
         <div class="pos-ci-name">${c.item.name}</div>
-        ${priceStr ? `<div class="pos-ci-price" style="cursor:pointer" onclick="editInstorePrice(${c.item.id})">${priceStr}</div>` : `<div style="font-size:11px;color:var(--text3);cursor:pointer;margin-top:2px" onclick="editInstorePrice(${c.item.id})">+ 设置价格</div>`}
+        ${priceStr ? `<div class="pos-ci-price" style="cursor:pointer" onclick="editInstorePrice('${c.item.id}')">${priceStr}</div>` : `<div style="font-size:11px;color:var(--text3);cursor:pointer;margin-top:2px" onclick="editInstorePrice('${c.item.id}')">+ 设置价格</div>`}
       </div>
       <div class="pos-qty-wrap">
-        <button class="pos-qty-btn" onclick="posChangeQty(${c.item.id},-1)">−</button>
+        <button class="pos-qty-btn" onclick="posChangeQty('${c.item.id},-1')">−</button>
         <span class="pos-qty-num">${c.qty}</span>
-        <button class="pos-qty-btn" onclick="posChangeQty(${c.item.id},1)">+</button>
+        <button class="pos-qty-btn" onclick="posChangeQty('${c.item.id},1')">+</button>
       </div>
-      <button class="pos-ci-remove" onclick="posRemoveItem(${c.item.id})">✕</button>
+      <button class="pos-ci-remove" onclick="posRemoveItem('${c.item.id}')">✕</button>
     </div>`;
   }).join('');
 
@@ -7682,8 +7679,8 @@ function updatePosCartUI() {
   if(cashBtn) cashBtn.disabled = false;
 }
 
-function posChangeQty(itemId, delta) {
-  const entry = instoreCart.find(c => c.item.id === itemId);
+function posChangeQty(itemId, delta) { itemId = String(itemId);
+  const entry = instoreCart.find(c => String(c.item.id) === String(itemId));
   if(!entry) return;
   if(delta > 0) {
     const it = items.find(i=>i.id===itemId);
@@ -7706,8 +7703,8 @@ function posChangeQty(itemId, delta) {
 }
 
 
-function posRemoveItem(itemId) {
-  instoreCart = instoreCart.filter(c => c.item.id !== itemId);
+function posRemoveItem(itemId) { itemId = String(itemId);
+  instoreCart = instoreCart.filter(c => String(c.item.id) !== String(itemId));
   updatePosCartUI();
   renderPosGrid();
 }
@@ -8530,8 +8527,8 @@ function renderCustomerList() {
       <div style="font-size:12px;color:var(--text2);font-family:'DM Mono',monospace">+${c.phone}</div>
       <div style="font-size:12px;color:var(--text3)">${c.notes||'—'}</div>
       <div style="display:flex;gap:6px">
-        <button class="btn" style="font-size:11px;padding:4px 8px" onclick="openEditCustomer(${c.id})">✏️</button>
-        <button class="btn btn-danger" style="font-size:11px;padding:4px 8px" onclick="deleteCustomer(${c.id})">🗑</button>
+        <button class="btn" style="font-size:11px;padding:4px 8px" onclick="openEditCustomer('${c.id}')">✏️</button>
+        <button class="btn btn-danger" style="font-size:11px;padding:4px 8px" onclick="deleteCustomer('${c.id}')">🗑</button>
       </div>
     </div>`).join('');
 }
@@ -8813,7 +8810,7 @@ function generateNotifyLinks() {
         <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">+${c.phone}</div>
       </div>
       <a href="https://wa.me/${c.phone}?text=${encoded}" target="_blank"
-        onclick="markNotifySent(${c.id})"
+        onclick="markNotifySent('${c.id}')"
         style="padding:8px 16px;background:#25D366;color:#fff;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;box-shadow:0 2px 6px rgba(37,211,102,0.3)">
         📲 发送
       </a>
