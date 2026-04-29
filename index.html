@@ -867,6 +867,12 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <div class="form-row"><label>店里数量</label><input type="number" id="new-shop" min="0" value="0"></div>
                 <div class="form-row"><label>低库存警告</label><input type="number" id="new-threshold" min="0" value="10"></div>
                 <div class="form-row"><label>单价 (RM)</label><input type="number" id="new-price" min="0" step="0.01" value="0" placeholder="0.00"></div>
+                <div class="form-row"><label>类型</label>
+                  <select id="new-item-type" style="flex:1" onchange="toggleServiceFields()">
+                    <option value="product">🛍️ 商品（扣库存）</option>
+                    <option value="service">⚙️ 服务（不扣库存）</option>
+                  </select>
+                </div>
                 <div class="form-row"><label>所属生意</label>
                   <select id="new-business" style="flex:1">
                     <option value="A">电子烟</option>
@@ -2154,6 +2160,14 @@ function lockFinance() {
   document.querySelector('.tab').classList.add('active');
   document.getElementById('page-stock').classList.add('active');
 }
+function toggleServiceFields() {
+  const isService = document.getElementById('new-item-type')?.value === 'service';
+  ['new-home','new-shop','new-threshold'].forEach(id => {
+    const row = document.getElementById(id)?.closest('.form-row');
+    if(row) row.style.display = isService ? 'none' : '';
+  });
+}
+
 async function addItem() {
   const name = document.getElementById('new-name').value.trim();
   if(!name) { alert('请输入商品名'); return; }
@@ -2168,14 +2182,16 @@ async function addItem() {
   setSync('busy','保存中...');
   const newBiz = document.getElementById('new-business')?.value || 'A';
   const newTbl = newBiz === 'K19' ? 'g_items' : 'items';
+  const isService = document.getElementById('new-item-type')?.value === 'service';
   const { error } = await sb.from(newTbl).insert({
     name, barcode: barcode||null,
-    home_qty: +document.getElementById('new-home').value||0,
-    shop_qty: +document.getElementById('new-shop').value||0,
-    threshold: +document.getElementById('new-threshold').value||10,
+    home_qty: isService ? 0 : (+document.getElementById('new-home').value||0),
+    shop_qty: isService ? 0 : (+document.getElementById('new-shop').value||0),
+    threshold: isService ? 0 : (+document.getElementById('new-threshold').value||10),
     price: +document.getElementById('new-price').value||0,
     category: category||null,
-    business: newBiz
+    business: newBiz,
+    is_service: isService
   });
   if(error) { alert('添加失败：'+error.message); setSync('err','保存失败'); return; }
   document.getElementById('new-name').value='';
@@ -2353,7 +2369,8 @@ function renderItems() {
   if(!filtered.length) { el.innerHTML='<div class="empty">没有找到符合的商品</div>'; return; }
   el.innerHTML = filtered.map(it => {
     const total = it.home_qty + it.shop_qty;
-    const warn = (!it.bundle_components && it.shop_qty < 2) ? '<span class="badge badge-warn">⚠ 店里不足</span>'
+    const warn = it.is_service ? '' :
+      (!it.bundle_components && it.shop_qty < 2) ? '<span class="badge badge-warn">⚠ 店里不足</span>'
       : (!it.bundle_components && total < 10) ? '<span class="badge" style="background:var(--red-bg);color:var(--red)">⚠ 需订货</span>'
       : '';
     const bc = it.barcode ? `<div style="margin-top:5px"><span class="badge badge-barcode">🔖 ${it.barcode}</span></div>` : '';
@@ -2372,7 +2389,7 @@ function renderItems() {
     return `<div class="${rowClass}" id="row-${it.id}">
       <input type="checkbox" class="item-checkbox" ${checked} onchange="toggleSelect(${it.id}, this.checked)">
       <div class="item-info">
-        <div class="item-name">${it.business==='K19'?'<span style="display:inline-block;background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:2px">杂货</span>':''} ${it.name} ${warn}</div>
+        <div class="item-name">${it.is_service?'<span style="display:inline-block;background:#0369a1;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:2px">服务</span>':''}${it.business==='K19'?'<span style="display:inline-block;background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:2px">杂货</span>':''} ${it.name} ${warn}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">${cat} ${price} ${bundleBadge}</div>
         <div class="stock-row">
           <div class="stock-chip"><span class="badge badge-home">家里</span><span class="stock-num">${it.home_qty}</span></div>
@@ -2393,9 +2410,10 @@ function renderItems() {
 }
 
 function updateMetrics() {
-  document.getElementById('m-total').textContent = items.length;
-  document.getElementById('m-home').textContent = items.reduce((s,i)=>s+i.home_qty,0);
-  document.getElementById('m-shop').textContent = items.reduce((s,i)=>s+i.shop_qty,0);
+  const stockItems = items.filter(i=>!i.is_service);
+  document.getElementById('m-total').textContent = stockItems.length;
+  document.getElementById('m-home').textContent = stockItems.reduce((s,i)=>s+i.home_qty,0);
+  document.getElementById('m-shop').textContent = stockItems.reduce((s,i)=>s+i.shop_qty,0);
 }
 
 // ── BULK SELECT ────────────────────────────────────────────────────
@@ -2737,7 +2755,7 @@ async function addOrder() {
       }
     } else {
       const avail = deduct==='home' ? item.home_qty : item.shop_qty;
-      if(avail < c.qty) {
+      if(!item.is_service && avail < c.qty) {
         alert((deduct==='home'?'家里':'店里') + ' 库存不足！\n"' + item.name + '" 只剩 ' + avail + ' 个，你下了 ' + c.qty + ' 个');
         return;
       }
@@ -2750,20 +2768,23 @@ async function addOrder() {
     const item = items.find(i => i.id === c.item.id);
     const tbl = itemTable(item);
     const oTbl = orderTable(item);
-    if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
-      const bat = items.find(i => i.id === item.bundle_components.battery_id);
-      const car = items.find(i => i.id === item.bundle_components.cartridge_id);
-      const batUpdate = deduct==='home' ? {home_qty: bat.home_qty - c.qty} : {shop_qty: bat.shop_qty - c.qty};
-      const carUpdate = deduct==='home' ? {home_qty: car.home_qty - c.qty} : {shop_qty: car.shop_qty - c.qty};
-      await sb.from(itemTable(bat)).update(batUpdate).eq('id', bat.id);
-      if(deduct==='home') bat.home_qty -= c.qty; else bat.shop_qty -= c.qty;
-      await sb.from(itemTable(car)).update(carUpdate).eq('id', car.id);
-      if(deduct==='home') car.home_qty -= c.qty; else car.shop_qty -= c.qty;
-    } else {
-      const updateQty = deduct==='home' ? {home_qty: item.home_qty - c.qty} : {shop_qty: item.shop_qty - c.qty};
-      const { error: e1 } = await sb.from(tbl).update(updateQty).eq('id', item.id);
-      if(e1) { alert('下单失败：' + item.name); setSync('err','失败'); return; }
-      if(deduct==='home') item.home_qty -= c.qty; else item.shop_qty -= c.qty;
+    // Service items: skip stock deduction
+    if(!item.is_service) {
+      if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
+        const bat = items.find(i => i.id === item.bundle_components.battery_id);
+        const car = items.find(i => i.id === item.bundle_components.cartridge_id);
+        const batUpdate = deduct==='home' ? {home_qty: bat.home_qty - c.qty} : {shop_qty: bat.shop_qty - c.qty};
+        const carUpdate = deduct==='home' ? {home_qty: car.home_qty - c.qty} : {shop_qty: car.shop_qty - c.qty};
+        await sb.from(itemTable(bat)).update(batUpdate).eq('id', bat.id);
+        if(deduct==='home') bat.home_qty -= c.qty; else bat.shop_qty -= c.qty;
+        await sb.from(itemTable(car)).update(carUpdate).eq('id', car.id);
+        if(deduct==='home') car.home_qty -= c.qty; else car.shop_qty -= c.qty;
+      } else {
+        const updateQty = deduct==='home' ? {home_qty: item.home_qty - c.qty} : {shop_qty: item.shop_qty - c.qty};
+        const { error: e1 } = await sb.from(tbl).update(updateQty).eq('id', item.id);
+        if(e1) { alert('下单失败：' + item.name); setSync('err','失败'); return; }
+        if(deduct==='home') item.home_qty -= c.qty; else item.shop_qty -= c.qty;
+      }
     }
     const bundleItemFinalTotals = cart._bundleItemFinalTotals || new Map();
     const baseItemTotal = getCartItemPricing(c).totalPrice;
@@ -3005,7 +3026,7 @@ async function instoreCheckout(payMethod) {
         setSync('ok',''); return;
       }
     } else {
-      if(item.shop_qty < c.qty) {
+      if(!item.is_service && item.shop_qty < c.qty) {
         alert('店里库存不足！\n"' + item.name + '" 只剩 ' + item.shop_qty + ' 个\n（可能已被预留给其他订单）');
         setSync('ok',''); return;
       }
@@ -3023,17 +3044,20 @@ async function instoreCheckout(payMethod) {
     const itemTotal = brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice;
     const tbl = itemTable(item);
     const oTbl = orderTable(item);
-    if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
-      const bat = items.find(i => i.id === item.bundle_components.battery_id);
-      const car = items.find(i => i.id === item.bundle_components.cartridge_id);
-      await sb.from(itemTable(bat)).update({ shop_qty: bat.shop_qty - c.qty }).eq('id', bat.id);
-      bat.shop_qty -= c.qty;
-      await sb.from(itemTable(car)).update({ shop_qty: car.shop_qty - c.qty }).eq('id', car.id);
-      car.shop_qty -= c.qty;
-    } else {
-      const { error: e1 } = await sb.from(tbl).update({ shop_qty: item.shop_qty - c.qty }).eq('id', item.id);
-      if(e1) { alert('结账失败：' + item.name); setSync('err','失败'); return; }
-      item.shop_qty -= c.qty;
+    // Service items: skip stock deduction
+    if(!item.is_service) {
+      if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
+        const bat = items.find(i => i.id === item.bundle_components.battery_id);
+        const car = items.find(i => i.id === item.bundle_components.cartridge_id);
+        await sb.from(itemTable(bat)).update({ shop_qty: bat.shop_qty - c.qty }).eq('id', bat.id);
+        bat.shop_qty -= c.qty;
+        await sb.from(itemTable(car)).update({ shop_qty: car.shop_qty - c.qty }).eq('id', car.id);
+        car.shop_qty -= c.qty;
+      } else {
+        const { error: e1 } = await sb.from(tbl).update({ shop_qty: item.shop_qty - c.qty }).eq('id', item.id);
+        if(e1) { alert('结账失败：' + item.name); setSync('err','失败'); return; }
+        item.shop_qty -= c.qty;
+      }
     }
     await sb.from(oTbl).insert({
       customer: '门市现场', item_id: item.id, item_name: item.name,
@@ -7419,11 +7443,13 @@ function renderPosGrid() {
     }
     const cartEntry = instoreCart.find(c => c.item.id === it.id);
     const cartQty = cartEntry ? cartEntry.qty : 0;
-    const isOut = effectiveStock === 0;
-    const isMaxed = !isOut && cartQty >= effectiveStock;
-    const isLow = !isOut && !isMaxed && effectiveStock <= 3;
+    // Service items: never out of stock
+    const isService = !!it.is_service;
+    const isOut = !isService && effectiveStock === 0;
+    const isMaxed = !isService && !isOut && cartQty >= effectiveStock;
+    const isLow = !isService && !isOut && !isMaxed && effectiveStock <= 3;
     const stockClass = isOut ? 'zero' : (isMaxed ? 'zero' : (isLow ? 'low' : ''));
-    const stockLabel = isOut ? '售完' : (isMaxed ? '已满' : (cartQty > 0 ? `${cartQty}/${effectiveStock}` : effectiveStock));
+    const stockLabel = isService ? '服务' : (isOut ? '售完' : (isMaxed ? '已满' : (cartQty > 0 ? `${cartQty}/${effectiveStock}` : effectiveStock)));
     const price = it.price ? `RM ${(+it.price).toFixed(2)}` : '—';
     const catLabel = it.category ? `<div class="pos-prod-cat">${it.category}</div>` : '';
     const cardClass = (isOut || isMaxed) ? ' out-of-stock' : '';
@@ -7431,7 +7457,7 @@ function renderPosGrid() {
     const bundleBadge = isBundle ? `<div style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--purple);font-weight:700;white-space:nowrap">🎁 套装</div>` : '';
     return `<div class="pos-prod-card${cardClass}" onclick="posAddItem(${it.id})">
       ${inCartBadge}
-      <div class="pos-prod-stock ${stockClass}">${stockLabel}</div>
+      <div class="pos-prod-stock ${isService?'':''+stockClass}" style="${isService?'background:#0369a1;color:#fff':''}">${stockLabel}</div>
       ${catLabel}
       <div class="pos-prod-name" style="${isBundle?'margin-bottom:18px':''}">  ${it.name}</div>
       <div class="pos-prod-price">${price}</div>
