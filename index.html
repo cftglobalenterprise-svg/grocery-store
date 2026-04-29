@@ -869,8 +869,8 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <div class="form-row"><label>单价 (RM)</label><input type="number" id="new-price" min="0" step="0.01" value="0" placeholder="0.00"></div>
                 <div class="form-row"><label>所属生意</label>
                   <select id="new-business" style="flex:1">
-                    <option value="A">生意 A</option>
-                    <option value="K19">KEDAI 19</option>
+                    <option value="A">电子烟</option>
+                    <option value="K19">杂货店</option>
                   </select>
                 </div>
                 <button class="btn btn-block" onclick="addItem()">+ 添加商品</button>
@@ -959,8 +959,8 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <select id="filter-category" onchange="renderItems()"><option value="">全部 Category</option></select>
                 <select id="filter-business" onchange="renderItems()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:13px">
                   <option value="">两个生意</option>
-                  <option value="A">生意 A</option>
-                  <option value="K19">KEDAI 19</option>
+                  <option value="A">电子烟</option>
+                  <option value="K19">杂货店</option>
                 </select>
                 <input type="text" id="stock-search" placeholder="🔍 搜索..." oninput="renderItems()" style="flex:1;min-width:0">
                 <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="toggleSelectAll()">全选</button>
@@ -1048,6 +1048,11 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <div style="font-size:12px;color:var(--text3);margin-top:3px">实时数据 · 全店概览</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
+            <select id="hq-biz-filter" onchange="renderHqDashboard()" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:700">
+              <option value="">两个生意</option>
+              <option value="A">🏢 电子烟</option>
+              <option value="K19">🏪 杂货店</option>
+            </select>
             <select id="hq-period" onchange="renderHqDashboard()" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif">
               <option value="today">今天</option>
               <option value="week">本周</option>
@@ -2367,7 +2372,7 @@ function renderItems() {
     return `<div class="${rowClass}" id="row-${it.id}">
       <input type="checkbox" class="item-checkbox" ${checked} onchange="toggleSelect(${it.id}, this.checked)">
       <div class="item-info">
-        <div class="item-name">${it.business==='K19'?'<span style="display:inline-block;background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:2px">K19</span>':''} ${it.name} ${warn}</div>
+        <div class="item-name">${it.business==='K19'?'<span style="display:inline-block;background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:2px">杂货</span>':''} ${it.name} ${warn}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">${cat} ${price} ${bundleBadge}</div>
         <div class="stock-row">
           <div class="stock-chip"><span class="badge badge-home">家里</span><span class="stock-num">${it.home_qty}</span></div>
@@ -2648,7 +2653,7 @@ function renderCart() {
     return `
     <div class="cart-item">
       <div class="cart-item-name" style="flex:1;min-width:0">
-        ${item.business==='K19'?'<span style="background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;margin-right:3px">K19</span>':''} ${item.name}
+        ${item.business==='K19'?'<span style="background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;margin-right:3px">杂货</span>':''} ${item.name}
         ${priceRow}
       </div>
       <div class="cart-qty-wrap">
@@ -2954,7 +2959,7 @@ function renderInstoreCart() {
       : `<div style="margin-top:2px"><span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="editInstorePrice(${c.item.id})">＋ 设置价格</span></div>`;
     return `
     <div class="cart-item" id="ins-row-${c.item.id}">
-      <div class="cart-item-name" style="flex:1;min-width:0">${c.item.business==='K19'?'<span style="background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;margin-right:3px">K19</span>':''} ${c.item.name}${priceRow}</div>
+      <div class="cart-item-name" style="flex:1;min-width:0">${c.item.business==='K19'?'<span style="background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;margin-right:3px">杂货</span>':''} ${c.item.name}${priceRow}</div>
       <div class="cart-qty-wrap">
         <label>x</label>
         <input type="number" min="1" value="${c.qty}" style="width:48px"
