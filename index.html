@@ -7455,7 +7455,7 @@ function renderPosGrid() {
     const cardClass = (isOut || isMaxed) ? ' out-of-stock' : '';
     const inCartBadge = cartQty > 0 ? `<div class="pos-prod-in-cart">${cartQty}</div>` : '';
     const bundleBadge = isBundle ? `<div style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--purple);font-weight:700;white-space:nowrap">🎁 套装</div>` : '';
-    return `<div class="pos-prod-card${cardClass}" onclick="posAddItem(${it.id})">
+    return `<div class="pos-prod-card${cardClass}" onclick="posAddItem('${it.id}')">
       ${inCartBadge}
       <div class="pos-prod-stock ${isService?'':''+stockClass}" style="${isService?'background:#0369a1;color:#fff':''}">${stockLabel}</div>
       ${catLabel}
@@ -7467,7 +7467,7 @@ function renderPosGrid() {
 }
 
 function posAddItem(id) {
-  const it = items.find(i=>i.id===id);
+  const it = items.find(i=>String(i.id)===String(id));
   if(!it) return;
   // Calculate effective stock (handle bundles)
   let effectiveStock = it.shop_qty;
