@@ -143,6 +143,7 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .collapse-arrow { font-size: 16px; color: var(--text3); transition: transform 0.2s; display: inline-block; }
 .collapse-arrow.open { transform: rotate(180deg); }
 .collapse-body { padding: 0 16px 16px; }
+#body-panel-cost, #body-panel-bulk-price, #body-panel-transfer { padding: 12px 16px; box-sizing: border-box; }
 
 /* ── SEARCH RESULTS ──────────────────────────────── */
 .search-results { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xs); margin-top: 4px; overflow: hidden; max-height: 240px; overflow-y: auto; }
@@ -888,7 +889,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <!-- Transfer -->
             <div class="collapse-card" id="panel-transfer">
               <div class="collapse-header" onclick="togglePanel('panel-transfer')"><span>🔄 转移库存（家里→店里）</span><span class="collapse-arrow" id="arrow-panel-transfer">▾</span></div>
-              <div class="collapse-body" id="body-panel-transfer" style="display:none;overflow:visible">
+              <div class="collapse-body" id="body-panel-transfer" style="display:none;max-height:500px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain">
                 <div id="transfer-cart-wrap" style="display:none;margin-bottom:14px">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:13px;font-weight:600;color:var(--text2)">📋 待转移清单</span><span style="font-size:12px;color:var(--text3)" id="transfer-cart-count">0 项</span></div>
                   <div id="transfer-cart-list"></div>
@@ -897,7 +898,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                   <div style="height:1px;background:var(--border);margin:14px 0"></div>
                 </div>
                 <div class="form-row"><label>搜索商品</label><input type="text" id="transfer-search" placeholder="输入商品名..." oninput="renderTransferSearch()" style="flex:1;min-width:0"></div>
-                <div id="transfer-search-results" style="max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain"></div>
+                <div id="transfer-search-results"></div>
                 <div class="form-row"><label>或扫 Barcode</label><div class="barcode-input-wrap"><input type="text" id="transfer-barcode" placeholder="扫描 barcode" oninput="onTransferBarcodeTyped(this.value)"><button class="btn btn-scan" onclick="openScanModal('transfer')">📷</button></div></div>
               </div>
             </div>
@@ -905,19 +906,19 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <!-- Cost editor panel -->
             <div class="collapse-card hq-only" id="panel-cost">
               <div class="collapse-header" onclick="togglePanel('panel-cost')"><span>⚙️ 成本价设置</span><span class="collapse-arrow" id="arrow-panel-cost">▾</span></div>
-              <div class="collapse-body" id="body-panel-cost" style="display:none;overflow:visible">
+              <div class="collapse-body" id="body-panel-cost" style="display:none;max-height:400px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain">
                 <div style="display:flex;gap:6px;margin-bottom:8px">
                   <input type="text" id="cost-search" placeholder="🔍 搜索商品..." oninput="renderCostEditor()" style="flex:1">
                   <select id="cost-cat-filter" onchange="renderCostEditor()" style="max-width:110px"><option value="">全部类别</option></select>
                 </div>
-                <div id="cost-editor-list" style="max-height:350px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain"></div>
+                <div id="cost-editor-list"></div>
               </div>
             </div>
 
             <!-- Bulk price panel -->
             <div class="collapse-card" id="panel-bulk-price">
               <div class="collapse-header" onclick="togglePanel('panel-bulk-price')"><span>💲 批量调整价格</span><span class="collapse-arrow" id="arrow-panel-bulk-price">▾</span></div>
-              <div class="collapse-body" id="body-panel-bulk-price" style="display:none;overflow:visible">
+              <div class="collapse-body" id="body-panel-bulk-price" style="display:none;max-height:420px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain">
                 <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
                   <input type="text" id="bulk-price-search" placeholder="🔍 搜索..." oninput="renderBulkPriceList()" style="flex:1;min-width:100px">
                   <select id="bulk-price-cat" onchange="renderBulkPriceList()" style="max-width:110px"><option value="">全部类别</option></select>
@@ -927,7 +928,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                   <button class="btn" style="font-size:11px;padding:4px 8px" onclick="bulkPriceClearAll()">清空</button>
                   <span id="bulk-price-selected-count" style="font-size:12px;color:var(--text3)">已选 0 项</span>
                 </div>
-                <div id="bulk-price-list" style="max-height:250px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:10px"></div>
+                <div id="bulk-price-list" style="border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:10px"></div>
                 <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
                   <button id="bp-mode-set" onclick="setBulkPriceMode('set')" style="flex:1;padding:6px;font-size:11px;font-weight:600;border-radius:8px;border:2px solid var(--text);background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">固定价</button>
                   <button id="bp-mode-add" onclick="setBulkPriceMode('add')" style="flex:1;padding:6px;font-size:11px;font-weight:600;border-radius:8px;border:2px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">+RM</button>
