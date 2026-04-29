@@ -6277,18 +6277,15 @@ function initFinanceTab() {
   setFinanceLedger('biz');
   setFlTab('overview');
 }
-function renderFinancePage() {
+async function renderFinancePage() {
   const el = document.getElementById('fl-month');
   if (el) _flCurrentMonth = el.value || flThisMonth();
-  const show = async () => {
-    if (_flLedger==='biz') await flLoadBiz(); else await flLoadPersonal();
-    if (_flTab==='overview') renderFlOverview();
-    else if (_flTab==='wallets') renderFlWallets();
-    else if (_flTab==='txns') { flPopulateWalletFilter(); flPopulateCatFilter(); renderFlTxns(); }
-    else if (_flTab==='invest') { if(_flLedger==='biz') renderFlBizInvest(); else renderFlStocks(); }
-    else if (_flTab==='report') renderFlReport();
-  };
-  show();
+  if (_flLedger==='biz') await flLoadBiz(); else await flLoadPersonal();
+  if (_flTab==='overview') renderFlOverview();
+  else if (_flTab==='wallets') renderFlWallets();
+  else if (_flTab==='txns') { flPopulateWalletFilter(); flPopulateCatFilter(); renderFlTxns(); }
+  else if (_flTab==='invest') { if(_flLedger==='biz') renderFlBizInvest(); else renderFlStocks(); }
+  else if (_flTab==='report') renderFlReport();
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -6592,9 +6589,11 @@ function openWalletModal(id) {
     const color = document.getElementById('flw-color').value;
     if (!name) { alert('请输入账户名称'); return false; }
     if (_flEditWalletId) {
-      await sb.from(tbl).update({name,type,balance:bal,color}).eq('id',_flEditWalletId);
+      const {error} = await sb.from(tbl).update({name,type,balance:bal,color}).eq('id',_flEditWalletId);
+      if(error){alert('保存失败: '+error.message);return false;}
     } else {
-      await sb.from(tbl).insert({name,type,balance:bal,color,is_active:true});
+      const {error} = await sb.from(tbl).insert({name,type,balance:bal,color,is_active:true});
+      if(error){alert('保存失败: '+error.message);return false;}
     }
     return true;
   });
@@ -6762,8 +6761,13 @@ function openBizInvestModal(id) {
     const notes     = document.getElementById('fli-notes').value.trim()||null;
     if (!name||!principal||!start) { alert('请填写名称、本金和开始日期'); return false; }
     const payload = {name,type,source_wallet:wallet||null,principal,interest_rate:rate,start_date:start,maturity_date:maturity,status,notes};
-    if (_flEditInvestId) await sb.from('biz_investments').update(payload).eq('id',_flEditInvestId);
-    else await sb.from('biz_investments').insert(payload);
+    if (_flEditInvestId) {
+      const {error} = await sb.from('biz_investments').update(payload).eq('id',_flEditInvestId);
+      if(error){alert('保存失败: '+error.message);return false;}
+    } else {
+      const {error} = await sb.from('biz_investments').insert(payload);
+      if(error){alert('保存失败: '+error.message);return false;}
+    }
     return true;
   });
 }
@@ -6798,9 +6802,15 @@ function openStockModal(id) {
     const price   = parseFloat(document.getElementById('fls-price').value)||null;
     const notes   = document.getElementById('fls-notes').value.trim()||null;
     if (!ticker||!shares||!cost) { alert('请填写股票代码、数量和成本价'); return false; }
-    const payload = {ticker,name:name||null,market,shares,avg_cost:cost,source_wallet:wallet||null,current_price:price,status:'holding',notes};
-    if (_flEditStockId) await sb.from('personal_stocks').update(payload).eq('id',_flEditStockId);
-    else await sb.from('personal_stocks').insert(payload);
+    const payload = {ticker,name:name||null,market,shares,avg_cost:cost,source_wallet:wallet||null,status:'holding',notes};
+    if (price !== null) payload.current_price = price;
+    if (_flEditStockId) {
+      const {error} = await sb.from('personal_stocks').update(payload).eq('id',_flEditStockId);
+      if(error){alert('保存失败: '+error.message);return false;}
+    } else {
+      const {error} = await sb.from('personal_stocks').insert(payload);
+      if(error){alert('保存失败: '+error.message);return false;}
+    }
     return true;
   });
 }
