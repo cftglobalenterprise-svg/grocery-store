@@ -7398,7 +7398,7 @@ function handleBarcodeInput(barcode) {
       const car = items.find(i => i.id === exact.bundle_components.cartridge_id);
       effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
     }
-    if (effectiveStock === 0) {
+    if (!exact.is_service && effectiveStock === 0) {
       showPosToast('⚠️ ' + exact.name + ' 已售完');
       if(input) input.value = '';
       return;
@@ -7476,13 +7476,13 @@ function posAddItem(id) {
     const car = items.find(i => i.id === it.bundle_components.cartridge_id);
     effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
   }
-  if(effectiveStock === 0) {
+  if(!it.is_service && effectiveStock === 0) {
     showPosToast('⚠️ ' + it.name + ' — 已售完');
     return;
   }
   const existing = instoreCart.find(c => c.item.id === it.id);
   const cartQty = existing ? existing.qty : 0;
-  if(cartQty >= effectiveStock) {
+  if(!it.is_service && cartQty >= effectiveStock) {
     showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 套）');
     return;
   }
