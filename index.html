@@ -4891,7 +4891,7 @@ function renderCostEditor() {
         <span style="font-size:11px;color:var(--text3)">成本</span>
         <input type="number" min="0" step="0.01" value="${cost||''}" placeholder="0.00"
           style="width:72px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:right;font-family:'DM Mono',monospace"
-          onchange="saveCostPrice(${it.id}, this.value)">
+          onchange="saveCostPrice('${it.id}', this.value)">
       </div>
     </div>`;
   }).join('');
