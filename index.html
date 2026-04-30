@@ -3060,16 +3060,16 @@ async function instoreCheckout(payMethod) {
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
       const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
       const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
-      if(!bat || bat.shop_qty < c.qty) {
+      if(!item.ignore_stock && (!bat || bat.shop_qty < c.qty)) {
         alert('店里库存不足！\n套装零件 "' + (bat?bat.name:'Battery') + '" 只剩 ' + (bat?bat.shop_qty:0) + ' 个，套装需要 ' + c.qty + ' 个');
         setSync('ok',''); return;
       }
-      if(!car || car.shop_qty < c.qty) {
+      if(!item.ignore_stock && (!car || car.shop_qty < c.qty)) {
         alert('店里库存不足！\n套装零件 "' + (car?car.name:'Cartridge') + '" 只剩 ' + (car?car.shop_qty:0) + ' 个，套装需要 ' + c.qty + ' 个');
         setSync('ok',''); return;
       }
     } else {
-      if(!item.is_service && item.shop_qty < c.qty) {
+      if(!item.is_service && !item.ignore_stock && item.shop_qty < c.qty) {
         alert('店里库存不足！\n"' + item.name + '" 只剩 ' + item.shop_qty + ' 个\n（可能已被预留给其他订单）');
         setSync('ok',''); return;
       }
@@ -3089,7 +3089,7 @@ async function instoreCheckout(payMethod) {
     const tbl = itemTable(item);
     const oTbl = orderTable(item);
     // Service items: skip stock deduction
-    if(!item.is_service) {
+    if(!item.is_service && !item.ignore_stock) {
       if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
         const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
         const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
