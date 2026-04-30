@@ -4899,12 +4899,14 @@ function renderCostEditor() {
 
 async function saveCostPrice(itemId, val) {
   const cost = parseFloat(val)||0;
-  const cpItem = items.find(i => i.id == itemId);
-  const cpTbl = cpItem ? (cpItem._table || 'items') : 'items';
-  await sb.from(cpTbl).update({cost_price: cost}).eq('id', itemId);
-  const it = items.find(i=>i.id===itemId);
-  if(it) it.cost_price = cost;
+  const cpItem = items.find(i => String(i.id) === String(itemId));
+  if(!cpItem) { alert('找不到商品'); return; }
+  const cpTbl = cpItem._table || (cpItem.business === 'K19' ? 'g_items' : 'items');
+  const { error } = await sb.from(cpTbl).update({cost_price: cost}).eq('id', cpItem.id);
+  if(error) { alert('保存失败：' + error.message); return; }
+  cpItem.cost_price = cost;
   renderProfitReport();
+  showPosToast('✅ 成本已保存');
 }
 
 // ── MONTHLY P&L ────────────────────────────────────────────────────
