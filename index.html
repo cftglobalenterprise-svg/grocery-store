@@ -7629,8 +7629,18 @@ function posAddItem(id) {
     showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 套）');
     return;
   }
-  if(existing) existing.qty++;
-  else instoreCart.push({ item: it, qty: 1, unitPrice: +(it.price||0) });
+  if(it.is_service) {
+    // Service item: pop up qty dialog
+    const defaultQty = existing ? existing.qty : 1;
+    const input = prompt(it.name + '\n请输入数量：', defaultQty);
+    if(input === null) return; // cancelled
+    const qty = Math.max(1, parseInt(input)||1);
+    if(existing) existing.qty = qty;
+    else instoreCart.push({ item: it, qty, unitPrice: +(it.price||0) });
+  } else {
+    if(existing) existing.qty++;
+    else instoreCart.push({ item: it, qty: 1, unitPrice: +(it.price||0) });
+  }
   updatePosCartUI();
 }
 
@@ -7678,7 +7688,7 @@ function updatePosCartUI() {
       </div>
       <div class="pos-qty-wrap">
         <button class="pos-qty-btn" onclick="posChangeQty('${c.item.id},-1')">−</button>
-        <span class="pos-qty-num">${c.qty}</span>
+        <span class="pos-qty-num" style="cursor:pointer" onclick="posPromptQty('${c.item.id}',${c.qty})">${c.qty}</span>
         <button class="pos-qty-btn" onclick="posChangeQty('${c.item.id},1')">+</button>
       </div>
       <button class="pos-ci-remove" onclick="posRemoveItem('${c.item.id}')">✕</button>
@@ -7687,6 +7697,58 @@ function updatePosCartUI() {
 
   if(qrBtn) qrBtn.disabled = false;
   if(cashBtn) cashBtn.disabled = false;
+}
+
+
+function posSetQty(itemId, val) {
+  itemId = String(itemId);
+  const entry = instoreCart.find(c => String(c.item.id) === itemId);
+  if(!entry) return;
+  const qty = Math.max(1, parseInt(val)||1);
+  const it = items.find(i => String(i.id) === itemId);
+  if(it && !it.is_service) {
+    let effectiveStock = it.shop_qty;
+    if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
+      const bat = items.find(i => i.id === it.bundle_components.battery_id);
+      const car = items.find(i => i.id === it.bundle_components.cartridge_id);
+      effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
+    }
+    if(qty > effectiveStock) {
+      showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 件）');
+      entry.qty = effectiveStock;
+      renderInstoreCart();
+      return;
+    }
+  }
+  entry.qty = qty;
+  renderInstoreCart();
+}
+
+
+function posPromptQty(itemId, currentQty) {
+  itemId = String(itemId);
+  const entry = instoreCart.find(c => String(c.item.id) === itemId);
+  if(!entry) return;
+  const input = prompt(entry.item.name + '\n请输入数量：', currentQty);
+  if(input === null) return;
+  const qty = Math.max(1, parseInt(input)||1);
+  const it = items.find(i => String(i.id) === itemId);
+  if(it && !it.is_service) {
+    let effectiveStock = it.shop_qty;
+    if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
+      const bat = items.find(i => i.id === it.bundle_components.battery_id);
+      const car = items.find(i => i.id === it.bundle_components.cartridge_id);
+      effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
+    }
+    if(qty > effectiveStock) {
+      showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 件）');
+      entry.qty = effectiveStock;
+      updatePosCartUI();
+      return;
+    }
+  }
+  entry.qty = qty;
+  updatePosCartUI();
 }
 
 function posChangeQty(itemId, delta) { itemId = String(itemId);
