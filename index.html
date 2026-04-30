@@ -2837,13 +2837,13 @@ async function addOrder() {
 // ── VOID / REFUND ──────────────────────────────────────────────────
 async function voidInstoreSale(idsStr) {
   if(!confirm('撤回这笔门市销售并归还库存？')) return;
-  const ids = idsStr.split(',').map(Number);
+  const ids = idsStr.split(',').map(s=>s.trim());
   setSync('busy','撤回中...');
   for(const id of ids) {
-    const o = orders.find(x=>x.id===id);
+    const o = orders.find(x=>String(x.id)===String(id));
     if(!o) continue;
     // Restore stock
-    const item = items.find(i=>i.id===o.item_id);
+    const item = items.find(i=>String(i.id)===String(o.item_id));
     if(item) {
       if(item.bundle_components?.battery_id && item.bundle_components?.cartridge_id) {
         const bat = items.find(i=>i.id===item.bundle_components.battery_id);
@@ -2865,12 +2865,12 @@ async function voidInstoreSale(idsStr) {
 
 async function voidOrderSale(idsStr) {
   if(!confirm('撤回这笔订单记录并归还库存？')) return;
-  const ids = idsStr.split(',').map(Number);
+  const ids = idsStr.split(',').map(s=>s.trim());
   setSync('busy','撤回中...');
   for(const id of ids) {
-    const o = orders.find(x=>x.id===id);
+    const o = orders.find(x=>String(x.id)===String(id));
     if(!o) continue;
-    const item = items.find(i=>i.id===o.item_id);
+    const item = items.find(i=>String(i.id)===String(o.item_id));
     if(item) {
       const field = o.deduct_from==='shop' ? 'shop_qty' : 'home_qty';
       const cur   = o.deduct_from==='shop' ? item.shop_qty : item.home_qty;
@@ -3103,7 +3103,8 @@ async function instoreCheckout(payMethod) {
         item.shop_qty -= c.qty;
       }
     }
-    const { error: oe } = await sb.from(oTbl).insert({
+    const isK19 = (oTbl === 'g_orders');
+    const insertPayload = isK19 ? {
       customer: '门市现场', item_id: item.id, item_name: item.name,
       qty: c.qty, unit_price: getInstoreItemPricing(c).unitPrice || +(item.price||0),
       cost_price: +(item.cost_price||0),
@@ -3113,7 +3114,14 @@ async function instoreCheckout(payMethod) {
       payment_method: payMethod || 'paid_cash',
       source: 'instore',
       business: item.business || 'A'
-    });
+    } : {
+      customer: '门市现场', item_id: item.id, item_name: item.name,
+      qty: c.qty, location: '门市', deduct_from: 'shop', status: 'instore',
+      total_price: itemTotal,
+      payment_status: payMethod || 'paid_cash',
+      business: item.business || 'A'
+    };
+    const { error: oe } = await sb.from(oTbl).insert(insertPayload);
     if(oe) { alert('订单保存失败：' + item.name + ' — ' + oe.message); setSync('err','失败'); return; }
   }
 
@@ -3136,23 +3144,24 @@ function renderInstoreHistory() {
   const grouped = {};
   instore.forEach(o => {
     const minute = new Date(o.created_at).toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-    if(!grouped[minute]) grouped[minute] = { minute, payment_status: o.payment_status, orders: [], dt: new Date(o.created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) };
+    if(!grouped[minute]) grouped[minute] = { minute, payment_status: o.pay_method||o.payment_status||o.payment_method, orders: [], dt: new Date(o.created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) };
     grouped[minute].orders.push(o);
   });
 
   const payBadge = (ps) => {
-    if(ps === 'paid_qr')   return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d6eaf8;color:#1a5276;border:1px solid #5dade2">QR</span>';
-    if(ps === 'paid_cash') return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80">Cash</span>';
+    ps = ps||'';
+    if(ps === 'paid_qr' || ps === 'qr')   return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d6eaf8;color:#1a5276;border:1px solid #5dade2">QR</span>';
+    if(ps === 'paid_cash' || ps === 'cash') return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80">Cash</span>';
     return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:var(--surface2);color:var(--text3);border:1px solid var(--border)">-</span>';
   };
 
   el.innerHTML = Object.values(grouped).length ? Object.values(grouped).map(g => {
     const ids = g.orders.map(o=>o.id).join(',');
     const itemLines = g.orders.map(o => {
-      const sub = o.total_price ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+o.total_price).toFixed(2)}</span>` : '';
+      const sub = (o.total||o.total_price) ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+(o.total||o.total_price)).toFixed(2)}</span>` : '';
       return `<div style="font-size:12px;color:var(--text2);padding:1px 0">• ${o.item_name} × ${o.qty}${sub}</div>`;
     }).join('');
-    const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+    const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total||o.total_price||0)),0);
     return `<div class="order-row">
       <div class="order-info" style="flex:1">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
@@ -3289,7 +3298,7 @@ function renderOrders() {
     });
     const payBadge = (ps) => {
       if(ps === 'paid_qr')   return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d6eaf8;color:#1a5276;border:1px solid #5dade2">QR</span>';
-      if(ps === 'paid_cash') return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80">Cash</span>';
+      if(ps === 'paid_cash' || ps === 'cash') return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80">Cash</span>';
       return '';
     };
     dEl.innerHTML = Object.values(doneGrouped).length ? Object.values(doneGrouped).map(g => {
@@ -3299,9 +3308,9 @@ function renderOrders() {
         : '<span class="badge badge-cancel">已取消</span>';
       const isD = g.is_delivery ? '<span class="badge badge-shop" style="font-size:10px">配送</span>' : '';
       const dt = new Date(g.orders[0].created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-      const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+      const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total||o.total_price||0)),0);
       const itemLines = g.orders.map(o=>{
-        const sub = o.total_price ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+o.total_price).toFixed(2)}</span>` : '';
+        const sub = (o.total||o.total_price) ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+(o.total||o.total_price)).toFixed(2)}</span>` : '';
         return `<div style="font-size:12px;color:var(--text2);padding:1px 0">• ${o.item_name} × ${o.qty}${sub}</div>`;
       }).join('');
       return `<div class="order-row${g.is_delivery?' is-delivery':''}" style="display:flex;align-items:flex-start;gap:8px">
@@ -7545,7 +7554,7 @@ function handleBarcodeInput(barcode) {
       const car = items.find(i => i.id === exact.bundle_components.cartridge_id);
       effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
     }
-    if (!exact.is_service && effectiveStock === 0) {
+    if (!exact.is_service && !exact.ignore_stock && effectiveStock === 0) {
       showPosToast('⚠️ ' + exact.name + ' 已售完');
       if(input) input.value = '';
       return;
