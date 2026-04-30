@@ -2641,6 +2641,13 @@ async function saveAdj() {
 }
 
 // ── CART ───────────────────────────────────────────────────────────
+
+function addToCartById(id) {
+  const item = items.find(i => String(i.id) === String(id));
+  if(!item) { alert('找不到商品，请刷新'); return; }
+  addToCart(item);
+}
+
 function addToCart(item) {
   const existing = cart.find(c => c.item.id === item.id);
   if(existing) { existing.qty += 1; }
@@ -2758,7 +2765,7 @@ async function addOrder() {
 
   // Validate stock with fresh data
   for(const c of cart) {
-    const item = items.find(i => i.id === c.item.id);
+    const item = items.find(i => String(i.id) === String(c.item.id));
     if(!item) { alert('商品 "' + c.item.name + '" 找不到，请刷新'); return; }
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
       const bat = items.find(i => i.id === item.bundle_components.battery_id);
@@ -4634,7 +4641,7 @@ function renderRestockCart() {
   wrap.style.display = 'block';
   countEl.textContent = restockCart.length + ' 项';
   listEl.innerHTML = restockCart.map(r => {
-    const it = items.find(i => i.id === r.itemId);
+    const it = items.find(i => String(i.id) === String(r.itemId));
     if(!it) return '';
     return `<div class="cart-item">
       <div class="cart-item-name">${it.name}<br>
