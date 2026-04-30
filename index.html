@@ -226,104 +226,6 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .pos-history-label { font-size: 10px; font-weight: 600; color: var(--text3); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 7px; }
 
 /* ── TOAST ───────────────────────────────────────── */
-.pos-toast { position: fixed; top: 66px; right: 14px; background: var(---size: 13px; }
-.stock-num { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 600; }
-.stock-sep { color: var(--text3); font-size: 13px; }
-.item-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
-.bulk-bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--amber-bg); border-radius: var(--radius-xs); margin-bottom: 10px; font-size: 13px; color: var(--amber); font-weight: 500; }
-.bulk-bar.hidden { display: none; }
-.filter-bar { display: flex; gap: 8px; margin-bottom: 12px; }
-
-/* ── COLLAPSE PANELS ─────────────────────────────── */
-.collapse-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: visible; }
-.collapse-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; cursor: pointer; font-size: 14px; font-weight: 600; user-select: none; }
-.collapse-header:hover { background: var(--surface2); }
-.collapse-arrow { font-size: 16px; color: var(--text3); transition: transform 0.2s; display: inline-block; }
-.collapse-arrow.open { transform: rotate(180deg); }
-.collapse-body { padding: 0 16px 16px; }
-#body-panel-cost, #body-panel-bulk-price, #body-panel-transfer { padding: 12px 16px; box-sizing: border-box; }
-
-/* ── SEARCH RESULTS ──────────────────────────────── */
-.search-results { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xs); margin-top: 4px; overflow: hidden; max-height: 240px; overflow-y: auto; }
-.search-result-item { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; }
-.search-result-item:last-child { border-bottom: none; }
-.search-result-item:hover { background: var(--surface2); }
-.search-result-name { font-size: 13px; font-weight: 500; }
-.search-result-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
-.search-result-price { font-size: 12px; color: var(--green); font-family: 'DM Mono', monospace; font-weight: 600; }
-
-/* ── POS INSTORE LAYOUT ──────────────────────────── */
-.pos-layout { display: flex; height: 100%; width: 100%; overflow: hidden; }
-.pos-products { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border-right: 1px solid var(--border); min-width: 0; }
-.pos-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.pos-search { flex: 1; padding: 10px 14px; font-size: 15px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); outline: none; font-family: 'DM Sans', sans-serif; }
-.pos-search:focus { border-color: var(--text); background: var(--surface); }
-.pos-cat-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.pos-cat-select { flex: 0 0 150px; padding: 7px 10px; font-size: 13px; border: 1.5px solid var(--border); border-radius: var(--radius-xs); background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 500; cursor: pointer; outline: none; -webkit-appearance: none; }
-.pos-cat-select:focus { border-color: var(--text); }
-.pos-cat-pills { display: flex; gap: 6px; overflow-x: auto; flex: 1; }
-.pos-cat-pills::-webkit-scrollbar { display: none; }
-.pos-cat-pill { padding: 5px 12px; font-size: 12px; font-weight: 500; color: var(--text2); cursor: pointer; border: 1.5px solid var(--border); border-radius: 20px; white-space: nowrap; background: var(--surface2); transition: all 0.15s; font-family: 'DM Sans', sans-serif; flex-shrink: 0; }
-.pos-cat-pill:hover { border-color: var(--border2); color: var(--text); }
-.pos-cat-pill.active { background: var(--text); color: #fff; border-color: var(--text); }
-.pos-grid-wrap { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 14px; min-height: 0; }
-.pos-grid-wrap::-webkit-scrollbar { width: 3px; }
-.pos-grid-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-.pos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-.pos-prod-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px 8px; cursor: pointer; text-align: center; transition: all 0.12s; position: relative; user-select: none; -webkit-user-select: none; }
-.pos-prod-card:hover { border-color: var(--border2); transform: translateY(-1px); }
-.pos-prod-card:active { transform: scale(0.96); background: var(--surface2); }
-.pos-prod-card.out-of-stock { opacity: 0.42; pointer-events: none; }
-.pos-prod-in-cart { position: absolute; top: -6px; left: -6px; width: 22px; height: 22px; border-radius: 50%; background: var(--green); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; font-family: 'DM Mono', monospace; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
-.pos-prod-name { font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 6px; color: var(--text); }
-.pos-prod-price { font-size: 15px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--green); }
-.pos-prod-stock { position: absolute; top: 6px; right: 7px; font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; }
-.pos-prod-stock.low { color: var(--amber); font-weight: 700; }
-.pos-prod-stock.zero { color: var(--red); font-weight: 700; }
-.pos-prod-cat { font-size: 10px; color: var(--text3); margin-bottom: 4px; }
-
-/* ── POS CART ────────────────────────────────────── */
-.pos-cart { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--surface); overflow: hidden; min-height: 0; }
-.pos-cart-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-.pos-cart-title { font-size: 15px; font-weight: 700; }
-.pos-cart-count { font-size: 12px; color: var(--text3); }
-.pos-cart-clear-btn { font-size: 12px; color: var(--red); cursor: pointer; padding: 4px 8px; border-radius: 6px; background: none; border: none; font-family: 'DM Sans', sans-serif; }
-.pos-cart-clear-btn:hover { background: var(--red-bg); }
-.pos-cart-items { flex: 1; overflow-y: auto; padding: 8px 10px; }
-.pos-cart-items::-webkit-scrollbar { width: 3px; }
-.pos-cart-items::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-.pos-cart-empty { text-align: center; color: var(--text3); font-size: 13px; padding: 24px 0; }
-.pos-cart-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--surface2); border-radius: var(--radius-xs); margin-bottom: 7px; }
-.pos-ci-name { font-size: 13px; font-weight: 600; line-height: 1.3; }
-.pos-ci-price { font-size: 11px; color: var(--green); font-family: 'DM Mono', monospace; margin-top: 2px; }
-.pos-qty-wrap { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
-.pos-qty-btn { width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 17px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.1s; font-family: 'DM Sans', sans-serif; }
-.pos-qty-btn:hover { background: var(--surface3); }
-.pos-qty-btn:active { transform: scale(0.9); }
-.pos-qty-num { font-size: 14px; font-weight: 600; font-family: 'DM Mono', monospace; min-width: 26px; text-align: center; }
-.pos-ci-remove { width: 24px; height: 24px; border: none; background: none; color: var(--text3); cursor: pointer; font-size: 14px; border-radius: 5px; display: flex; align-items: center; justify-content: center; }
-.pos-ci-remove:hover { background: var(--red-bg); color: var(--red); }
-.pos-cart-footer { padding: 12px 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
-.pos-total-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
-.pos-total-label { font-size: 13px; color: var(--text2); font-weight: 500; }
-.pos-total-amount { font-size: 28px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--text); text-align: right; }
-.pos-checkout-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.pos-pay-btn { padding: 15px 8px; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 700; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.12s; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.pos-pay-btn:active { transform: scale(0.97); }
-.pos-pay-btn.qr { background: var(--blue); color: #fff; }
-.pos-pay-btn.qr:hover { background: #1e5a90; }
-.pos-pay-btn.cash { background: var(--green); color: #fff; }
-.pos-pay-btn.cash:hover { background: #257a4e; }
-.pos-pay-btn-sub { font-size: 10px; font-weight: 500; opacity: 0.8; }
-.pos-pay-btn:disabled { opacity: 0.42; pointer-events: none; }
-.pos-dash-strip { display: flex; gap: 6px; padding: 8px 10px; background: var(--bg); border-top: 1px solid var(--border); flex-shrink: 0; }
-.pos-dash-tile { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 7px; text-align: center; }
-.pos-dash-val { font-size: 12px; font-weight: 700; font-family: 'DM Mono', monospace; }
-.pos-dash-lbl { font-size: 9px; color: var(--text3); margin-top: 1px; font-weight: 600; }
-.pos-history-wrap { border-top: 1px solid var(--border); overflow-y: auto; max-height: 180px; padding: 8px 10px 10px; flex-shrink: 0; }
-.pos-history-label { font-size: 10px; font-weight: 600; color: var(--text3); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 7px; }
-
-/* ── TOAST ───────────────────────────────────────── */
 .pos-toast { position: fixed; top: 66px; right: 14px; background: var(--green); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.25s; z-index: 300; }
 .pos-toast.show { opacity: 1; }
 
@@ -3147,11 +3049,11 @@ async function instoreCheckout(payMethod) {
 
   // Check stock with fresh data
   for(const c of instoreCart) {
-    const item = items.find(i => i.id === c.item.id);
+    const item = items.find(i => String(i.id) === String(c.item.id));
     if(!item) { alert('商品 "' + c.item.name + '" 找不到，请刷新'); setSync('ok',''); return; }
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
-      const bat = items.find(i => i.id === item.bundle_components.battery_id);
-      const car = items.find(i => i.id === item.bundle_components.cartridge_id);
+      const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
+      const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
       if(!bat || bat.shop_qty < c.qty) {
         alert('店里库存不足！\n套装零件 "' + (bat?bat.name:'Battery') + '" 只剩 ' + (bat?bat.shop_qty:0) + ' 个，套装需要 ' + c.qty + ' 个');
         setSync('ok',''); return;
@@ -3175,32 +3077,34 @@ async function instoreCheckout(payMethod) {
   }, 0);
 
   for(const c of instoreCart) {
-    const item = items.find(i => i.id === c.item.id);
+    const item = items.find(i => String(i.id) === String(c.item.id));
+    if(!item) { alert('结账失败：找不到商品 ' + c.item.name); setSync('err','失败'); return; }
     const itemTotal = brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice;
     const tbl = itemTable(item);
     const oTbl = orderTable(item);
     // Service items: skip stock deduction
     if(!item.is_service) {
       if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
-        const bat = items.find(i => i.id === item.bundle_components.battery_id);
-        const car = items.find(i => i.id === item.bundle_components.cartridge_id);
+        const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
+        const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
         await sb.from(itemTable(bat)).update({ shop_qty: bat.shop_qty - c.qty }).eq('id', bat.id);
         bat.shop_qty -= c.qty;
         await sb.from(itemTable(car)).update({ shop_qty: car.shop_qty - c.qty }).eq('id', car.id);
         car.shop_qty -= c.qty;
       } else {
         const { error: e1 } = await sb.from(tbl).update({ shop_qty: item.shop_qty - c.qty }).eq('id', item.id);
-        if(e1) { alert('结账失败：' + item.name); setSync('err','失败'); return; }
+        if(e1) { alert('结账失败：' + item.name + ' — ' + e1.message); setSync('err','失败'); return; }
         item.shop_qty -= c.qty;
       }
     }
-    await sb.from(oTbl).insert({
+    const { error: oe } = await sb.from(oTbl).insert({
       customer: '门市现场', item_id: item.id, item_name: item.name,
       qty: c.qty, location: '门市', deduct_from: 'shop', status: 'instore',
       total_price: itemTotal,
       payment_status: payMethod || 'paid_cash',
       business: item.business || 'A'
     });
+    if(oe) { alert('订单保存失败：' + item.name + ' — ' + oe.message); setSync('err','失败'); return; }
   }
 
   instoreCart = [];
@@ -3209,9 +3113,9 @@ async function instoreCheckout(payMethod) {
   await loadItems();
   await loadOrders();
   renderDashboard();
-  // Extra refresh after short delay to ensure Supabase data is fully committed
   setTimeout(async () => { await loadOrders(); renderDashboard(); }, 1500);
   setSync('ok','结账成功 · '+timeNow());
+  return true;
 }
 
 function renderInstoreHistory() {
@@ -6383,7 +6287,7 @@ function renderTransferSearch() {
   const filtered = items.filter(i => !i.bundle_components && i.name.toLowerCase().includes(query)).slice(0, 8);
   if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:8px">没有找到商品</div>'; return; }
   el.innerHTML = '<div class="search-results">' + filtered.map(it => {
-    const inCart = transferCart.find(r => r.itemId === it.id);
+    const inCart = transferCart.find(r => String(r.itemId) === String(it.id));
     const tag = inCart ? `<span style="font-size:11px;color:var(--blue);font-weight:600">已加 ${inCart.qty} 个</span>` : '';
     return `<div class="search-result-item" onclick="addToTransferCart('${it.id}');document.getElementById('transfer-search').value='';document.getElementById('transfer-search-results').innerHTML=''">
       <div>
@@ -6405,7 +6309,8 @@ function onTransferBarcodeTyped(val) {
 }
 
 function addToTransferCart(id) {
-  const existing = transferCart.find(r => r.itemId === id);
+  id = String(id);
+  const existing = transferCart.find(r => String(r.itemId) === id);
   if(existing) existing.qty += 1;
   else transferCart.push({ itemId: id, qty: 1 });
   renderTransferCart();
@@ -6419,9 +6324,10 @@ function removeFromTransferCart(id) { id = String(id);
 }
 
 function updateTransferQty(id, val) {
-  const entry = transferCart.find(r => r.itemId === id);
+  id = String(id);
+  const entry = transferCart.find(r => String(r.itemId) === id);
   if(entry) {
-    const it = items.find(i => i.id === id);
+    const it = items.find(i => String(i.id) === id);
     const max = it ? it.home_qty : 999;
     entry.qty = Math.min(max, Math.max(1, parseInt(val) || 1));
   }
@@ -6445,8 +6351,8 @@ function renderTransferCart() {
       <div class="cart-qty-wrap">
         <label>数量</label>
         <input type="number" min="1" max="${it.home_qty}" value="${r.qty}"
-          oninput="updateTransferQty(${it.id}, this.value)"
-          onchange="updateTransferQty(${it.id}, this.value)">
+          oninput="updateTransferQty('${it.id}', this.value)"
+          onchange="updateTransferQty('${it.id}', this.value)">
       </div>
       <button class="cart-remove" onclick="removeFromTransferCart('${it.id}')">✕</button>
     </div>`;
@@ -6465,7 +6371,7 @@ async function confirmTransfer() {
   if(!transferCart.length) return;
   // Validate all
   for(const r of transferCart) {
-    const it = items.find(i => i.id === r.itemId);
+    const it = items.find(i => String(i.id) === String(r.itemId));
     if(!it) continue;
     if(it.home_qty < r.qty) {
       alert(`家里库存不足！
@@ -6475,11 +6381,9 @@ async function confirmTransfer() {
   }
   setSync('busy', '转移中...');
   for(const r of transferCart) {
-    const it = items.find(i => i.id === r.itemId);
+    const it = items.find(i => String(i.id) === String(r.itemId));
     if(!it) continue;
-    const scanIt = items.find(i => i.id == _scanTarget?.itemId);
-  const scanTbl = scanIt ? (scanIt._table || 'items') : 'items';
-  const { error } = await sb.from(scanTbl).update({
+    const { error } = await sb.from(itemTable(it)).update({
       home_qty: it.home_qty - r.qty,
       shop_qty: it.shop_qty + r.qty
     }).eq('id', it.id);
@@ -7823,18 +7727,18 @@ async function posCheckout(method) {
   if(btn) btn.textContent = '处理中...';
 
   try {
-    await instoreCheckout(method);
-    // instoreCheckout already calls loadItems, loadOrders, renderDashboard
-    // We just need to also call renderInstoreHistory which it skips
-    renderInstoreHistory();
-    updatePosCartUI();
-    renderPosGrid();
-    renderPosCats();
-    showPosToast('✅ 结账成功！');
-    // Also refresh history after the delayed loadOrders completes
-    setTimeout(() => { renderInstoreHistory(); renderDashboard(); }, 1800);
+    const ok = await instoreCheckout(method);
+    if(ok === true) {
+      renderInstoreHistory();
+      updatePosCartUI();
+      renderPosGrid();
+      renderPosCats();
+      showPosToast('✅ 结账成功！');
+      setTimeout(() => { renderInstoreHistory(); renderDashboard(); }, 1800);
+    }
+    // If ok !== true, instoreCheckout already showed an alert
   } catch(e) {
-    showPosToast('❌ 结账失败，请重试');
+    showPosToast('❌ 结账失败：' + e.message);
     console.error(e);
   }
 
