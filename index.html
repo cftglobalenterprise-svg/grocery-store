@@ -2795,7 +2795,7 @@ async function addOrder() {
     const tbl = itemTable(item);
     const oTbl = orderTable(item);
     // Service items: skip stock deduction
-    if(!item.is_service) {
+    if(!item.is_service && !item.ignore_stock) {
       if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
         const bat = items.find(i => i.id === item.bundle_components.battery_id);
         const car = items.find(i => i.id === item.bundle_components.cartridge_id);
@@ -7588,9 +7588,10 @@ function renderPosGrid() {
     const cartQty = cartEntry ? cartEntry.qty : 0;
     // Service items: never out of stock
     const isService = !!it.is_service;
-    const isOut = !isService && effectiveStock === 0;
-    const isMaxed = !isService && !isOut && cartQty >= effectiveStock;
-    const isLow = !isService && !isOut && !isMaxed && effectiveStock <= 3;
+    const ignoreStock = !!it.ignore_stock;
+    const isOut = !isService && !ignoreStock && effectiveStock === 0;
+    const isMaxed = !isService && !ignoreStock && !isOut && cartQty >= effectiveStock;
+    const isLow = !isService && !ignoreStock && !isOut && !isMaxed && effectiveStock <= 3;
     const stockClass = isOut ? 'zero' : (isMaxed ? 'zero' : (isLow ? 'low' : ''));
     const stockLabel = isService ? '服务' : (isOut ? '售完' : (isMaxed ? '已满' : (cartQty > 0 ? `${cartQty}/${effectiveStock}` : effectiveStock)));
     const price = it.price ? `RM ${(+it.price).toFixed(2)}` : '—';
@@ -7619,13 +7620,13 @@ function posAddItem(id) {
     const car = items.find(i => i.id === it.bundle_components.cartridge_id);
     effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
   }
-  if(!it.is_service && effectiveStock === 0) {
+  if(!it.is_service && !it.ignore_stock && effectiveStock === 0) {
     showPosToast('⚠️ ' + it.name + ' — 已售完');
     return;
   }
   const existing = instoreCart.find(c => c.item.id === it.id);
   const cartQty = existing ? existing.qty : 0;
-  if(!it.is_service && cartQty >= effectiveStock) {
+  if(!it.is_service && !it.ignore_stock && cartQty >= effectiveStock) {
     showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 套）');
     return;
   }
@@ -7743,7 +7744,7 @@ function posPromptQty(itemId, currentQty) {
       const car = items.find(i => i.id === it.bundle_components.cartridge_id);
       effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
     }
-    if(qty > effectiveStock) {
+    if(!it.ignore_stock && qty > effectiveStock) {
       showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 件）');
       entry.qty = effectiveStock;
       updatePosCartUI();
