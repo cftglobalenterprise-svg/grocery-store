@@ -7663,10 +7663,7 @@ function updatePosCartUI() {
 
   if(countEl) countEl.textContent = '共 ' + instoreCart.length + ' 项';
 
-  const baseTotal = instoreCart.reduce((s,c) => {
-    const p = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
-    return s + p * c.qty;
-  }, 0);
+  const baseTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
   const { savings } = applyBundleRulesToCart(instoreCart);
   const finalTotal = baseTotal - savings;
   if(totalEl) {
@@ -7678,9 +7675,15 @@ function updatePosCartUI() {
   }
 
   wrap.innerHTML = instoreCart.map(c => {
-    const unitPrice = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
-    const subtotal = (unitPrice * c.qty).toFixed(2);
-    const priceStr = unitPrice > 0 ? `RM ${unitPrice.toFixed(2)} × ${c.qty} = RM ${subtotal}` : '';
+    const pricing = getInstoreItemPricing(c);
+    const unitPrice = pricing.unitPrice !== undefined ? pricing.unitPrice : (c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0));
+    const subtotal = pricing.totalPrice.toFixed(2);
+    let priceStr;
+    if (pricing.tiered) {
+      priceStr = `RM ${unitPrice.toFixed(2)}/张 × ${c.qty} = RM ${subtotal} <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 4px;border-radius:3px;font-weight:700">阶梯价</span>`;
+    } else {
+      priceStr = unitPrice > 0 ? `RM ${unitPrice.toFixed(2)} × ${c.qty} = RM ${subtotal}` : '';
+    }
     return `<div class="pos-cart-item">
       <div style="flex:1;min-width:0">
         <div class="pos-ci-name">${c.item.name}</div>
