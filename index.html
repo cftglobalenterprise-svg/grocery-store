@@ -7140,7 +7140,8 @@ function openEditTxnModal(id) {
           }
         }
       }
-      await sb.from(tbl).update(payload).eq('id',_flEditTxnId);
+      const { error: updErr } = await sb.from(tbl).update(payload).eq('id',_flEditTxnId);
+      if (updErr) { alert('更新失败：' + updErr.message); return false; }
       // Apply new wallet effect
       const newW = flWallets().find(x=>x.id===wallet);
       if (newW) {
@@ -7152,7 +7153,8 @@ function openEditTxnModal(id) {
         if (newWTo) await sb.from(walletTbl).update({balance: Number(newWTo.balance||0)+amount}).eq('id',toWallet);
       }
     } else {
-      await sb.from(tbl).insert(payload);
+      const { error: insertErr } = await sb.from(tbl).insert(payload);
+      if (insertErr) { alert('保存失败：' + insertErr.message); return false; }
       // Apply wallet balance effect for new transaction
       if (wallet) {
         const w = flWallets().find(x=>x.id===wallet);
