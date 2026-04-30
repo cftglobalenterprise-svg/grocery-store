@@ -3158,7 +3158,7 @@ function renderInstoreHistory() {
   el.innerHTML = Object.values(grouped).length ? Object.values(grouped).map(g => {
     const ids = g.orders.map(o=>o.id).join(',');
     const itemLines = g.orders.map(o => {
-      const sub = (o.total||o.total_price) ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+(o.total||o.total_price)).toFixed(2)}</span>` : '';
+      const sub = (+(o.total_price||o.total||0)) > 0 ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+(o.total_price||o.total||0)).toFixed(2)}</span>` : '';
       return `<div style="font-size:12px;color:var(--text2);padding:1px 0">• ${o.item_name} × ${o.qty}${sub}</div>`;
     }).join('');
     const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total||o.total_price||0)),0);
@@ -3205,7 +3205,7 @@ function renderOrders() {
     const gKey = g._key;
     const db = g.deduct_from==='home' ? '<span class="badge badge-home">扣家里</span>' : '<span class="badge badge-shop">扣店里</span>';
     const itemLines = g.orders.map(o => {
-      const total_price = +(o.total_price||0);
+      const total_price = +(o.total_price||o.total||0);
       const priceTag = total_price > 0
         ? `<span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline dotted" onclick="promptOrderItemPrice(${o.id},'${gKey}')" title="点击修改价格">RM ${total_price.toFixed(2)}</span>`
         : `<span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="promptOrderItemPrice(${o.id},'${gKey}')">＋ 价格</span>`;
@@ -3220,7 +3220,7 @@ function renderOrders() {
         <button onclick="removeOrderItem(${o.id},'${gKey}')" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0;flex-shrink:0">✕</button>
       </li>`;
     }).join('');
-    const groupTotal = g.orders.reduce((s,o) => s+(+(o.total_price||0)), 0);
+    const groupTotal = g.orders.reduce((s,o) => s+(+(o.total_price||o.total||0)), 0);
     const totalLine = `<li style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;font-weight:600" id="pg-total-${gKey}">合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${groupTotal.toFixed(2)}</span></li>`;
     const ids = g.orders.map(o=>o.id).join(',');
 
@@ -3310,7 +3310,7 @@ function renderOrders() {
       const dt = new Date(g.orders[0].created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
       const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total||o.total_price||0)),0);
       const itemLines = g.orders.map(o=>{
-        const sub = (o.total||o.total_price) ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+(o.total||o.total_price)).toFixed(2)}</span>` : '';
+        const sub = (+(o.total_price||o.total||0)) > 0 ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+(o.total_price||o.total||0)).toFixed(2)}</span>` : '';
         return `<div style="font-size:12px;color:var(--text2);padding:1px 0">• ${o.item_name} × ${o.qty}${sub}</div>`;
       }).join('');
       return `<div class="order-row${g.is_delivery?' is-delivery':''}" style="display:flex;align-items:flex-start;gap:8px">
@@ -3549,7 +3549,7 @@ function copySelectedPickup() {
     const pay = g.payment_status || 'unpaid';
     const isPaid = pay === 'paid_qr' || pay === 'paid_cash';
     const payLabels = { unpaid: 'UNPAID', cod: 'COD', paid_qr: 'PAID QR', paid_cash: 'PAID CASH' };
-    const total = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+    const total = g.orders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
     const headerSuffix = isPaid ? ` - ${payLabels[pay]}` : ` - RM ${total.toFixed(2)} (${payLabels[pay]})`;
     return `${i+1}. ${g.customer}${headerSuffix}\n   ${pickupLabel}\n${itemList}`;
   }).filter(Boolean).join('\n\n');
@@ -3570,7 +3570,7 @@ function copySelectedPickup() {
 function refreshPendingTotal(gKey) {
   const g = window._pendingGroups[gKey];
   if(!g) return;
-  const total = g.orders.reduce((s,o) => s + (+(o.total_price||0)), 0);
+  const total = g.orders.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
   const el = document.getElementById('pg-total-' + gKey);
   if(el) el.innerHTML = total > 0
     ? `合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${total.toFixed(2)}</span>`
@@ -3581,7 +3581,7 @@ function refreshPendingTotal(gKey) {
     // Find the price span for this order by its onclick
     const priceSpan = document.querySelector(`[onclick="promptOrderItemPrice(${o.id},'${gKey}')"]`);
     if(priceSpan) {
-      const tp = +(o.total_price||0);
+      const tp = +(o.total_price||o.total||0);
       if(tp > 0) {
         priceSpan.textContent = 'RM ' + tp.toFixed(2);
       } else {
@@ -3641,7 +3641,7 @@ async function updateOrderItemQty(orderId, gKey, val) {
   }
 
   // Recalculate total price
-  const unitPrice = item?.price ? +(item.price) : (o.qty > 0 ? (+(o.total_price||0)) / o.qty : 0);
+  const unitPrice = item?.price ? +(item.price) : (o.qty > 0 ? (+(o.total_price||o.total||0)) / o.qty : 0);
   const newTotal = parseFloat((unitPrice * newQty).toFixed(2));
 
   // Update order record
@@ -3787,7 +3787,7 @@ function buildSelectedOrdersText() {
     const g = window._pendingGroups[chk.dataset.gkey];
     if(!g) return '';
     const itemList = g.orders.map(o => `   - ${o.item_name} x${o.qty}`).join('\n');
-    const total = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+    const total = g.orders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
     const pay = g.payment_status || 'unpaid';
     const isPaid = pay === 'paid_qr' || pay === 'paid_cash';
     const payLabel = { unpaid: 'UNPAID', cod: 'COD', paid_qr: 'PAID QR', paid_cash: 'PAID CASH' }[pay];
@@ -4796,7 +4796,7 @@ function renderProfitReport() {
     if(!k) return;
     if(!byItem[k]) byItem[k] = { name: o.item_name||'?', qty:0, revenue:0 };
     byItem[k].qty += +(o.qty||0);
-    byItem[k].revenue += +(o.total_price||0);
+    byItem[k].revenue += +(o.total_price||o.total||0);
   });
 
   let totalRevenue=0, totalCost=0, noCostCount=0;
@@ -4955,9 +4955,9 @@ function renderPnL() {
     const dt = new Date(o.created_at);
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
   });
-  const revenue = salesOrders.reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const qrRev   = salesOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const cashRev = salesOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const revenue = salesOrders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const qrRev   = salesOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev = salesOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   let cogs = 0;
   salesOrders.forEach(o => {
     const it = items.find(i=>i.id===o.item_id);
@@ -5067,9 +5067,9 @@ function exportPnL() {
     const dt = new Date(o.created_at);
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
   });
-  const revenue  = salesOrders.reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const qrRev    = salesOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const cashRev  = salesOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const revenue  = salesOrders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const qrRev    = salesOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev  = salesOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   let cogs = 0;
   salesOrders.forEach(o => {
     const it = items.find(i=>i.id===o.item_id);
@@ -6144,9 +6144,9 @@ function renderDashboard() {
     return d >= start && d <= end;
   });
 
-  const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||0)), 0);
-  const qrRev    = filtered.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const cashRev  = filtered.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
+  const qrRev    = filtered.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev  = filtered.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
 
   document.getElementById('dash-revenue').textContent = 'RM ' + revenue.toFixed(2);
   const qrEl   = document.getElementById('dash-qr');
@@ -6171,9 +6171,9 @@ function renderDashDateLookup() {
     return dt >= dayStart && dt < dayEnd;
   });
 
-  const rev     = dayOrders.reduce((s,o) => s+(+(o.total_price||0)), 0);
-  const qrRev   = dayOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const cashRev = dayOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const rev     = dayOrders.reduce((s,o) => s+(+(o.total_price||o.total||0)), 0);
+  const qrRev   = dayOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev = dayOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
 
   document.getElementById('dash-date-rev').textContent  = 'RM ' + rev.toFixed(2);
   const qrEl   = document.getElementById('dash-date-qr');
@@ -6200,10 +6200,10 @@ function renderOrdDateLookup() {
     return dt >= dayStart && dt < dayEnd;
   });
 
-  const rev     = dayOrders.reduce((s,o) => s+(+(o.total_price||0)), 0);
-  const qrRev   = dayOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const cashRev = dayOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const unpaid  = dayOrders.filter(o=>!o.payment_status||o.payment_status==='unpaid').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const rev     = dayOrders.reduce((s,o) => s+(+(o.total_price||o.total||0)), 0);
+  const qrRev   = dayOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev = dayOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const unpaid  = dayOrders.filter(o=>!o.payment_status||o.payment_status==='unpaid').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
 
   document.getElementById('ord-date-rev').textContent = 'RM ' + rev.toFixed(2);
   const qrEl   = document.getElementById('ord-date-qr');
@@ -6271,17 +6271,17 @@ function renderOrdDashboard() {
 
   // Collected today = paid_qr or paid_cash (pending already paid + completed today paid)
   const pendingPaidRev = pendingAll
-    .filter(o => o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash')
-    .reduce((s,o) => s + (+(o.total_price||0)), 0);
+    .filter(o => (o.payment_status === 'paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || (o.payment_status === 'paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
+    .reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
   const completedPaidRev = todayOrders
-    .filter(o => o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash')
-    .reduce((s,o) => s + (+(o.total_price||0)), 0);
+    .filter(o => (o.payment_status === 'paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || (o.payment_status === 'paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
+    .reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
   document.getElementById('ord-collected').textContent = 'RM ' + (pendingPaidRev + completedPaidRev).toFixed(2);
 
   // Uncollected = all pending unpaid + cod
   const uncollectedRev = pendingAll
     .filter(o => !o.payment_status || o.payment_status === 'unpaid' || o.payment_status === 'cod')
-    .reduce((s,o) => s + (+(o.total_price||0)), 0);
+    .reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
   document.getElementById('ord-uncollected').textContent = 'RM ' + uncollectedRev.toFixed(2);
 }
 
@@ -8152,15 +8152,17 @@ function renderHqDashboard() {
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status !== 'instore'
       && o.status !== 'pending'
-      && (o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash')
+      && ((o.payment_status === 'paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || (o.payment_status === 'paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
       && d >= startDate && d <= endDate && bizMatch;
   });
   const allSales = [...instoreOrders, ...paidOrders];
 
   // KPIs
-  const totalRev = allSales.reduce((s,o) => s + +(o.total_price||0), 0);
-  const qrRev = allSales.filter(o => o.payment_status === 'paid_qr').reduce((s,o) => s + +(o.total_price||0), 0);
-  const cashRev = allSales.filter(o => o.payment_status === 'paid_cash').reduce((s,o) => s + +(o.total_price||0), 0);
+  const getOrdTotal = o => +(o.total_price||o.total||0);
+  const getOrdPayMethod = o => o.payment_status||o.pay_method||o.payment_method||'';
+  const totalRev = allSales.reduce((s,o) => s + getOrdTotal(o), 0);
+  const qrRev = allSales.filter(o => getOrdPayMethod(o).includes('qr')).reduce((s,o) => s + getOrdTotal(o), 0);
+  const cashRev = allSales.filter(o => getOrdPayMethod(o).includes('cash')).reduce((s,o) => s + getOrdTotal(o), 0);
 
   const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
   setEl('hq-total-rev', 'RM ' + totalRev.toFixed(2));
@@ -8174,7 +8176,7 @@ function renderHqDashboard() {
     const key = o.item_name || '未知商品';
     itemTotals[key] = itemTotals[key] || { qty: 0, rev: 0 };
     itemTotals[key].qty += +(o.qty||1);
-    itemTotals[key].rev += +(o.total_price||0);
+    itemTotals[key].rev += +(o.total_price||o.total||0);
   });
   const topItems = Object.entries(itemTotals).sort((a,b) => b[1].rev - a[1].rev).slice(0, 8);
   const maxRev = topItems[0]?.[1].rev || 1;
@@ -8198,8 +8200,8 @@ function renderHqDashboard() {
   // Payment breakdown
   const payEl = document.getElementById('hq-payment-breakdown');
   if(payEl) {
-    const qrCount = allSales.filter(o => o.payment_status === 'paid_qr').length;
-    const cashCount = allSales.filter(o => o.payment_status === 'paid_cash').length;
+    const qrCount = allSales.filter(o => (o.payment_status === 'paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr')).length;
+    const cashCount = allSales.filter(o => (o.payment_status === 'paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash')).length;
     const unpaidCount = allSales.filter(o => o.payment_status === 'unpaid').length;
     const total = allSales.length || 1;
     payEl.innerHTML = `
@@ -8230,9 +8232,9 @@ function renderHqDashboard() {
     else histEl.innerHTML = recent.map(o => {
       const d = new Date(o.created_at);
       const timeStr = d.toLocaleDateString('zh-CN', {month:'short', day:'numeric'}) + ' ' + d.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit', hour12:false});
-      const payBadge = o.payment_status === 'paid_qr'
+      const payBadge = (o.payment_status === 'paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr')
         ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--blue-bg);color:var(--blue);font-weight:600">QR</span>'
-        : o.payment_status === 'paid_cash'
+        : (o.payment_status === 'paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash')
         ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--green-bg);color:var(--green);font-weight:600">Cash</span>'
         : '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--amber-bg);color:var(--amber);font-weight:600">未付</span>';
       const sourceBadge = o.status === 'instore'
@@ -8245,7 +8247,7 @@ function renderHqDashboard() {
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           ${payBadge}
-          <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${(+(o.total_price||0)).toFixed(2)}</span>
+          <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${(+(o.total_price||o.total||0)).toFixed(2)}</span>
         </div>
       </div>`;
     }).join('');
@@ -8415,7 +8417,7 @@ function renderHqProfit(allSales) {
   // Calculate profit using item costs
   let totalRev = 0, totalCost = 0;
   allSales.forEach(o => {
-    const rev = +(o.total_price||0);
+    const rev = +(o.total_price||o.total||0);
     totalRev += rev;
     const it = items.find(i => i.id === o.item_id);
     const cost = it && it.cost_price ? +(it.cost_price) * (+(o.qty||1)) : 0;
@@ -8442,7 +8444,7 @@ function renderHqPnL() {
     return (o.status==='instore'||(o.status!=='pending'&&(o.payment_status==='paid_qr'||o.payment_status==='paid_cash')))
       && d>=start && d<end;
   });
-  const rev = monthSales.reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const rev = monthSales.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   el.textContent = `RM ${rev.toFixed(2)}`;
 }
 
