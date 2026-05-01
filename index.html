@@ -3207,6 +3207,142 @@ async function instoreCheckout(payMethod, creditName) {
   return true;
 }
 
+
+function printReceipt(ordersData) {
+  const orders = typeof ordersData === 'string' ? JSON.parse(ordersData) : ordersData;
+  if(!orders || !orders.length) return;
+
+  const o = orders[0];
+  const isK19 = o.business === 'K19' || (o._tbl && o._tbl.startsWith('g_'));
+  const storeName = isK19 ? 'KEDAI 19' : 'CFT GLOBAL ENTERPRISE';
+  const storeAddr = isK19 ? 'No. 19, Jalan ..., Johor Bahru' : 'Johor Bahru, Malaysia';
+  const storeTel = isK19 ? '' : '';
+  const tin = isK19 ? '' : 'TIN: IG 56136759000';
+
+  const payM = o.pay_method || o.payment_method || o.payment_status || '';
+  const payLabel = payM.includes('qr') ? 'QR Pay' : payM.includes('cash') ? 'Cash' : payM.includes('credit') ? '赊账' : payM;
+  const total = orders.reduce((s,x)=>s+(+(x.total_price||x.total||0)),0);
+  const receiptNo = 'R' + new Date(o.created_at||Date.now()).getTime().toString().slice(-8);
+  const dateStr = new Date(o.paid_at || o.created_at || Date.now()).toLocaleString('zh-MY', {
+    year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit'
+  });
+  const customer = o.customer && o.customer !== '门市现场' ? o.customer : '';
+
+  const rows = orders.map(x => {
+    const price = +(x.total_price||x.total||0);
+    const qty = +(x.qty||1);
+    const unit = qty > 0 ? (price/qty).toFixed(2) : price.toFixed(2);
+    return `<tr>
+      <td style="padding:8px 0;border-bottom:1px dashed #e5e7eb;font-size:13px">${x.item_name||'-'}</td>
+      <td style="padding:8px 4px;border-bottom:1px dashed #e5e7eb;text-align:center;font-size:13px;color:#6b7280">${qty}</td>
+      <td style="padding:8px 4px;border-bottom:1px dashed #e5e7eb;text-align:right;font-size:13px;color:#6b7280">RM ${unit}</td>
+      <td style="padding:8px 0;border-bottom:1px dashed #e5e7eb;text-align:right;font-size:13px;font-weight:600">RM ${price.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>Receipt ${receiptNo}</title>
+<style>
+  @page { size: A4; margin: 15mm 20mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: #fff; }
+  .receipt { max-width: 600px; margin: 0 auto; padding: 40px 0; }
+  .header { text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #1a1a1a; }
+  .store-name { font-size: 26px; font-weight: 800; letter-spacing: 2px; margin-bottom: 6px; }
+  .store-info { font-size: 12px; color: #6b7280; line-height: 1.8; }
+  .receipt-title { font-size: 13px; font-weight: 700; letter-spacing: 3px; color: #6b7280; margin: 20px 0 4px; text-transform: uppercase; }
+  .receipt-no { font-size: 22px; font-weight: 700; font-family: monospace; }
+  .meta { display: flex; justify-content: space-between; margin: 24px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px; }
+  .meta-item { font-size: 12px; }
+  .meta-label { color: #6b7280; margin-bottom: 3px; }
+  .meta-value { font-weight: 700; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+  th { text-align: left; font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; padding: 0 0 10px; border-bottom: 2px solid #1a1a1a; }
+  th:nth-child(2) { text-align: center; }
+  th:nth-child(3), th:nth-child(4) { text-align: right; }
+  .total-section { margin-top: 8px; padding-top: 16px; border-top: 2px solid #1a1a1a; }
+  .total-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; }
+  .grand-total { font-size: 20px; font-weight: 800; margin-top: 8px; padding-top: 12px; border-top: 1px dashed #9ca3af; }
+  .payment-badge { display: inline-block; background: #1a1a1a; color: #fff; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 6px; }
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px dashed #e5e7eb; }
+  .footer p { font-size: 12px; color: #6b7280; line-height: 2; }
+  .thank-you { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="no-print" style="position:fixed;top:16px;right:16px;display:flex;gap:8px;z-index:99">
+  <button onclick="window.print()" style="padding:10px 24px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🖨️ 打印</button>
+  <button onclick="window.close()" style="padding:10px 16px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer">✕ 关闭</button>
+</div>
+<div class="receipt">
+  <div class="header">
+    <div class="store-name">${storeName}</div>
+    <div class="store-info">
+      ${storeAddr}<br>
+      ${storeTel ? storeTel + '<br>' : ''}
+      ${tin}
+    </div>
+    <div class="receipt-title">Official Receipt</div>
+    <div class="receipt-no">${receiptNo}</div>
+  </div>
+
+  <div class="meta">
+    <div class="meta-item">
+      <div class="meta-label">日期 / Date</div>
+      <div class="meta-value">${dateStr}</div>
+    </div>
+    <div class="meta-item" style="text-align:center">
+      <div class="meta-label">付款 / Payment</div>
+      <div class="meta-value">${payLabel.toUpperCase()}</div>
+    </div>
+    ${customer ? `<div class="meta-item" style="text-align:right">
+      <div class="meta-label">顾客 / Customer</div>
+      <div class="meta-value">${customer}</div>
+    </div>` : ''}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>商品 / Item</th>
+        <th style="text-align:center">数量</th>
+        <th style="text-align:right">单价</th>
+        <th style="text-align:right">小计</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <div class="total-section">
+    <div class="total-row grand-total">
+      <span>TOTAL</span>
+      <span>RM ${total.toFixed(2)}</span>
+    </div>
+    <div style="margin-top:10px">
+      <span class="payment-badge">${payLabel.toUpperCase()}</span>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p class="thank-you">Thank You! 谢谢惠顾</p>
+    <p>此收据由电脑系统自动生成<br>This is a computer-generated receipt<br>${tin}</p>
+  </div>
+</div>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank', 'width=800,height=900');
+  win.document.write(html);
+  win.document.close();
+}
+
 function renderInstoreHistory() {
   const el = document.getElementById('ins-history-list');
   if(!el) return;
@@ -3243,6 +3379,7 @@ function renderInstoreHistory() {
         ${itemLines}
         ${groupTotal > 0 ? `<div style="font-size:12px;font-weight:600;color:var(--green);font-family:'DM Mono',monospace;margin-top:4px">合计 RM ${groupTotal.toFixed(2)}</div>` : ''}
       </div>
+      <button onclick="printReceipt(${JSON.stringify(g.orders).split('"').join('&quot;')})" style="flex-shrink:0;margin-left:8px;padding:4px 8px;font-size:11px;background:none;border:1px solid var(--blue);border-radius:6px;color:var(--blue);cursor:pointer;font-weight:600" title="打印收据">🖨️</button>
       <button onclick="voidInstoreSale('${ids}')" style="flex-shrink:0;margin-left:8px;padding:4px 8px;font-size:11px;background:none;border:1px solid #f1948a;border-radius:6px;color:#922b21;cursor:pointer;font-weight:600" title="撤回并归还库存">↩ 撤回</button>
     </div>`;
   }).join('') : '<div class="empty">暂无门市记录</div>';
