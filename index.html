@@ -1362,6 +1362,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <option value="paid">已还款</option>
                 <option value="">全部</option>
               </select>
+              <button onclick="openAddDebtModal()" style="padding:7px 14px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">＋ 手动记账</button>
             </div>
             <div id="debtor-list"></div>
           </div>
@@ -9012,6 +9013,51 @@ async function confirmCredit() {
     showPosToast('📒 已记录赊账：'+name);
   }
   if(creditBtn) { creditBtn.disabled=false; creditBtn.innerHTML='📒 赊账<span class="pos-pay-btn-sub">欠款记录</span>'; }
+}
+
+
+function openAddDebtModal() {
+  const customers = _debtorCustomers.length ? _debtorCustomers : [];
+  const custOpts = customers.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
+  let m = document.getElementById('debt-add-modal');
+  if(!m) { m=document.createElement('div'); m.id='debt-add-modal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(m); }
+  m.innerHTML = `<div style="background:var(--bg);border-radius:16px;padding:24px;width:100%;max-width:380px">
+    <h3 style="margin:0 0 16px;font-size:16px">📒 手动记账</h3>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">顾客 *</label>
+        <input id="dam-name" list="dam-cust-list" placeholder="选择或输入顾客名字" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box">
+        <datalist id="dam-cust-list">${custOpts}</datalist>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">金额 RM *</label>
+        <input id="dam-amount" type="number" step="0.01" min="0" placeholder="0.00" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">备注（物品/说明）</label>
+        <input id="dam-note" placeholder="例：旧账、MEVIUS ×2..." style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="document.getElementById('debt-add-modal').style.display='none'" style="padding:9px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer">取消</button>
+      <button id="dam-save" style="padding:9px 16px;border:none;border-radius:8px;background:#7c3aed;color:#fff;cursor:pointer;font-weight:700">保存</button>
+    </div>
+  </div>`;
+  m.style.display='flex';
+  setTimeout(()=>{ const el=document.getElementById('dam-name'); if(el) el.focus(); },100);
+  document.getElementById('dam-save').onclick = async () => {
+    const name = document.getElementById('dam-name').value.trim();
+    const amount = parseFloat(document.getElementById('dam-amount').value)||0;
+    const note = document.getElementById('dam-note').value.trim();
+    if(!name) { alert('请输入顾客名字'); return; }
+    if(amount <= 0) { alert('请输入金额'); return; }
+    const tbl = items.some(i=>i.business==='K19') ? 'g_debtors' : 'debtors';
+    const { error } = await sb.from(tbl).insert({ customer_name:name, name, amount, note:note||null, status:'unpaid', created_at:new Date().toISOString() });
+    if(error) { alert('保存失败：'+error.message); return; }
+    m.style.display='none';
+    showPosToast('✅ 已记录欠款');
+    renderDebtors();
+  };
 }
 
 function toggleDebtGroup(el) {
