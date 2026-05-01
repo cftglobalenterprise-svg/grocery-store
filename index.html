@@ -3163,11 +3163,15 @@ async function instoreCheckout(payMethod, creditName) {
   }
   instoreCart = [];
   renderInstoreCart();
-  document.getElementById('ins-barcode-input').value = '';
+  updatePosCartUI();
+  renderPosGrid();
+  const barcodeInput = document.getElementById('ins-barcode-input');
+  if(barcodeInput) barcodeInput.value = '';
   await loadItems();
   await loadOrders();
   renderDashboard();
-  setTimeout(async () => { await loadOrders(); renderDashboard(); }, 1500);
+  renderInstoreHistory();
+  setTimeout(async () => { await loadOrders(); renderDashboard(); renderInstoreHistory(); }, 1500);
   setSync('ok', payMethod === 'credit' ? '已记账 · '+timeNow() : '结账成功 · '+timeNow());
   return true;
 }
