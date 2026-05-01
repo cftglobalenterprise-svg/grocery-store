@@ -4958,8 +4958,8 @@ function renderPnL() {
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
   });
   const revenue = salesOrders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-  const qrRev   = salesOrders.filter(o=>(o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-  const cashRev = salesOrders.filter(o=>(o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const qrRev   = salesOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev = salesOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   let cogs = 0;
   salesOrders.forEach(o => {
     const it = items.find(i=>i.id===o.item_id);
@@ -5070,8 +5070,8 @@ function exportPnL() {
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
   });
   const revenue  = salesOrders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-  const qrRev    = salesOrders.filter(o=>(o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-  const cashRev  = salesOrders.filter(o=>(o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const qrRev    = salesOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev  = salesOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   let cogs = 0;
   salesOrders.forEach(o => {
     const it = items.find(i=>i.id===o.item_id);
@@ -6147,8 +6147,8 @@ function renderDashboard() {
   });
 
   const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
-  const qrRev    = filtered.filter(o=>(o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-  const cashRev  = filtered.filter(o=>(o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const qrRev    = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev  = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
 
   document.getElementById('dash-revenue').textContent = 'RM ' + revenue.toFixed(2);
   const qrEl   = document.getElementById('dash-qr');
@@ -6174,8 +6174,8 @@ function renderDashDateLookup() {
   });
 
   const rev     = dayOrders.reduce((s,o) => s+(+(o.total_price||o.total||0)), 0);
-  const qrRev   = dayOrders.filter(o=>(o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-  const cashRev = dayOrders.filter(o=>(o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const qrRev   = dayOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev = dayOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
 
   document.getElementById('dash-date-rev').textContent  = 'RM ' + rev.toFixed(2);
   const qrEl   = document.getElementById('dash-date-qr');
@@ -6203,8 +6203,8 @@ function renderOrdDateLookup() {
   });
 
   const rev     = dayOrders.reduce((s,o) => s+(+(o.total_price||o.total||0)), 0);
-  const qrRev   = dayOrders.filter(o=>(o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-  const cashRev = dayOrders.filter(o=>(o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const qrRev   = dayOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev = dayOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   const unpaid  = dayOrders.filter(o=>!o.payment_status||o.payment_status==='unpaid').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
 
   document.getElementById('ord-date-rev').textContent = 'RM ' + rev.toFixed(2);
@@ -6273,10 +6273,10 @@ function renderOrdDashboard() {
 
   // Collected today = paid_qr or paid_cash (pending already paid + completed today paid)
   const pendingPaidRev = pendingAll
-    .filter(o => ((o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || ((o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
+    .filter(o => ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
     .reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
   const completedPaidRev = todayOrders
-    .filter(o => ((o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || ((o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
+    .filter(o => ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
     .reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
   document.getElementById('ord-collected').textContent = 'RM ' + (pendingPaidRev + completedPaidRev).toFixed(2);
 
@@ -8154,7 +8154,7 @@ function renderHqDashboard() {
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status !== 'instore'
       && o.status !== 'pending'
-      && (((o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || ((o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
+      && (((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
       && d >= startDate && d <= endDate && bizMatch;
   });
   const allSales = [...instoreOrders, ...paidOrders];
@@ -8202,8 +8202,8 @@ function renderHqDashboard() {
   // Payment breakdown
   const payEl = document.getElementById('hq-payment-breakdown');
   if(payEl) {
-    const qrCount = allSales.filter(o => ((o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr')).length;
-    const cashCount = allSales.filter(o => ((o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash')).length;
+    const qrCount = allSales.filter(o => ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr')).length;
+    const cashCount = allSales.filter(o => ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash')).length;
     const unpaidCount = allSales.filter(o => o.payment_status === 'unpaid').length;
     const total = allSales.length || 1;
     payEl.innerHTML = `
@@ -8234,9 +8234,9 @@ function renderHqDashboard() {
     else histEl.innerHTML = recent.map(o => {
       const d = new Date(o.created_at);
       const timeStr = d.toLocaleDateString('zh-CN', {month:'short', day:'numeric'}) + ' ' + d.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit', hour12:false});
-      const payBadge = ((o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr')
+      const payBadge = ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr')
         ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--blue-bg);color:var(--blue);font-weight:600">QR</span>'
-        : ((o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash')
+        : ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash')
         ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--green-bg);color:var(--green);font-weight:600">Cash</span>'
         : '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--amber-bg);color:var(--amber);font-weight:600">未付</span>';
       const sourceBadge = o.status === 'instore'
@@ -8443,7 +8443,7 @@ function renderHqPnL() {
   const end = new Date(y, m, 1);
   const monthSales = orders.filter(o => {
     const d = new Date(o.created_at);
-    return (o.status==='instore'||(o.status!=='pending'&&((o.payment_status||o.pay_method||o.payment_method||'')==='paid_qr'||(o.payment_status||o.pay_method||o.payment_method||'')==='paid_cash')))
+    return (o.status==='instore'||(o.status!=='pending'&&((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr'||(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash')))
       && d>=start && d<end;
   });
   const rev = monthSales.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
