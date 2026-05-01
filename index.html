@@ -1345,9 +1345,12 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <!-- ══ CUSTOMERS PAGE ════════════════════════════ -->
       <div id="page-debtors" class="page">
         <div style="max-width:700px;margin:0 auto;padding:16px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
             <h2 style="margin:0;font-size:20px">📒 欠款记录</h2>
-            <div style="display:flex;gap:8px;align-items:center">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <select id="debt-person-filter" onchange="renderDebtors()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">
+                <option value="">全部人</option>
+              </select>
               <select id="debt-filter" onchange="renderDebtors()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">
                 <option value="unpaid">未还款</option>
                 <option value="paid">已还款</option>
@@ -8670,6 +8673,184 @@ let _editingCustomerId = null;
 async function loadCustomers() {
   const { data, error } = await sb.from('customers').select('*').order('name');
   if(!error) customers = data || [];
+}
+
+
+// ══════════════════════════════════════════════
+// 欠款系统
+// ══════════════════════════════════════════════
+let _debtors = [];
+let _debtPersons = []; // unique debtor names
+
+async function loadDebtors() {
+  const [r1, r2] = await Promise.all([
+    sb.from('g_debtors').select('*').order('created_at', {ascending:false}),
+    sb.from('debtors').select('*').order('created_at', {ascending:false})
+  ]);
+  const g = (r1.data||[]).map(d=>({...d, _tbl:'g_debtors'}));
+  const a = (r2.data||[]).map(d=>({...d, _tbl:'debtors'}));
+  _debtors = [...g, ...a].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  // Build unique person list
+  const names = [...new Set(_debtors.map(d=>d.name))].sort();
+  _debtPersons = names;
+}
+
+async function renderDebtors() {
+  const listEl = document.getElementById('debtor-list');
+  const summEl = document.getElementById('debtor-summary');
+  if(!listEl) return;
+  listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">加载中...</div>';
+  await loadDebtors();
+
+  const filter = document.getElementById('debt-filter')?.value || 'unpaid';
+  const personFilter = document.getElementById('debt-person-filter')?.value || '';
+
+  // Person filter select - populate
+  const pf = document.getElementById('debt-person-filter');
+  if(pf) {
+    const cur = pf.value;
+    pf.innerHTML = '<option value="">全部人</option>' + _debtPersons.map(n=>`<option value="${n}" ${n===cur?'selected':''}>${n}</option>`).join('');
+  }
+
+  let filtered = _debtors;
+  if(filter) filtered = filtered.filter(d=>d.status===filter);
+  if(personFilter) filtered = filtered.filter(d=>d.name===personFilter);
+
+  const unpaidTotal = _debtors.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(+(d.amount||0)),0);
+  const unpaidCount = [...new Set(_debtors.filter(d=>d.status==='unpaid').map(d=>d.name))].length;
+
+  if(summEl) summEl.innerHTML = `
+    <div style="flex:1;background:#fef3c7;border-radius:10px;padding:12px 16px;text-align:center">
+      <div style="font-size:11px;color:#92400e;font-weight:600">未还总额</div>
+      <div style="font-size:22px;font-weight:700;color:#b45309;font-family:'DM Mono',monospace">RM ${unpaidTotal.toFixed(2)}</div>
+    </div>
+    <div style="flex:1;background:#fce7f3;border-radius:10px;padding:12px 16px;text-align:center">
+      <div style="font-size:11px;color:#9d174d;font-weight:600">欠款人数</div>
+      <div style="font-size:22px;font-weight:700;color:#9d174d">${unpaidCount} 人</div>
+    </div>
+    <div style="flex:1;background:#e0f2fe;border-radius:10px;padding:12px 16px;text-align:center;cursor:pointer" onclick="openAddDebtModal()">
+      <div style="font-size:11px;color:#0369a1;font-weight:600">手动添加</div>
+      <div style="font-size:22px;font-weight:700;color:#0369a1">＋ 记账</div>
+    </div>`;
+
+  if(!filtered.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">没有记录</div>';
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(d => {
+    const date = new Date(d.created_at).toLocaleDateString('zh-MY',{year:'2-digit',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    const isPaid = d.status === 'paid';
+    return `<div style="background:var(--surface);border:1px solid ${isPaid?'var(--border)':'#fca5a5'};border-radius:12px;padding:14px 16px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:15px">👤 ${d.name}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${date}</div>
+          ${d.note ? `<div style="font-size:12px;color:var(--text2);margin-top:4px;word-break:break-word">📦 ${d.note}</div>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:${isPaid?'var(--green)':'#dc2626'}">RM ${(+(d.amount||0)).toFixed(2)}</div>
+          <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end">
+            ${isPaid
+              ? `<span style="font-size:11px;background:#dcfce7;color:#166534;padding:3px 8px;border-radius:20px;font-weight:600">✅ 已还款</span>`
+              : `<button onclick="openEditDebtModal('${d.id}','${d._tbl}','${d.name.replace(/'/g,"\'")}',${d.amount},'${(d.note||'').replace(/'/g,"\'")}' )" style="font-size:11px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer">✏️ 编辑</button>
+               <button onclick="markDebtPaid('${d.id}','${d._tbl}')" style="font-size:11px;background:var(--green);color:#fff;border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-weight:600">💰 收款</button>`
+            }
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openAddDebtModal() {
+  const personOpts = _debtPersons.map(n=>`<option value="${n}">${n}</option>`).join('');
+  const html = `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2)">客人姓名</label>
+        <input id="debt-add-name" list="debt-person-list" placeholder="输入或选择" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box;margin-top:4px">
+        <datalist id="debt-person-list">${personOpts}</datalist>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2)">金额 (RM)</label>
+        <input id="debt-add-amount" type="number" step="0.01" min="0" placeholder="0.00" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box;margin-top:4px">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2)">备注（商品）</label>
+        <input id="debt-add-note" placeholder="可选" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box;margin-top:4px">
+      </div>
+    </div>`;
+  showDebtModal('添加欠款记录', html, async () => {
+    const name = document.getElementById('debt-add-name')?.value.trim();
+    const amount = parseFloat(document.getElementById('debt-add-amount')?.value)||0;
+    const note = document.getElementById('debt-add-note')?.value.trim();
+    if(!name) { alert('请输入客人姓名'); return false; }
+    if(amount <= 0) { alert('请输入金额'); return false; }
+    const { error } = await sb.from('g_debtors').insert({ name, amount, note, status:'unpaid', created_at: new Date().toISOString() });
+    if(error) { alert('保存失败：'+error.message); return false; }
+    showPosToast('✅ 已添加欠款记录');
+    renderDebtors();
+  });
+}
+
+function openEditDebtModal(id, tbl, name, amount, note) {
+  const html = `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2)">客人姓名</label>
+        <input id="debt-edit-name" value="${name}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box;margin-top:4px">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2)">金额 (RM)</label>
+        <input id="debt-edit-amount" type="number" step="0.01" value="${amount}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box;margin-top:4px">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2)">备注</label>
+        <input id="debt-edit-note" value="${note}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box;margin-top:4px">
+      </div>
+    </div>`;
+  showDebtModal('编辑欠款记录', html, async () => {
+    const newName = document.getElementById('debt-edit-name')?.value.trim();
+    const newAmount = parseFloat(document.getElementById('debt-edit-amount')?.value)||0;
+    const newNote = document.getElementById('debt-edit-note')?.value.trim();
+    if(!newName) { alert('请输入姓名'); return false; }
+    const { error } = await sb.from(tbl).update({ name:newName, amount:newAmount, note:newNote }).eq('id', id);
+    if(error) { alert('更新失败：'+error.message); return false; }
+    showPosToast('✅ 已更新');
+    renderDebtors();
+  });
+}
+
+async function markDebtPaid(id, tbl) {
+  if(!confirm('确认已收款？')) return;
+  const { error } = await sb.from(tbl).update({ status:'paid', paid_at: new Date().toISOString() }).eq('id', id);
+  if(error) { alert('操作失败：'+error.message); return; }
+  showPosToast('✅ 已标记收款');
+  renderDebtors();
+}
+
+function showDebtModal(title, bodyHtml, onSave) {
+  let m = document.getElementById('debt-modal');
+  if(!m) {
+    m = document.createElement('div');
+    m.id = 'debt-modal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(m);
+  }
+  m.innerHTML = `<div style="background:var(--bg);border-radius:16px;padding:24px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+    <h3 style="margin:0 0 16px;font-size:16px">${title}</h3>
+    ${bodyHtml}
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="document.getElementById('debt-modal').style.display='none'" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer">取消</button>
+      <button id="debt-modal-save" style="padding:8px 16px;border:none;border-radius:8px;background:var(--text);color:#fff;cursor:pointer;font-weight:600">保存</button>
+    </div>
+  </div>`;
+  m.style.display = 'flex';
+  document.getElementById('debt-modal-save').onclick = async () => {
+    const ok = await onSave();
+    if(ok !== false) m.style.display = 'none';
+  };
 }
 
 function renderCustomerList() {
