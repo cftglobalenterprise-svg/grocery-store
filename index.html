@@ -7852,7 +7852,13 @@ async function posCheckout(method) {
     if(!name || !name.trim()) return;
     const creditBtn = document.getElementById('pos-pay-credit');
     if(creditBtn) { creditBtn.disabled = true; creditBtn.textContent = '处理中...'; }
-    const ok = await instoreCheckout('credit', name.trim());
+    let ok;
+    try {
+      ok = await instoreCheckout('credit', name.trim());
+    } catch(e) {
+      console.error(e);
+    }
+    setSync('ok', ok === true ? '已记账 · ' + name.trim() : '');
     if(ok === true) {
       renderInstoreHistory();
       updatePosCartUI();
@@ -7882,10 +7888,11 @@ async function posCheckout(method) {
     // If ok !== true, instoreCheckout already showed an alert
   } catch(e) {
     showPosToast('❌ 结账失败：' + e.message);
+    setSync('ok', '');
     console.error(e);
   }
 
-  if(btn) btn.textContent = method === 'paid_qr' ? '📲 QR Pay' : '💵 Cash';
+  if(btn) { btn.innerHTML = method === 'paid_qr' ? '📲 QR Pay<span class="pos-pay-btn-sub">扫码支付</span>' : '💵 Cash<span class="pos-pay-btn-sub">现金支付</span>'; }
   if(qrBtn) qrBtn.disabled = false;
   if(cashBtn) cashBtn.disabled = false;
   const creditBtn2 = document.getElementById('pos-pay-credit');
