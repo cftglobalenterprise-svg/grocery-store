@@ -3126,7 +3126,9 @@ async function instoreCheckout(payMethod, creditName) {
   }
 
   setSync('busy','结账中...');
-  const brFinalTotals = instoreCart._bundleItemFinalTotals || new Map();
+  // Recalculate bundle pricing fresh
+  const { savings: checkoutSavings, itemFinalTotals: checkoutFinalTotals } = applyBundleRulesToCart(instoreCart);
+  const brFinalTotals = checkoutFinalTotals && checkoutFinalTotals.size > 0 ? checkoutFinalTotals : (instoreCart._bundleItemFinalTotals || new Map());
   const total = instoreCart.reduce((s,c) => {
     return s + (brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice);
   }, 0);
