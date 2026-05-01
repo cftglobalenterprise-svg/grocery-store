@@ -759,6 +759,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn" id="navbtn-hq" onclick="posSwitchTab('hq')" style="display:none">
         <span class="nav-icon">🏢</span> 总部报表
       </button>
+      <button class="nav-btn" id="navbtn-debtors" onclick="posSwitchTab('debtors')" style="display:none">
+        <span class="nav-icon">📒</span> 欠款
+      </button>
       <button class="nav-btn hq-only" id="navbtn-customers" onclick="posSwitchTab('customers')" style="display:none">
         <span class="nav-icon">👥</span> 顾客名单
       </button>
@@ -1340,6 +1343,22 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </div>
 
       <!-- ══ CUSTOMERS PAGE ════════════════════════════ -->
+      <div id="page-debtors" class="page">
+        <div style="max-width:700px;margin:0 auto;padding:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <h2 style="margin:0;font-size:20px">📒 欠款记录</h2>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="debt-filter" onchange="renderDebtors()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">
+                <option value="unpaid">未还款</option>
+                <option value="paid">已还款</option>
+                <option value="">全部</option>
+              </select>
+            </div>
+          </div>
+          <div id="debtor-summary" style="display:flex;gap:10px;margin-bottom:16px"></div>
+          <div id="debtor-list"></div>
+        </div>
+      </div>
       <div id="page-customers" class="page">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <div>
@@ -7929,6 +7948,7 @@ function posSwitchTab(t) {
   else if(t === 'overview') renderOverview();
   else if(t === 'finance') { initFinanceTab(); }
   else if(t === 'hq') { renderHqDashboard(); }
+  else if(t === 'debtors') { renderDebtors(); }
   else if(t === 'customers') { renderCustomerList(); }
   else if(t === 'payroll') { renderPayrollPage(); }
   else if(t === 'lhdn') { renderLhdnPage(); }
@@ -8104,7 +8124,7 @@ function applyRolePermissions(role) {
   if(role === 'branch') {
     document.body.classList.remove('hq-mode');
     // 分店: 门市收银、库存管理、订单（只看，不能新增）
-    ['navbtn-instore','navbtn-stock','navbtn-orders'].forEach(id => {
+    ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-debtors'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
@@ -8126,7 +8146,7 @@ function applyRolePermissions(role) {
 
   } else {
     // 总部: 全部功能 + 总部报表
-    ['navbtn-instore','navbtn-stock','navbtn-orders',
+    ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-debtors',
      'navbtn-finance','navbtn-hq','navbtn-customers','navbtn-payroll','navbtn-lhdn'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
