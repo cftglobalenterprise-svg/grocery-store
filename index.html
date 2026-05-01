@@ -3156,10 +3156,11 @@ async function instoreCheckout(payMethod, creditName) {
     const debtItems = instoreCart.map(c=>c.item.name+' ×'+c.qty).join(', ');
     const isK19debt = instoreCart.some(c => c.item.business === 'K19' || c.item._table === 'g_items');
     const debtTbl = isK19debt ? 'g_debtors' : 'debtors';
-    await sb.from(debtTbl).insert({
+    const { error: debtErr } = await sb.from(debtTbl).insert({
       name: creditName, amount: debtTotal, status: 'unpaid',
       note: debtItems, created_at: new Date().toISOString()
-    }).catch(()=>{});
+    });
+    if(debtErr) console.error('Debtor insert error:', debtErr.message);
   }
   instoreCart = [];
   renderInstoreCart();
