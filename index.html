@@ -7817,9 +7817,7 @@ function updatePosCartUI() {
         ${priceStr ? `<div class="pos-ci-price" style="cursor:pointer" onclick="editInstorePrice('${c.item.id}')">${priceStr}</div>` : `<div style="font-size:11px;color:var(--text3);cursor:pointer;margin-top:2px" onclick="editInstorePrice('${c.item.id}')">+ 设置价格</div>`}
       </div>
       <div class="pos-qty-wrap">
-        <button class="pos-qty-btn" onclick="posChangeQty('${c.item.id},-1')">−</button>
-        <span class="pos-qty-num" style="cursor:pointer" onclick="posPromptQty('${c.item.id}',${c.qty})">${c.qty}</span>
-        <button class="pos-qty-btn" onclick="posChangeQty('${c.item.id},1')">+</button>
+        <span class="pos-qty-num" style="cursor:pointer;padding:0 8px" onclick="posPromptQty('${c.item.id}',${c.qty})">${c.qty}</span>
       </div>
       <button class="pos-ci-remove" onclick="posRemoveItem('${c.item.id}')">✕</button>
     </div>`;
