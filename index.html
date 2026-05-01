@@ -8161,7 +8161,7 @@ function renderHqDashboard() {
 
   // KPIs
   const getOrdTotal = o => +(o.total_price||o.total||0);
-  const getOrdPayMethod = o => o.payment_status||o.pay_method||o.payment_method||'';
+  const getOrdPayMethod = o => o.pay_method||o.payment_method||o.payment_status||'';
   const totalRev = allSales.reduce((s,o) => s + getOrdTotal(o), 0);
   const qrRev = allSales.filter(o => getOrdPayMethod(o).includes('qr')).reduce((s,o) => s + getOrdTotal(o), 0);
   const cashRev = allSales.filter(o => getOrdPayMethod(o).includes('cash')).reduce((s,o) => s + getOrdTotal(o), 0);
