@@ -2436,8 +2436,8 @@ function renderItems() {
     // bundle badge + can-make
     let bundleBadge = '';
     if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
-      const _bat = items.find(i=>i.id===it.bundle_components.battery_id);
-      const _car = items.find(i=>i.id===it.bundle_components.cartridge_id);
+      const _bat = items.find(i=>String(i.id)===String(it.bundle_components.battery_id));
+      const _car = items.find(i=>String(i.id)===String(it.bundle_components.cartridge_id));
       const canMake = (_bat && _car) ? Math.min(_bat.home_qty+_bat.shop_qty, _car.home_qty+_car.shop_qty) : 0;
       bundleBadge = `<span class="badge badge-bundle">🎁 套装</span><span class="can-make-badge">可组 ${canMake} 套</span>`;
     }
@@ -2555,10 +2555,12 @@ async function saveBulkEdit() {
 
 async function delItem(id) {
   const it = items.find(i=>String(i.id)===String(id));
+  if(!it) { alert('找不到商品'); return; }
   if(!confirm('删除 '+it.name+'？')) return;
   setSync('busy','删除中...');
-  const delTbl = it._table || 'items';
-  await sb.from(delTbl).delete().eq('id',id);
+  const delTbl = it._table || (it.business==='K19' ? 'g_items' : 'items');
+  const { error } = await sb.from(delTbl).delete().eq('id', String(id));
+  if(error) { alert('删除失败：'+error.message); setSync('ok',''); return; }
   await loadItems();
   setSync('ok','已删除 · '+timeNow());
 }
@@ -2580,7 +2582,7 @@ function openAdj(id) {
     adjCat.innerHTML += `<option value="${it.category}" selected>${it.category}</option>`;
   }
   // populate bundle fields
-  const nonBundleItems = items.filter(i => !i.bundle_components);
+  const nonBundleItems = items.filter(i => !i.bundle_components || (!i.bundle_components.battery_id && !i.bundle_components.cartridge_id));
   const itemOpts = '<option value="">-- 选择零件 --</option>' + nonBundleItems.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
   document.getElementById('adj-bundle-battery').innerHTML = itemOpts;
   document.getElementById('adj-bundle-cartridge').innerHTML = itemOpts;
@@ -2805,8 +2807,8 @@ async function addOrder() {
     const item = items.find(i => i.id === c.item.id);
     if(!item) { alert('商品 "' + c.item.name + '" 找不到，请刷新'); return; }
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
-      const bat = items.find(i => i.id === item.bundle_components.battery_id);
-      const car = items.find(i => i.id === item.bundle_components.cartridge_id);
+      const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
+      const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
       const batAvail = bat ? (deduct==='home' ? bat.home_qty : bat.shop_qty) : 0;
       const carAvail = car ? (deduct==='home' ? car.home_qty : car.shop_qty) : 0;
       if(!bat || batAvail < c.qty) {
@@ -2835,8 +2837,8 @@ async function addOrder() {
     // Service items: skip stock deduction
     if(!item.is_service && !item.ignore_stock) {
       if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
-        const bat = items.find(i => i.id === item.bundle_components.battery_id);
-        const car = items.find(i => i.id === item.bundle_components.cartridge_id);
+        const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
+        const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
         const batUpdate = deduct==='home' ? {home_qty: bat.home_qty - c.qty} : {shop_qty: bat.shop_qty - c.qty};
         const carUpdate = deduct==='home' ? {home_qty: car.home_qty - c.qty} : {shop_qty: car.shop_qty - c.qty};
         await sb.from(itemTable(bat)).update(batUpdate).eq('id', bat.id);
@@ -2884,8 +2886,8 @@ async function voidInstoreSale(idsStr) {
     const item = items.find(i=>String(i.id)===String(o.item_id));
     if(item) {
       if(item.bundle_components?.battery_id && item.bundle_components?.cartridge_id) {
-        const bat = items.find(i=>i.id===item.bundle_components.battery_id);
-        const car = items.find(i=>i.id===item.bundle_components.cartridge_id);
+        const bat = items.find(i=>String(i.id)===String(item.bundle_components.battery_id));
+        const car = items.find(i=>String(i.id)===String(item.bundle_components.cartridge_id));
         if(bat) { await sb.from(itemTable(bat)).update({shop_qty: bat.shop_qty+o.qty}).eq('id',bat.id); bat.shop_qty+=o.qty; }
         if(car) { await sb.from(itemTable(car)).update({shop_qty: car.shop_qty+o.qty}).eq('id',car.id); car.shop_qty+=o.qty; }
       } else {
@@ -3936,8 +3938,8 @@ function renderOrderSearch() {
     const price = it.price ? ` · RM ${(+it.price).toFixed(2)}` : '';
     let stockMeta = `家里:${it.home_qty} 店里:${it.shop_qty}${price}`;
     if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
-      const bat = items.find(i=>i.id===it.bundle_components.battery_id);
-      const car = items.find(i=>i.id===it.bundle_components.cartridge_id);
+      const bat = items.find(i=>String(i.id)===String(it.bundle_components.battery_id));
+      const car = items.find(i=>String(i.id)===String(it.bundle_components.cartridge_id));
       const canMakeHome = (bat&&car) ? Math.min(bat.home_qty, car.home_qty) : 0;
       const canMakeShop = (bat&&car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
       stockMeta = `🎁 套装 · 家里可组 ${canMakeHome} 套 / 店里可组 ${canMakeShop} 套${price}`;
@@ -3966,8 +3968,8 @@ function renderInstoreSearch() {
     const price = it.price ? ` · RM ${(+it.price).toFixed(2)}` : '';
     let stockMeta = `店里:${it.shop_qty}${price}`;
     if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
-      const bat = items.find(i=>i.id===it.bundle_components.battery_id);
-      const car = items.find(i=>i.id===it.bundle_components.cartridge_id);
+      const bat = items.find(i=>String(i.id)===String(it.bundle_components.battery_id));
+      const car = items.find(i=>String(i.id)===String(it.bundle_components.cartridge_id));
       const canMake = (bat&&car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
       stockMeta = `🎁 套装 · 店里可组 ${canMake} 套${price}`;
     }
@@ -4937,8 +4939,8 @@ function renderCostEditor() {
     // For bundles, calc component cost sum as hint
     let bundleHint = '';
     if(it.bundle_components?.battery_id && it.bundle_components?.cartridge_id) {
-      const bat = items.find(i=>i.id===it.bundle_components.battery_id);
-      const car = items.find(i=>i.id===it.bundle_components.cartridge_id);
+      const bat = items.find(i=>String(i.id)===String(it.bundle_components.battery_id));
+      const car = items.find(i=>String(i.id)===String(it.bundle_components.cartridge_id));
       const batCost = +(bat?.cost_price||0);
       const carCost = +(car?.cost_price||0);
       const compSum = batCost + carCost;
