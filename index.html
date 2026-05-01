@@ -8818,27 +8818,62 @@ async function renderDebtors() {
     return;
   }
 
-  listEl.innerHTML = filtered.map(d => {
-    const date = new Date(d.created_at).toLocaleDateString('zh-MY',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    const isPaid = d.status === 'paid';
-    const noteLines = (d.note||'').split(',').filter(Boolean);
-    return `<div style="background:var(--surface);border-radius:14px;margin-bottom:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06);border:1px solid ${isPaid?'var(--border)':'#fecaca'}">
-      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)">
-        <div style="width:40px;height:40px;border-radius:50%;background:${isPaid?'#dcfce7':'#fee2e2'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${isPaid?'✅':'👤'}</div>
+  // Group by customer name
+  const groups = {};
+  filtered.forEach(d => {
+    const key = d.customer_name || d.name || '-';
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(d);
+  });
+
+  listEl.innerHTML = Object.entries(groups).map(([name, records]) => {
+    const totalAmt = records.reduce((s,d)=>s+(+(d.amount||0)),0);
+    const allPaid = records.every(d=>d.status==='paid');
+    const ids = records.map(d=>d.id).join(',');
+    const tbls = records.map(d=>d._tbl);
+    const expanded = listEl.querySelector(`[data-group="${name}"]`)?.classList.contains('expanded');
+    return `<div style="background:var(--surface);border-radius:14px;margin-bottom:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.07);border:1px solid ${allPaid?'var(--border)':'#fecaca'}">
+      <!-- Header -->
+      <div onclick="toggleDebtGroup(this)" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;user-select:none" data-group="${name}">
+        <div style="width:42px;height:42px;border-radius:50%;background:${allPaid?'#dcfce7':'#fee2e2'};display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0">${allPaid?'✅':'👤'}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:15px">${d.customer_name||d.name||'-'}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:1px">${date}</div>
+          <div style="font-weight:700;font-size:15px">${name}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:1px">${records.length} 笔记录</div>
         </div>
-        <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:${isPaid?'var(--green)':'#dc2626'}">RM ${(+(d.amount||0)).toFixed(2)}</div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:${allPaid?'var(--green)':'#dc2626'}">RM ${totalAmt.toFixed(2)}</div>
+          ${allPaid ? '<div style="font-size:11px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;display:inline-block;margin-top:3px;font-weight:600">✅ 已还清</div>' : ''}
+        </div>
+        <div style="font-size:18px;color:var(--text3);margin-left:4px;transition:transform 0.2s" class="debt-arrow">▾</div>
       </div>
-      ${noteLines.length ? `<div style="padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--border)">${noteLines.map(n=>`<div style="font-size:12px;color:var(--text2);padding:2px 0">• ${n.trim()}</div>`).join('')}</div>` : ''}
-      <div style="padding:10px 16px;display:flex;gap:8px;justify-content:flex-end;align-items:center">
-        ${isPaid
-          ? `<span style="font-size:12px;background:#dcfce7;color:#166534;padding:4px 12px;border-radius:20px;font-weight:600">✅ 已还款</span>`
-          : `<button onclick="openEditDebtModal('${d.id}','${d._tbl}','${(d.customer_name||'').replace(/'/g,"\'")}',${d.amount},'${(d.note||'').replace(/'/g,"\'")}' )" style="padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px;cursor:pointer;font-weight:500">✏️ 编辑</button>
-             <button onclick="markDebtPaid('${d.id}','${d._tbl}')" style="padding:6px 14px;border:none;border-radius:8px;background:var(--green);color:#fff;font-size:13px;cursor:pointer;font-weight:700">💰 收款</button>`
-        }
-        <button onclick="deleteDebtRecord('${d.id}','${d._tbl}')" style="padding:6px 10px;border:none;border-radius:8px;background:#fee2e2;color:#dc2626;font-size:12px;cursor:pointer">🗑️</button>
+      <!-- Detail rows (collapsed by default) -->
+      <div class="debt-detail" style="display:none;border-top:1px solid var(--border)">
+        ${records.map(d => {
+          const date = new Date(d.created_at).toLocaleDateString('zh-MY',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+          const isPaid = d.status==='paid';
+          const noteLines = (d.note||'').split(',').filter(Boolean);
+          return `<div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+              <div style="flex:1">
+                <div style="font-size:11px;color:var(--text3)">${date}</div>
+                ${noteLines.map(n=>`<div style="font-size:12px;color:var(--text2);padding:2px 0">• ${n.trim()}</div>`).join('')}
+                ${isPaid&&d.paid_at?`<div style="font-size:11px;color:var(--green);margin-top:3px">✅ 已还 · ${new Date(d.paid_at).toLocaleDateString('zh-MY',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>`:''}
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-weight:700;font-family:'DM Mono',monospace;color:${isPaid?'var(--green)':'#dc2626'}">RM ${(+(d.amount||0)).toFixed(2)}</div>
+                <div style="display:flex;gap:5px;margin-top:6px;justify-content:flex-end">
+                  ${!isPaid?`<button onclick="openEditDebtModal('${d.id}','${d._tbl}','${(d.customer_name||'').replace(/'/g,"\'")}',${d.amount},'${(d.note||'').replace(/'/g,"\'")}' )" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:11px;cursor:pointer">✏️</button>
+                  <button onclick="markDebtPaid('${d.id}','${d._tbl}')" style="padding:4px 10px;border:none;border-radius:6px;background:var(--green);color:#fff;font-size:11px;cursor:pointer;font-weight:700">💰 收款</button>`
+                  :`<span style="font-size:11px;background:#dcfce7;color:#166534;padding:3px 8px;border-radius:10px;font-weight:600">✅ 已还</span>`}
+                  <button onclick="deleteDebtRecord('${d.id}','${d._tbl}')" style="padding:4px 8px;border:none;border-radius:6px;background:#fee2e2;color:#dc2626;font-size:11px;cursor:pointer">🗑️</button>
+                </div>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+        ${!allPaid ? `<div style="padding:10px 16px;display:flex;justify-content:flex-end">
+          <button onclick="markAllDebtPaid('${name}')" style="padding:7px 16px;border:none;border-radius:8px;background:var(--green);color:#fff;font-size:13px;cursor:pointer;font-weight:700">💰 全部收款</button>
+        </div>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -8977,6 +9012,42 @@ async function confirmCredit() {
     showPosToast('📒 已记录赊账：'+name);
   }
   if(creditBtn) { creditBtn.disabled=false; creditBtn.innerHTML='📒 赊账<span class="pos-pay-btn-sub">欠款记录</span>'; }
+}
+
+function toggleDebtGroup(el) {
+  const card = el.closest('[style*="border-radius:14px"]');
+  const detail = card?.querySelector('.debt-detail');
+  const arrow = el.querySelector('.debt-arrow');
+  if(!detail) return;
+  const isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : '';
+  if(arrow) arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
+async function markAllDebtPaid(customerName) {
+  if(!confirm('确认全部收款？')) return;
+  let m = document.getElementById('debt-pay-modal');
+  if(!m) { m=document.createElement('div'); m.id='debt-pay-modal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(m); }
+  m.innerHTML = `<div style="background:var(--bg);border-radius:16px;padding:24px;width:100%;max-width:300px;text-align:center">
+    <h3 style="margin:0 0 6px;font-size:16px">💰 全部收款</h3>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:20px">${customerName}</div>
+    <div style="display:flex;gap:10px">
+      <button onclick="confirmAllDebtPayment('${customerName.replace(/'/g,"\'")}','cash')" style="flex:1;padding:14px;border:none;border-radius:12px;background:var(--green);color:#fff;font-size:14px;font-weight:700;cursor:pointer">💵 Cash</button>
+      <button onclick="confirmAllDebtPayment('${customerName.replace(/'/g,"\'")}','qr')" style="flex:1;padding:14px;border:none;border-radius:12px;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer">📲 QR</button>
+    </div>
+    <button onclick="document.getElementById('debt-pay-modal').style.display='none'" style="margin-top:10px;width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:none;color:var(--text3);cursor:pointer;font-size:13px">取消</button>
+  </div>`;
+  m.style.display='flex';
+}
+
+async function confirmAllDebtPayment(customerName, payType) {
+  document.getElementById('debt-pay-modal').style.display='none';
+  const unpaid = _debtors.filter(d=>(d.customer_name===customerName||d.name===customerName)&&d.status==='unpaid');
+  for(const d of unpaid) {
+    await sb.from(d._tbl).update({ status:'paid', pay_type:payType, paid_at:new Date().toISOString() }).eq('id', d.id);
+  }
+  showPosToast('✅ 已全部收款');
+  renderDebtors();
 }
 
 async function markDebtPaid(id, tbl) {
