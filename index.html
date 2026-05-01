@@ -2647,7 +2647,7 @@ async function saveAdj() {
     const batteryId = document.getElementById('adj-bundle-battery').value;
     const cartridgeId = document.getElementById('adj-bundle-cartridge').value;
     if(!batteryId || !cartridgeId) { alert('请选择 Battery 和 Cartridge 零件！'); setSync('ok',''); return; }
-    bundle_components = { battery_id: parseInt(batteryId), cartridge_id: parseInt(cartridgeId) };
+    bundle_components = { battery_id: batteryId, cartridge_id: cartridgeId };
   }
   const updatePayload = {
     name: adjName,
@@ -2660,7 +2660,8 @@ async function saveAdj() {
   };
   const adjItem = items.find(i => String(i.id) === String(adjId));
   const adjTbl = adjItem ? (adjItem._table || 'items') : 'items';
-  await sb.from(adjTbl).update(updatePayload).eq('id', adjId);
+  const { error: adjErr } = await sb.from(adjTbl).update(updatePayload).eq('id', String(adjId));
+  if(adjErr) { alert('保存失败：' + adjErr.message); setSync('ok',''); return; }
   closeAdj();
   await loadItems();
   setSync('ok','已保存 · '+timeNow());
@@ -3154,14 +3155,15 @@ async function instoreCheckout(payMethod, creditName) {
   }
 
   // 赊账记录
-  if(payMethod === 'credit' && creditName) {
+  if((payMethod === 'credit' || payMethod === 'credit_qr' || payMethod === 'credit_cash') && creditName) {
     const debtTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
     const debtItems = instoreCart.map(c=>c.item.name+' ×'+c.qty).join(', ');
     const isK19debt = instoreCart.some(c => c.item.business === 'K19' || c.item._table === 'g_items');
     const debtTbl = isK19debt ? 'g_debtors' : 'debtors';
+    const debtPayType = payMethod === 'credit_qr' ? 'QR' : 'Cash';
     const { error: debtErr } = await sb.from(debtTbl).insert({
       name: creditName, amount: debtTotal, status: 'unpaid',
-      note: debtItems, created_at: new Date().toISOString()
+      note: debtItems, pay_type: debtPayType, created_at: new Date().toISOString()
     });
     if(debtErr) console.error('Debtor insert error:', debtErr.message);
   }
@@ -7853,27 +7855,70 @@ function posClearCart() {
   renderPosGrid();
 }
 
+
+function openCreditModal() {
+  // Load debtor names from _debtPersons if available
+  const persons = (typeof _debtPersons !== 'undefined' && _debtPersons.length) ? _debtPersons : [];
+  const personOpts = persons.map(n=>`<option value="${n}">${n}</option>`).join('');
+  const cartTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const cartItems = instoreCart.map(c=>c.item.name+' ×'+c.qty+' RM'+getInstoreItemPricing(c).totalPrice.toFixed(2)).join('\n');
+
+  let m = document.getElementById('credit-modal');
+  if(!m) {
+    m = document.createElement('div');
+    m.id = 'credit-modal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(m);
+  }
+  m.innerHTML = `<div style="background:var(--bg);border-radius:16px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+    <h3 style="margin:0 0 4px;font-size:17px">📒 赊账</h3>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px">合计 RM ${cartTotal.toFixed(2)}</div>
+    <div style="background:var(--surface);border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--text2);white-space:pre-line;max-height:100px;overflow-y:auto">${cartItems}</div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">客人姓名</label>
+      <input id="credit-name-input" list="credit-person-list" placeholder="输入或选择..." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box">
+      <datalist id="credit-person-list">${personOpts}</datalist>
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">付款方式（赊账）</label>
+      <div style="display:flex;gap:8px">
+        <button onclick="confirmCredit('qr')" style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer">📲 QR 赊账</button>
+        <button onclick="confirmCredit('cash')" style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--green);color:#fff;font-size:14px;font-weight:700;cursor:pointer">💵 Cash 赊账</button>
+      </div>
+    </div>
+    <button onclick="document.getElementById('credit-modal').style.display='none'" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;cursor:pointer">取消</button>
+  </div>`;
+  m.style.display = 'flex';
+  setTimeout(()=>{ const inp = document.getElementById('credit-name-input'); if(inp) inp.focus(); }, 100);
+}
+
+async function confirmCredit(payType) {
+  const nameEl = document.getElementById('credit-name-input');
+  const name = nameEl ? nameEl.value.trim() : '';
+  if(!name) { alert('请输入客人姓名'); return; }
+  document.getElementById('credit-modal').style.display = 'none';
+  const creditBtn = document.getElementById('pos-pay-credit');
+  if(creditBtn) { creditBtn.disabled = true; }
+  let ok;
+  try {
+    ok = await instoreCheckout('credit_' + payType, name);
+  } catch(e) { console.error(e); }
+  setSync('ok', ok === true ? '已记账 · ' + name : '');
+  if(ok === true) {
+    renderInstoreHistory();
+    updatePosCartUI();
+    renderPosGrid();
+    showPosToast('📒 已记录赊账：' + name);
+    // refresh debtors if on that tab
+    if(typeof renderDebtors === 'function' && document.getElementById('page-debtors')?.classList.contains('active')) renderDebtors();
+  }
+  if(creditBtn) { creditBtn.disabled = false; creditBtn.innerHTML = '📒 赊账<span class="pos-pay-btn-sub">欠款记录</span>'; }
+}
+
 async function posCheckout(method) {
   if(!instoreCart.length) return;
   if(method === 'credit') {
-    const name = prompt('📒 赊账\n\n请输入客人姓名或电话：');
-    if(!name || !name.trim()) return;
-    const creditBtn = document.getElementById('pos-pay-credit');
-    if(creditBtn) { creditBtn.disabled = true; creditBtn.textContent = '处理中...'; }
-    let ok;
-    try {
-      ok = await instoreCheckout('credit', name.trim());
-    } catch(e) {
-      console.error(e);
-    }
-    setSync('ok', ok === true ? '已记账 · ' + name.trim() : '');
-    if(ok === true) {
-      renderInstoreHistory();
-      updatePosCartUI();
-      renderPosGrid();
-      showPosToast('📒 已记录赊账：' + name.trim());
-    }
-    if(creditBtn) { creditBtn.disabled = false; creditBtn.innerHTML = '📒 赊账<span class="pos-pay-btn-sub">欠款记录</span>'; }
+    openCreditModal();
     return;
   }
   const qrBtn = document.getElementById('pos-pay-qr');
@@ -8747,6 +8792,7 @@ async function renderDebtors() {
           <div style="font-weight:700;font-size:15px">👤 ${d.name}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px">${date}</div>
           ${d.note ? `<div style="font-size:12px;color:var(--text2);margin-top:4px;word-break:break-word">📦 ${d.note}</div>` : ''}
+          ${d.pay_type ? `<div style="font-size:11px;margin-top:3px"><span style="background:${d.pay_type==='QR'?'#dbeafe':'#dcfce7'};color:${d.pay_type==='QR'?'#1d4ed8':'#166534'};padding:2px 7px;border-radius:10px;font-weight:600">${d.pay_type==='QR'?'📲 QR':'💵 Cash'}</span></div>` : ''}
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:${isPaid?'var(--green)':'#dc2626'}">RM ${(+(d.amount||0)).toFixed(2)}</div>
