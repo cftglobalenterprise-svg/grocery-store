@@ -2883,10 +2883,23 @@ async function voidInstoreSale(idsStr) {
       }
     }
     const oTblVoid = (o.business==='K19') ? 'g_orders' : 'orders';
+    // If credit order, also remove/reduce debtor record
+    const payM = o.pay_method || o.payment_method || o.payment_status || '';
+    if(payM === 'credit' || payM === 'credit_qr' || payM === 'credit_cash') {
+      const debtTblVoid = (o.business==='K19') ? 'g_debtors' : 'debtors';
+      // Find matching unpaid debtor record by name+amount+date (within 5 min)
+      const oTime = new Date(o.created_at).getTime();
+      const matchingDebt = _debtors?.find(d => {
+        const dTime = new Date(d.created_at).getTime();
+        return d.status === 'unpaid' && Math.abs(dTime - oTime) < 300000;
+      });
+      if(matchingDebt) await sb.from(matchingDebt._tbl || debtTblVoid).delete().eq('id', matchingDebt.id);
+    }
     await sb.from(oTblVoid).delete().eq('id',id);
   }
   await loadOrders();
   renderDashboard();
+  renderInstoreHistory();
   setSync('ok','已撤回 · '+timeNow());
 }
 
@@ -8800,7 +8813,8 @@ async function renderDebtors() {
             ${isPaid
               ? `<span style="font-size:11px;background:#dcfce7;color:#166534;padding:3px 8px;border-radius:20px;font-weight:600">✅ 已还款</span>`
               : `<button onclick="openEditDebtModal('${d.id}','${d._tbl}','${d.name.replace(/'/g,"\'")}',${d.amount},'${(d.note||'').replace(/'/g,"\'")}' )" style="font-size:11px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer">✏️ 编辑</button>
-               <button onclick="markDebtPaid('${d.id}','${d._tbl}')" style="font-size:11px;background:var(--green);color:#fff;border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-weight:600">💰 收款</button>`
+               <button onclick="markDebtPaid('${d.id}','${d._tbl}')" style="font-size:11px;background:var(--green);color:#fff;border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-weight:600">💰 收款</button>
+               <button onclick="deleteDebtRecord('${d.id}','${d._tbl}')" style="font-size:11px;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:4px 10px;cursor:pointer">🗑️</button>`
             }
           </div>
         </div>
@@ -8873,6 +8887,14 @@ async function markDebtPaid(id, tbl) {
   const { error } = await sb.from(tbl).update({ status:'paid', paid_at: new Date().toISOString() }).eq('id', id);
   if(error) { alert('操作失败：'+error.message); return; }
   showPosToast('✅ 已标记收款');
+  renderDebtors();
+}
+
+async function deleteDebtRecord(id, tbl) {
+  if(!confirm('确认删除这笔欠款记录？')) return;
+  const { error } = await sb.from(tbl).delete().eq('id', id);
+  if(error) { alert('删除失败：'+error.message); return; }
+  showPosToast('🗑️ 已删除');
   renderDebtors();
 }
 
