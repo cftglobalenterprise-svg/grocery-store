@@ -821,6 +821,10 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                   💵 Cash
                   <span class="pos-pay-btn-sub">现金支付</span>
                 </button>
+                <button class="pos-pay-btn" id="pos-pay-credit" onclick="posCheckout('credit')" disabled style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none">
+                  📒 赊账
+                  <span class="pos-pay-btn-sub">欠款记录</span>
+                </button>
               </div>
             </div>
             <div class="pos-dash-strip">
@@ -3046,7 +3050,7 @@ function renderInstoreCart() {
   }
 }
 
-async function instoreCheckout(payMethod) {
+async function instoreCheckout(payMethod, creditName) {
   if(!instoreCart.length) { alert('购物车是空的，请先扫描商品'); return; }
 
   // ── 结账前强制拉最新库存，防止订单已预留但本地未更新 ──
@@ -3127,6 +3131,17 @@ async function instoreCheckout(payMethod) {
     if(oe) { alert('订单保存失败：' + item.name + ' — ' + oe.message); setSync('err','失败'); return; }
   }
 
+  // 赊账记录
+  if(payMethod === 'credit' && creditName) {
+    const debtTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+    const debtItems = instoreCart.map(c=>c.item.name+' ×'+c.qty).join(', ');
+    const isK19debt = instoreCart.some(c => c.item.business === 'K19' || c.item._table === 'g_items');
+    const debtTbl = isK19debt ? 'g_debtors' : 'debtors';
+    await sb.from(debtTbl).insert({
+      name: creditName, amount: debtTotal, status: 'unpaid',
+      note: debtItems, created_at: new Date().toISOString()
+    }).catch(()=>{});
+  }
   instoreCart = [];
   renderInstoreCart();
   document.getElementById('ins-barcode-input').value = '';
@@ -3134,7 +3149,7 @@ async function instoreCheckout(payMethod) {
   await loadOrders();
   renderDashboard();
   setTimeout(async () => { await loadOrders(); renderDashboard(); }, 1500);
-  setSync('ok','结账成功 · '+timeNow());
+  setSync('ok', payMethod === 'credit' ? '已记账 · '+timeNow() : '结账成功 · '+timeNow());
   return true;
 }
 
@@ -7675,6 +7690,7 @@ function updatePosCartUI() {
     if(totalEl) totalEl.textContent = 'RM 0.00';
     if(qrBtn) qrBtn.disabled = true;
     if(cashBtn) cashBtn.disabled = true;
+    const cBtn = document.getElementById('pos-pay-credit'); if(cBtn) cBtn.disabled = true;
     if(countEl) countEl.textContent = '共 0 项';
     return;
   }
@@ -7718,6 +7734,8 @@ function updatePosCartUI() {
 
   if(qrBtn) qrBtn.disabled = false;
   if(cashBtn) cashBtn.disabled = false;
+  const creditBtn2 = document.getElementById('pos-pay-credit');
+  if(creditBtn2) creditBtn2.disabled = false;
 }
 
 
@@ -7810,6 +7828,21 @@ function posClearCart() {
 
 async function posCheckout(method) {
   if(!instoreCart.length) return;
+  if(method === 'credit') {
+    const name = prompt('📒 赊账\n\n请输入客人姓名或电话：');
+    if(!name || !name.trim()) return;
+    const creditBtn = document.getElementById('pos-pay-credit');
+    if(creditBtn) { creditBtn.disabled = true; creditBtn.textContent = '处理中...'; }
+    const ok = await instoreCheckout('credit', name.trim());
+    if(ok === true) {
+      renderInstoreHistory();
+      updatePosCartUI();
+      renderPosGrid();
+      showPosToast('📒 已记录赊账：' + name.trim());
+    }
+    if(creditBtn) { creditBtn.disabled = false; creditBtn.innerHTML = '📒 赊账<span class="pos-pay-btn-sub">欠款记录</span>'; }
+    return;
+  }
   const qrBtn = document.getElementById('pos-pay-qr');
   const cashBtn = document.getElementById('pos-pay-cash');
   if(qrBtn) { qrBtn.disabled = true; }
@@ -7836,6 +7869,8 @@ async function posCheckout(method) {
   if(btn) btn.textContent = method === 'paid_qr' ? '📲 QR Pay' : '💵 Cash';
   if(qrBtn) qrBtn.disabled = false;
   if(cashBtn) cashBtn.disabled = false;
+  const creditBtn2 = document.getElementById('pos-pay-credit');
+  if(creditBtn2) creditBtn2.disabled = false;
 }
 
 function showPosToast(msg) {
