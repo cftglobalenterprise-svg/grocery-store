@@ -259,7 +259,7 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .cart-count { font-size: 12px; color: var(--text3); }
 .cart-empty { font-size: 13px; color: var(--text3); text-align: center; padding: 14px; border: 1px dashed var(--border); border-radius: var(--radius-xs); }
 .cart-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--surface2); border-radius: var(--radius-xs); margin-bottom: 6px; }
-.cart-item-name { flex: 1; font-size: 13px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cart-item-name { flex: 1; font-size: 13px; font-weight: 500; min-width: 0; word-break: break-word; }
 .cart-qty-wrap { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .cart-qty-wrap label { font-size: 12px; color: var(--text2); }
 .cart-qty-wrap input { width: 54px; flex: none; text-align: center; padding: 5px 6px; font-size: 13px; }
@@ -2641,6 +2641,12 @@ async function saveAdj() {
 }
 
 // ── CART ───────────────────────────────────────────────────────────
+function addToCartById(id) {
+  const item = items.find(i => String(i.id) === String(id));
+  if(!item) { alert('找不到商品，请刷新页面'); return; }
+  addToCart(item);
+}
+
 function addToCart(item) {
   const existing = cart.find(c => c.item.id === item.id);
   if(existing) { existing.qty += 1; }
@@ -2789,7 +2795,7 @@ async function addOrder() {
     const tbl = itemTable(item);
     const oTbl = orderTable(item);
     // Service items: skip stock deduction
-    if(!item.is_service) {
+    if(!item.is_service && !item.ignore_stock) {
       if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
         const bat = items.find(i => i.id === item.bundle_components.battery_id);
         const car = items.find(i => i.id === item.bundle_components.cartridge_id);
@@ -2831,13 +2837,13 @@ async function addOrder() {
 // ── VOID / REFUND ──────────────────────────────────────────────────
 async function voidInstoreSale(idsStr) {
   if(!confirm('撤回这笔门市销售并归还库存？')) return;
-  const ids = idsStr.split(',').map(Number);
+  const ids = idsStr.split(',').map(s=>s.trim());
   setSync('busy','撤回中...');
   for(const id of ids) {
-    const o = orders.find(x=>x.id===id);
+    const o = orders.find(x=>String(x.id)===String(id));
     if(!o) continue;
     // Restore stock
-    const item = items.find(i=>i.id===o.item_id);
+    const item = items.find(i=>String(i.id)===String(o.item_id));
     if(item) {
       if(item.bundle_components?.battery_id && item.bundle_components?.cartridge_id) {
         const bat = items.find(i=>i.id===item.bundle_components.battery_id);
@@ -2859,12 +2865,12 @@ async function voidInstoreSale(idsStr) {
 
 async function voidOrderSale(idsStr) {
   if(!confirm('撤回这笔订单记录并归还库存？')) return;
-  const ids = idsStr.split(',').map(Number);
+  const ids = idsStr.split(',').map(s=>s.trim());
   setSync('busy','撤回中...');
   for(const id of ids) {
-    const o = orders.find(x=>x.id===id);
+    const o = orders.find(x=>String(x.id)===String(id));
     if(!o) continue;
-    const item = items.find(i=>i.id===o.item_id);
+    const item = items.find(i=>String(i.id)===String(o.item_id));
     if(item) {
       const field = o.deduct_from==='shop' ? 'shop_qty' : 'home_qty';
       const cur   = o.deduct_from==='shop' ? item.shop_qty : item.home_qty;
@@ -3054,16 +3060,16 @@ async function instoreCheckout(payMethod) {
     if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
       const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
       const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
-      if(!bat || bat.shop_qty < c.qty) {
+      if(!item.ignore_stock && (!bat || bat.shop_qty < c.qty)) {
         alert('店里库存不足！\n套装零件 "' + (bat?bat.name:'Battery') + '" 只剩 ' + (bat?bat.shop_qty:0) + ' 个，套装需要 ' + c.qty + ' 个');
         setSync('ok',''); return;
       }
-      if(!car || car.shop_qty < c.qty) {
+      if(!item.ignore_stock && (!car || car.shop_qty < c.qty)) {
         alert('店里库存不足！\n套装零件 "' + (car?car.name:'Cartridge') + '" 只剩 ' + (car?car.shop_qty:0) + ' 个，套装需要 ' + c.qty + ' 个');
         setSync('ok',''); return;
       }
     } else {
-      if(!item.is_service && item.shop_qty < c.qty) {
+      if(!item.is_service && !item.ignore_stock && item.shop_qty < c.qty) {
         alert('店里库存不足！\n"' + item.name + '" 只剩 ' + item.shop_qty + ' 个\n（可能已被预留给其他订单）');
         setSync('ok',''); return;
       }
@@ -3083,7 +3089,7 @@ async function instoreCheckout(payMethod) {
     const tbl = itemTable(item);
     const oTbl = orderTable(item);
     // Service items: skip stock deduction
-    if(!item.is_service) {
+    if(!item.is_service && !item.ignore_stock) {
       if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
         const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
         const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
@@ -3097,13 +3103,27 @@ async function instoreCheckout(payMethod) {
         item.shop_qty -= c.qty;
       }
     }
-    const { error: oe } = await sb.from(oTbl).insert({
+    const isK19 = (oTbl === 'g_orders');
+    const insertPayload = isK19 ? {
+      customer: '门市现场', item_id: item.id, item_name: item.name,
+      qty: c.qty, unit_price: getInstoreItemPricing(c).unitPrice || +(item.price||0),
+      cost_price: +(item.cost_price||0),
+      location: '门市', deduct_from: 'shop', status: 'instore',
+      total: itemTotal,
+      pay_method: payMethod || 'paid_cash',
+      payment_method: payMethod || 'paid_cash',
+      source: 'instore',
+      paid_at: new Date().toISOString(),
+      business: item.business || 'A'
+    } : {
       customer: '门市现场', item_id: item.id, item_name: item.name,
       qty: c.qty, location: '门市', deduct_from: 'shop', status: 'instore',
       total_price: itemTotal,
       payment_status: payMethod || 'paid_cash',
+      paid_at: new Date().toISOString(),
       business: item.business || 'A'
-    });
+    };
+    const { error: oe } = await sb.from(oTbl).insert(insertPayload);
     if(oe) { alert('订单保存失败：' + item.name + ' — ' + oe.message); setSync('err','失败'); return; }
   }
 
@@ -3126,23 +3146,24 @@ function renderInstoreHistory() {
   const grouped = {};
   instore.forEach(o => {
     const minute = new Date(o.created_at).toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-    if(!grouped[minute]) grouped[minute] = { minute, payment_status: o.payment_status, orders: [], dt: new Date(o.created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) };
+    if(!grouped[minute]) grouped[minute] = { minute, payment_status: o.pay_method||o.payment_status||o.payment_method, orders: [], dt: new Date(o.created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) };
     grouped[minute].orders.push(o);
   });
 
   const payBadge = (ps) => {
-    if(ps === 'paid_qr')   return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d6eaf8;color:#1a5276;border:1px solid #5dade2">QR</span>';
-    if(ps === 'paid_cash') return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80">Cash</span>';
+    ps = ps||'';
+    if(ps === 'paid_qr' || ps === 'qr')   return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d6eaf8;color:#1a5276;border:1px solid #5dade2">QR</span>';
+    if(ps === 'paid_cash' || ps === 'cash') return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80">Cash</span>';
     return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:var(--surface2);color:var(--text3);border:1px solid var(--border)">-</span>';
   };
 
   el.innerHTML = Object.values(grouped).length ? Object.values(grouped).map(g => {
     const ids = g.orders.map(o=>o.id).join(',');
     const itemLines = g.orders.map(o => {
-      const sub = o.total_price ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+o.total_price).toFixed(2)}</span>` : '';
+      const sub = (+(o.total_price||o.total||0)) > 0 ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+(o.total_price||o.total||0)).toFixed(2)}</span>` : '';
       return `<div style="font-size:12px;color:var(--text2);padding:1px 0">• ${o.item_name} × ${o.qty}${sub}</div>`;
     }).join('');
-    const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+    const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total||o.total_price||0)),0);
     return `<div class="order-row">
       <div class="order-info" style="flex:1">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
@@ -3186,7 +3207,7 @@ function renderOrders() {
     const gKey = g._key;
     const db = g.deduct_from==='home' ? '<span class="badge badge-home">扣家里</span>' : '<span class="badge badge-shop">扣店里</span>';
     const itemLines = g.orders.map(o => {
-      const total_price = +(o.total_price||0);
+      const total_price = +(o.total_price||o.total||0);
       const priceTag = total_price > 0
         ? `<span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline dotted" onclick="promptOrderItemPrice(${o.id},'${gKey}')" title="点击修改价格">RM ${total_price.toFixed(2)}</span>`
         : `<span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="promptOrderItemPrice(${o.id},'${gKey}')">＋ 价格</span>`;
@@ -3201,7 +3222,7 @@ function renderOrders() {
         <button onclick="removeOrderItem(${o.id},'${gKey}')" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0;flex-shrink:0">✕</button>
       </li>`;
     }).join('');
-    const groupTotal = g.orders.reduce((s,o) => s+(+(o.total_price||0)), 0);
+    const groupTotal = g.orders.reduce((s,o) => s+(+(o.total_price||o.total||0)), 0);
     const totalLine = `<li style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;font-weight:600" id="pg-total-${gKey}">合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${groupTotal.toFixed(2)}</span></li>`;
     const ids = g.orders.map(o=>o.id).join(',');
 
@@ -3279,7 +3300,7 @@ function renderOrders() {
     });
     const payBadge = (ps) => {
       if(ps === 'paid_qr')   return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d6eaf8;color:#1a5276;border:1px solid #5dade2">QR</span>';
-      if(ps === 'paid_cash') return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80">Cash</span>';
+      if(ps === 'paid_cash' || ps === 'cash') return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d8f3dc;color:#2d6a4f;border:1px solid #52be80">Cash</span>';
       return '';
     };
     dEl.innerHTML = Object.values(doneGrouped).length ? Object.values(doneGrouped).map(g => {
@@ -3289,9 +3310,9 @@ function renderOrders() {
         : '<span class="badge badge-cancel">已取消</span>';
       const isD = g.is_delivery ? '<span class="badge badge-shop" style="font-size:10px">配送</span>' : '';
       const dt = new Date(g.orders[0].created_at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-      const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+      const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total||o.total_price||0)),0);
       const itemLines = g.orders.map(o=>{
-        const sub = o.total_price ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+o.total_price).toFixed(2)}</span>` : '';
+        const sub = (+(o.total_price||o.total||0)) > 0 ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+(o.total_price||o.total||0)).toFixed(2)}</span>` : '';
         return `<div style="font-size:12px;color:var(--text2);padding:1px 0">• ${o.item_name} × ${o.qty}${sub}</div>`;
       }).join('');
       return `<div class="order-row${g.is_delivery?' is-delivery':''}" style="display:flex;align-items:flex-start;gap:8px">
@@ -3530,7 +3551,7 @@ function copySelectedPickup() {
     const pay = g.payment_status || 'unpaid';
     const isPaid = pay === 'paid_qr' || pay === 'paid_cash';
     const payLabels = { unpaid: 'UNPAID', cod: 'COD', paid_qr: 'PAID QR', paid_cash: 'PAID CASH' };
-    const total = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+    const total = g.orders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
     const headerSuffix = isPaid ? ` - ${payLabels[pay]}` : ` - RM ${total.toFixed(2)} (${payLabels[pay]})`;
     return `${i+1}. ${g.customer}${headerSuffix}\n   ${pickupLabel}\n${itemList}`;
   }).filter(Boolean).join('\n\n');
@@ -3551,7 +3572,7 @@ function copySelectedPickup() {
 function refreshPendingTotal(gKey) {
   const g = window._pendingGroups[gKey];
   if(!g) return;
-  const total = g.orders.reduce((s,o) => s + (+(o.total_price||0)), 0);
+  const total = g.orders.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
   const el = document.getElementById('pg-total-' + gKey);
   if(el) el.innerHTML = total > 0
     ? `合计 <span style="color:var(--green);font-family:'DM Mono',monospace">RM ${total.toFixed(2)}</span>`
@@ -3562,7 +3583,7 @@ function refreshPendingTotal(gKey) {
     // Find the price span for this order by its onclick
     const priceSpan = document.querySelector(`[onclick="promptOrderItemPrice(${o.id},'${gKey}')"]`);
     if(priceSpan) {
-      const tp = +(o.total_price||0);
+      const tp = +(o.total_price||o.total||0);
       if(tp > 0) {
         priceSpan.textContent = 'RM ' + tp.toFixed(2);
       } else {
@@ -3622,7 +3643,7 @@ async function updateOrderItemQty(orderId, gKey, val) {
   }
 
   // Recalculate total price
-  const unitPrice = item?.price ? +(item.price) : (o.qty > 0 ? (+(o.total_price||0)) / o.qty : 0);
+  const unitPrice = item?.price ? +(item.price) : (o.qty > 0 ? (+(o.total_price||o.total||0)) / o.qty : 0);
   const newTotal = parseFloat((unitPrice * newQty).toFixed(2));
 
   // Update order record
@@ -3768,7 +3789,7 @@ function buildSelectedOrdersText() {
     const g = window._pendingGroups[chk.dataset.gkey];
     if(!g) return '';
     const itemList = g.orders.map(o => `   - ${o.item_name} x${o.qty}`).join('\n');
-    const total = g.orders.reduce((s,o)=>s+(+(o.total_price||0)),0);
+    const total = g.orders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
     const pay = g.payment_status || 'unpaid';
     const isPaid = pay === 'paid_qr' || pay === 'paid_cash';
     const payLabel = { unpaid: 'UNPAID', cod: 'COD', paid_qr: 'PAID QR', paid_cash: 'PAID CASH' }[pay];
@@ -3806,7 +3827,7 @@ async function collectGroup(idsStr, payMethod) {
   setSync('busy','更新中...');
   for(const id of ids) {
     const upd = { status: 'collected' };
-    if(payMethod) upd.payment_status = payMethod;
+    if(payMethod) { upd.payment_status = payMethod; upd.paid_at = new Date().toISOString(); }
     const cnclOrd = orders.find(x=>x.id===id);
     const cnclTbl = (cnclOrd && cnclOrd.business==='K19') ? 'g_orders' : 'orders';
     await sb.from(cnclTbl).update(upd).eq('id', id);
@@ -3854,7 +3875,7 @@ function renderOrderSearch() {
       const canMakeShop = (bat&&car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
       stockMeta = `🎁 套装 · 家里可组 ${canMakeHome} 套 / 店里可组 ${canMakeShop} 套${price}`;
     }
-    return `<div class="search-result-item" onclick="addToCart('items.find(i=>i.id==${it.id}'));document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
+    return `<div class="search-result-item" onclick="addToCartById('${it.id}');document.getElementById('o-search-name').value='';document.getElementById('o-search-results').innerHTML=''">
       <div>
         <div class="search-result-name">${it.name}${catLabel}</div>
         <div class="search-result-meta">${stockMeta}</div>
@@ -4777,7 +4798,7 @@ function renderProfitReport() {
     if(!k) return;
     if(!byItem[k]) byItem[k] = { name: o.item_name||'?', qty:0, revenue:0 };
     byItem[k].qty += +(o.qty||0);
-    byItem[k].revenue += +(o.total_price||0);
+    byItem[k].revenue += +(o.total_price||o.total||0);
   });
 
   let totalRevenue=0, totalCost=0, noCostCount=0;
@@ -4872,7 +4893,7 @@ function renderCostEditor() {
         <span style="font-size:11px;color:var(--text3)">成本</span>
         <input type="number" min="0" step="0.01" value="${cost||''}" placeholder="0.00"
           style="width:72px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:right;font-family:'DM Mono',monospace"
-          onchange="saveCostPrice(${it.id}, this.value)">
+          onchange="saveCostPrice('${it.id}', this.value)">
       </div>
     </div>`;
   }).join('');
@@ -4880,12 +4901,14 @@ function renderCostEditor() {
 
 async function saveCostPrice(itemId, val) {
   const cost = parseFloat(val)||0;
-  const cpItem = items.find(i => i.id == itemId);
-  const cpTbl = cpItem ? (cpItem._table || 'items') : 'items';
-  await sb.from(cpTbl).update({cost_price: cost}).eq('id', itemId);
-  const it = items.find(i=>i.id===itemId);
-  if(it) it.cost_price = cost;
+  const cpItem = items.find(i => String(i.id) === String(itemId));
+  if(!cpItem) { alert('找不到商品'); return; }
+  const cpTbl = cpItem._table || (cpItem.business === 'K19' ? 'g_items' : 'items');
+  const { error } = await sb.from(cpTbl).update({cost_price: cost}).eq('id', cpItem.id);
+  if(error) { alert('保存失败：' + error.message); return; }
+  cpItem.cost_price = cost;
   renderProfitReport();
+  showPosToast('✅ 成本已保存');
 }
 
 // ── MONTHLY P&L ────────────────────────────────────────────────────
@@ -4936,9 +4959,9 @@ function renderPnL() {
     const dt = new Date(o.created_at);
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
   });
-  const revenue = salesOrders.reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const qrRev   = salesOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const cashRev = salesOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const revenue = salesOrders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const qrRev   = salesOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev = salesOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   let cogs = 0;
   salesOrders.forEach(o => {
     const it = items.find(i=>i.id===o.item_id);
@@ -5048,9 +5071,9 @@ function exportPnL() {
     const dt = new Date(o.created_at);
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
   });
-  const revenue  = salesOrders.reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const qrRev    = salesOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const cashRev  = salesOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const revenue  = salesOrders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const qrRev    = salesOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev  = salesOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   let cogs = 0;
   salesOrders.forEach(o => {
     const it = items.find(i=>i.id===o.item_id);
@@ -6121,13 +6144,13 @@ function renderDashboard() {
   const { start, end } = getDateRange(dashPeriod);
   const filtered = orders.filter(o => {
     if(o.status !== 'instore') return false;
-    const d = new Date(o.created_at);
+    const d = new Date(o.paid_at || o.created_at);
     return d >= start && d <= end;
   });
 
-  const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||0)), 0);
-  const qrRev    = filtered.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const cashRev  = filtered.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
+  const qrRev    = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev  = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
 
   document.getElementById('dash-revenue').textContent = 'RM ' + revenue.toFixed(2);
   const qrEl   = document.getElementById('dash-qr');
@@ -6152,9 +6175,9 @@ function renderDashDateLookup() {
     return dt >= dayStart && dt < dayEnd;
   });
 
-  const rev     = dayOrders.reduce((s,o) => s+(+(o.total_price||0)), 0);
-  const qrRev   = dayOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const cashRev = dayOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const rev     = dayOrders.reduce((s,o) => s+(+(o.total_price||o.total||0)), 0);
+  const qrRev   = dayOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev = dayOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
 
   document.getElementById('dash-date-rev').textContent  = 'RM ' + rev.toFixed(2);
   const qrEl   = document.getElementById('dash-date-qr');
@@ -6181,10 +6204,10 @@ function renderOrdDateLookup() {
     return dt >= dayStart && dt < dayEnd;
   });
 
-  const rev     = dayOrders.reduce((s,o) => s+(+(o.total_price||0)), 0);
-  const qrRev   = dayOrders.filter(o=>o.payment_status==='paid_qr').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const cashRev = dayOrders.filter(o=>o.payment_status==='paid_cash').reduce((s,o)=>s+(+(o.total_price||0)),0);
-  const unpaid  = dayOrders.filter(o=>!o.payment_status||o.payment_status==='unpaid').reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const rev     = dayOrders.reduce((s,o) => s+(+(o.total_price||o.total||0)), 0);
+  const qrRev   = dayOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev = dayOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const unpaid  = dayOrders.filter(o=>!o.payment_status||o.payment_status==='unpaid').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
 
   document.getElementById('ord-date-rev').textContent = 'RM ' + rev.toFixed(2);
   const qrEl   = document.getElementById('ord-date-qr');
@@ -6252,17 +6275,17 @@ function renderOrdDashboard() {
 
   // Collected today = paid_qr or paid_cash (pending already paid + completed today paid)
   const pendingPaidRev = pendingAll
-    .filter(o => o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash')
-    .reduce((s,o) => s + (+(o.total_price||0)), 0);
+    .filter(o => ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
+    .reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
   const completedPaidRev = todayOrders
-    .filter(o => o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash')
-    .reduce((s,o) => s + (+(o.total_price||0)), 0);
+    .filter(o => ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
+    .reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
   document.getElementById('ord-collected').textContent = 'RM ' + (pendingPaidRev + completedPaidRev).toFixed(2);
 
   // Uncollected = all pending unpaid + cod
   const uncollectedRev = pendingAll
     .filter(o => !o.payment_status || o.payment_status === 'unpaid' || o.payment_status === 'cod')
-    .reduce((s,o) => s + (+(o.total_price||0)), 0);
+    .reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
   document.getElementById('ord-uncollected').textContent = 'RM ' + uncollectedRev.toFixed(2);
 }
 
@@ -6342,7 +6365,7 @@ function renderTransferCart() {
   wrap.style.display = 'block';
   countEl.textContent = transferCart.length + ' 项';
   listEl.innerHTML = transferCart.map(r => {
-    const it = items.find(i => i.id === r.itemId);
+    const it = items.find(i => String(i.id) === String(r.itemId));
     if(!it) return '';
     return `<div class="cart-item">
       <div class="cart-item-name">${it.name}<br>
@@ -7134,7 +7157,8 @@ function openEditTxnModal(id) {
           }
         }
       }
-      await sb.from(tbl).update(payload).eq('id',_flEditTxnId);
+      const { error: updErr } = await sb.from(tbl).update(payload).eq('id',_flEditTxnId);
+      if (updErr) { alert('更新失败：' + updErr.message); return false; }
       // Apply new wallet effect
       const newW = flWallets().find(x=>x.id===wallet);
       if (newW) {
@@ -7146,7 +7170,8 @@ function openEditTxnModal(id) {
         if (newWTo) await sb.from(walletTbl).update({balance: Number(newWTo.balance||0)+amount}).eq('id',toWallet);
       }
     } else {
-      await sb.from(tbl).insert(payload);
+      const { error: insertErr } = await sb.from(tbl).insert(payload);
+      if (insertErr) { alert('保存失败：' + insertErr.message); return false; }
       // Apply wallet balance effect for new transaction
       if (wallet) {
         const w = flWallets().find(x=>x.id===wallet);
@@ -7533,7 +7558,7 @@ function handleBarcodeInput(barcode) {
       const car = items.find(i => i.id === exact.bundle_components.cartridge_id);
       effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
     }
-    if (!exact.is_service && effectiveStock === 0) {
+    if (!exact.is_service && !exact.ignore_stock && effectiveStock === 0) {
       showPosToast('⚠️ ' + exact.name + ' 已售完');
       if(input) input.value = '';
       return;
@@ -7580,9 +7605,10 @@ function renderPosGrid() {
     const cartQty = cartEntry ? cartEntry.qty : 0;
     // Service items: never out of stock
     const isService = !!it.is_service;
-    const isOut = !isService && effectiveStock === 0;
-    const isMaxed = !isService && !isOut && cartQty >= effectiveStock;
-    const isLow = !isService && !isOut && !isMaxed && effectiveStock <= 3;
+    const ignoreStock = !!it.ignore_stock;
+    const isOut = !isService && !ignoreStock && effectiveStock === 0;
+    const isMaxed = !isService && !ignoreStock && !isOut && cartQty >= effectiveStock;
+    const isLow = !isService && !ignoreStock && !isOut && !isMaxed && effectiveStock <= 3;
     const stockClass = isOut ? 'zero' : (isMaxed ? 'zero' : (isLow ? 'low' : ''));
     const stockLabel = isService ? '服务' : (isOut ? '售完' : (isMaxed ? '已满' : (cartQty > 0 ? `${cartQty}/${effectiveStock}` : effectiveStock)));
     const price = it.price ? `RM ${(+it.price).toFixed(2)}` : '—';
@@ -7611,18 +7637,28 @@ function posAddItem(id) {
     const car = items.find(i => i.id === it.bundle_components.cartridge_id);
     effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
   }
-  if(!it.is_service && effectiveStock === 0) {
+  if(!it.is_service && !it.ignore_stock && effectiveStock === 0) {
     showPosToast('⚠️ ' + it.name + ' — 已售完');
     return;
   }
   const existing = instoreCart.find(c => c.item.id === it.id);
   const cartQty = existing ? existing.qty : 0;
-  if(!it.is_service && cartQty >= effectiveStock) {
+  if(!it.is_service && !it.ignore_stock && cartQty >= effectiveStock) {
     showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 套）');
     return;
   }
-  if(existing) existing.qty++;
-  else instoreCart.push({ item: it, qty: 1, unitPrice: +(it.price||0) });
+  if(it.is_service) {
+    // Service item: pop up qty dialog
+    const defaultQty = existing ? existing.qty : 1;
+    const input = prompt(it.name + '\n请输入数量：', defaultQty);
+    if(input === null) return; // cancelled
+    const qty = Math.max(1, parseInt(input)||1);
+    if(existing) existing.qty = qty;
+    else instoreCart.push({ item: it, qty, unitPrice: +(it.price||0) });
+  } else {
+    if(existing) existing.qty++;
+    else instoreCart.push({ item: it, qty: 1, unitPrice: +(it.price||0) });
+  }
   updatePosCartUI();
 }
 
@@ -7645,10 +7681,7 @@ function updatePosCartUI() {
 
   if(countEl) countEl.textContent = '共 ' + instoreCart.length + ' 项';
 
-  const baseTotal = instoreCart.reduce((s,c) => {
-    const p = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
-    return s + p * c.qty;
-  }, 0);
+  const baseTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
   const { savings } = applyBundleRulesToCart(instoreCart);
   const finalTotal = baseTotal - savings;
   if(totalEl) {
@@ -7660,9 +7693,15 @@ function updatePosCartUI() {
   }
 
   wrap.innerHTML = instoreCart.map(c => {
-    const unitPrice = c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0);
-    const subtotal = (unitPrice * c.qty).toFixed(2);
-    const priceStr = unitPrice > 0 ? `RM ${unitPrice.toFixed(2)} × ${c.qty} = RM ${subtotal}` : '';
+    const pricing = getInstoreItemPricing(c);
+    const unitPrice = pricing.unitPrice !== undefined ? pricing.unitPrice : (c.unitPrice !== undefined ? c.unitPrice : +(c.item.price||0));
+    const subtotal = pricing.totalPrice.toFixed(2);
+    let priceStr;
+    if (pricing.tiered) {
+      priceStr = `RM ${unitPrice.toFixed(2)}/张 × ${c.qty} = RM ${subtotal} <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 4px;border-radius:3px;font-weight:700">阶梯价</span>`;
+    } else {
+      priceStr = unitPrice > 0 ? `RM ${unitPrice.toFixed(2)} × ${c.qty} = RM ${subtotal}` : '';
+    }
     return `<div class="pos-cart-item">
       <div style="flex:1;min-width:0">
         <div class="pos-ci-name">${c.item.name}</div>
@@ -7670,7 +7709,7 @@ function updatePosCartUI() {
       </div>
       <div class="pos-qty-wrap">
         <button class="pos-qty-btn" onclick="posChangeQty('${c.item.id},-1')">−</button>
-        <span class="pos-qty-num">${c.qty}</span>
+        <span class="pos-qty-num" style="cursor:pointer" onclick="posPromptQty('${c.item.id}',${c.qty})">${c.qty}</span>
         <button class="pos-qty-btn" onclick="posChangeQty('${c.item.id},1')">+</button>
       </div>
       <button class="pos-ci-remove" onclick="posRemoveItem('${c.item.id}')">✕</button>
@@ -7679,6 +7718,58 @@ function updatePosCartUI() {
 
   if(qrBtn) qrBtn.disabled = false;
   if(cashBtn) cashBtn.disabled = false;
+}
+
+
+function posSetQty(itemId, val) {
+  itemId = String(itemId);
+  const entry = instoreCart.find(c => String(c.item.id) === itemId);
+  if(!entry) return;
+  const qty = Math.max(1, parseInt(val)||1);
+  const it = items.find(i => String(i.id) === itemId);
+  if(it && !it.is_service) {
+    let effectiveStock = it.shop_qty;
+    if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
+      const bat = items.find(i => i.id === it.bundle_components.battery_id);
+      const car = items.find(i => i.id === it.bundle_components.cartridge_id);
+      effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
+    }
+    if(qty > effectiveStock) {
+      showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 件）');
+      entry.qty = effectiveStock;
+      renderInstoreCart();
+      return;
+    }
+  }
+  entry.qty = qty;
+  renderInstoreCart();
+}
+
+
+function posPromptQty(itemId, currentQty) {
+  itemId = String(itemId);
+  const entry = instoreCart.find(c => String(c.item.id) === itemId);
+  if(!entry) return;
+  const input = prompt(entry.item.name + '\n请输入数量：', currentQty);
+  if(input === null) return;
+  const qty = Math.max(1, parseInt(input)||1);
+  const it = items.find(i => String(i.id) === itemId);
+  if(it && !it.is_service) {
+    let effectiveStock = it.shop_qty;
+    if(it.bundle_components && it.bundle_components.battery_id && it.bundle_components.cartridge_id) {
+      const bat = items.find(i => i.id === it.bundle_components.battery_id);
+      const car = items.find(i => i.id === it.bundle_components.cartridge_id);
+      effectiveStock = (bat && car) ? Math.min(bat.shop_qty, car.shop_qty) : 0;
+    }
+    if(!it.ignore_stock && qty > effectiveStock) {
+      showPosToast('⚠️ ' + it.name + ' — 库存不足（仅剩 ' + effectiveStock + ' 件）');
+      entry.qty = effectiveStock;
+      updatePosCartUI();
+      return;
+    }
+  }
+  entry.qty = qty;
+  updatePosCartUI();
 }
 
 function posChangeQty(itemId, delta) { itemId = String(itemId);
@@ -8053,27 +8144,29 @@ function renderHqDashboard() {
     }
   }
 
-  // 门市收银记录 (instore POS)
+  // 门市收银记录 (instore POS) - use paid_at if available, else created_at
   const instoreOrders = orders.filter(o => {
-    const d = new Date(o.created_at);
+    const d = new Date(o.paid_at || o.created_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status === 'instore' && d >= startDate && d <= endDate && bizMatch;
   });
-  // 订单收款记录：只计算已付款(paid_qr / paid_cash)的完成订单
+  // 订单收款记录：只计算已付款(paid_qr / paid_cash)的完成订单 - use paid_at
   const paidOrders = orders.filter(o => {
-    const d = new Date(o.created_at);
+    const d = new Date(o.paid_at || o.created_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status !== 'instore'
       && o.status !== 'pending'
-      && (o.payment_status === 'paid_qr' || o.payment_status === 'paid_cash')
+      && (((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
       && d >= startDate && d <= endDate && bizMatch;
   });
   const allSales = [...instoreOrders, ...paidOrders];
 
   // KPIs
-  const totalRev = allSales.reduce((s,o) => s + +(o.total_price||0), 0);
-  const qrRev = allSales.filter(o => o.payment_status === 'paid_qr').reduce((s,o) => s + +(o.total_price||0), 0);
-  const cashRev = allSales.filter(o => o.payment_status === 'paid_cash').reduce((s,o) => s + +(o.total_price||0), 0);
+  const getOrdTotal = o => +(o.total_price||o.total||0);
+  const getOrdPayMethod = o => o.pay_method||o.payment_method||o.payment_status||'';
+  const totalRev = allSales.reduce((s,o) => s + getOrdTotal(o), 0);
+  const qrRev = allSales.filter(o => getOrdPayMethod(o).includes('qr')).reduce((s,o) => s + getOrdTotal(o), 0);
+  const cashRev = allSales.filter(o => getOrdPayMethod(o).includes('cash')).reduce((s,o) => s + getOrdTotal(o), 0);
 
   const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
   setEl('hq-total-rev', 'RM ' + totalRev.toFixed(2));
@@ -8087,7 +8180,7 @@ function renderHqDashboard() {
     const key = o.item_name || '未知商品';
     itemTotals[key] = itemTotals[key] || { qty: 0, rev: 0 };
     itemTotals[key].qty += +(o.qty||1);
-    itemTotals[key].rev += +(o.total_price||0);
+    itemTotals[key].rev += +(o.total_price||o.total||0);
   });
   const topItems = Object.entries(itemTotals).sort((a,b) => b[1].rev - a[1].rev).slice(0, 8);
   const maxRev = topItems[0]?.[1].rev || 1;
@@ -8111,8 +8204,8 @@ function renderHqDashboard() {
   // Payment breakdown
   const payEl = document.getElementById('hq-payment-breakdown');
   if(payEl) {
-    const qrCount = allSales.filter(o => o.payment_status === 'paid_qr').length;
-    const cashCount = allSales.filter(o => o.payment_status === 'paid_cash').length;
+    const qrCount = allSales.filter(o => ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr')).length;
+    const cashCount = allSales.filter(o => ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash')).length;
     const unpaidCount = allSales.filter(o => o.payment_status === 'unpaid').length;
     const total = allSales.length || 1;
     payEl.innerHTML = `
@@ -8143,9 +8236,9 @@ function renderHqDashboard() {
     else histEl.innerHTML = recent.map(o => {
       const d = new Date(o.created_at);
       const timeStr = d.toLocaleDateString('zh-CN', {month:'short', day:'numeric'}) + ' ' + d.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit', hour12:false});
-      const payBadge = o.payment_status === 'paid_qr'
+      const payBadge = ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr')
         ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--blue-bg);color:var(--blue);font-weight:600">QR</span>'
-        : o.payment_status === 'paid_cash'
+        : ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash')
         ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--green-bg);color:var(--green);font-weight:600">Cash</span>'
         : '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--amber-bg);color:var(--amber);font-weight:600">未付</span>';
       const sourceBadge = o.status === 'instore'
@@ -8158,7 +8251,7 @@ function renderHqDashboard() {
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           ${payBadge}
-          <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${(+(o.total_price||0)).toFixed(2)}</span>
+          <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${(+(o.total_price||o.total||0)).toFixed(2)}</span>
         </div>
       </div>`;
     }).join('');
@@ -8328,7 +8421,7 @@ function renderHqProfit(allSales) {
   // Calculate profit using item costs
   let totalRev = 0, totalCost = 0;
   allSales.forEach(o => {
-    const rev = +(o.total_price||0);
+    const rev = +(o.total_price||o.total||0);
     totalRev += rev;
     const it = items.find(i => i.id === o.item_id);
     const cost = it && it.cost_price ? +(it.cost_price) * (+(o.qty||1)) : 0;
@@ -8352,10 +8445,10 @@ function renderHqPnL() {
   const end = new Date(y, m, 1);
   const monthSales = orders.filter(o => {
     const d = new Date(o.created_at);
-    return (o.status==='instore'||(o.status!=='pending'&&(o.payment_status==='paid_qr'||o.payment_status==='paid_cash')))
+    return (o.status==='instore'||(o.status!=='pending'&&((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr'||(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash')))
       && d>=start && d<end;
   });
-  const rev = monthSales.reduce((s,o)=>s+(+(o.total_price||0)),0);
+  const rev = monthSales.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   el.textContent = `RM ${rev.toFixed(2)}`;
 }
 
@@ -10206,4 +10299,3 @@ ${lhdnGetClosingStock().rows.slice(0,50).map(r=>'<tr><td>'+r.name+'</td><td>'+r.
 </script>
 </body>
 </html>
-
