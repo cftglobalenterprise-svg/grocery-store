@@ -8322,6 +8322,28 @@ function applyRolePermissions(role) {
 }
 
 // ── HQ DASHBOARD ─────────────────────────────────────
+
+async function hqVoidSale(orderId, tbl) {
+  if(!confirm('撤回这笔销售并归还库存？')) return;
+  const o = orders.find(x => String(x.id) === String(orderId));
+  if(!o) { alert('找不到记录'); return; }
+  const item = items.find(i => String(i.id) === String(o.item_id));
+  if(item && !item.is_service && !item.ignore_stock) {
+    const stockTbl = item._table || (item.business==='K19' ? 'g_items' : 'items');
+    const deductFrom = o.deduct_from || 'shop';
+    const qty = +(o.qty||1);
+    const stockUpdate = deductFrom === 'home'
+      ? { home_qty: (item.home_qty||0) + qty }
+      : { shop_qty: (item.shop_qty||0) + qty };
+    await sb.from(stockTbl).update(stockUpdate).eq('id', item.id);
+  }
+  await sb.from(tbl).delete().eq('id', orderId);
+  await loadItems();
+  await loadOrders();
+  renderHqDashboard();
+  showPosToast('↩ 已撤回');
+}
+
 function renderHqDashboard() {
   const period = document.getElementById('hq-period')?.value || 'month';
   const dateFrom = document.getElementById('hq-date-from')?.value;
@@ -8476,7 +8498,7 @@ function renderHqDashboard() {
         ? '<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:var(--surface2);color:var(--text3);font-weight:600">门市</span>'
         : '<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:var(--purple-bg);color:var(--purple);font-weight:600">订单</span>';
       const oTbl = (o.business==='K19' || o._tbl==='g_orders') ? 'g_orders' : 'orders';
-      const voidBtn = o.status === 'instore'
+      const voidBtn = (o.status === 'instore' || o.status === 'collected')
         ? `<button onclick="hqVoidSale('${o.id}','${oTbl}')" style="font-size:11px;padding:2px 8px;border:1px solid #fca5a5;border-radius:6px;background:none;color:#dc2626;cursor:pointer">撤回</button>`
         : '';
       return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
