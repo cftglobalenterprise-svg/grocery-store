@@ -8357,9 +8357,10 @@ function renderHqDashboard() {
     return o.status === 'instore' && d >= startDate && d <= endDate && bizMatch;
   });
 
-  // 2. 当天完成订单 — status='collected', use paid_at
+  // 2. 当天完成订单 — status='collected', MUST have paid_at
   const collectedOrders = orders.filter(o => {
-    const d = new Date(o.paid_at || o.created_at);
+    if(!o.paid_at) return false; // no paid_at = not yet properly collected
+    const d = new Date(o.paid_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status === 'collected' && d >= startDate && d <= endDate && bizMatch;
   });
