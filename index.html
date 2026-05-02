@@ -8321,29 +8321,42 @@ function renderHqDashboard() {
     }
   }
 
-  // 门市收银记录 (instore POS) - use paid_at if available, else created_at
+  // 1. 门市收银 — status='instore', use paid_at
   const instoreOrders = orders.filter(o => {
     const d = new Date(o.paid_at || o.created_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status === 'instore' && d >= startDate && d <= endDate && bizMatch;
   });
-  // 订单收款记录：只计算已付款(paid_qr / paid_cash)的完成订单 - use paid_at
-  const paidOrders = orders.filter(o => {
+
+  // 2. 当天完成订单 — status='collected', use paid_at
+  const collectedOrders = orders.filter(o => {
     const d = new Date(o.paid_at || o.created_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
-    return o.status !== 'instore'
-      && o.status !== 'pending'
-      && (((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr') || ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash'))
-      && d >= startDate && d <= endDate && bizMatch;
+    return o.status === 'collected' && d >= startDate && d <= endDate && bizMatch;
   });
-  const allSales = [...instoreOrders, ...paidOrders];
+
+  // 3. 赊账还款 — from _debtors where status='paid' and paid_at in range
+  const debtPayments = (typeof _debtors !== 'undefined' ? _debtors : []).filter(d => {
+    if(d.status !== 'paid' || !d.paid_at) return false;
+    const pd = new Date(d.paid_at);
+    const bizMatch = !bizFilter || bizFilter === '' ||
+      (bizFilter === 'K19' && (d._tbl === 'g_debtors')) ||
+      (bizFilter === 'A' && (d._tbl === 'debtors'));
+    return pd >= startDate && pd <= endDate && bizMatch;
+  });
+
+  // allSales = instore + collected + debt repayments
+  const allSales = [...instoreOrders, ...collectedOrders];
+  const debtRepaidTotal = debtPayments.reduce((s,d) => s + (+(d.amount||0)), 0);
+  const debtRepaidQR = debtPayments.filter(d => (d.pay_type||'').toLowerCase().includes('qr')).reduce((s,d) => s + (+(d.amount||0)), 0);
+  const debtRepaidCash = debtPayments.filter(d => (d.pay_type||'').toLowerCase() === 'cash').reduce((s,d) => s + (+(d.amount||0)), 0);
 
   // KPIs
   const getOrdTotal = o => +(o.total_price||o.total||0);
   const getOrdPayMethod = o => o.pay_method||o.payment_method||o.payment_status||'';
-  const totalRev = allSales.reduce((s,o) => s + getOrdTotal(o), 0);
-  const qrRev = allSales.filter(o => getOrdPayMethod(o).includes('qr')).reduce((s,o) => s + getOrdTotal(o), 0);
-  const cashRev = allSales.filter(o => getOrdPayMethod(o).includes('cash')).reduce((s,o) => s + getOrdTotal(o), 0);
+  const totalRev = allSales.reduce((s,o) => s + getOrdTotal(o), 0) + debtRepaidTotal;
+  const qrRev = allSales.filter(o => getOrdPayMethod(o).includes('qr')).reduce((s,o) => s + getOrdTotal(o), 0) + debtRepaidQR;
+  const cashRev = allSales.filter(o => getOrdPayMethod(o).includes('cash')).reduce((s,o) => s + getOrdTotal(o), 0) + debtRepaidCash;
 
   const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
   setEl('hq-total-rev', 'RM ' + totalRev.toFixed(2));
