@@ -8372,8 +8372,10 @@ function renderHqDashboard() {
     }
   }
 
-  // 1. 门市收银 — status='instore', use paid_at
+  // 1. 门市收银 — status='instore', exclude credit orders (credit counted when repaid)
   const instoreOrders = orders.filter(o => {
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     const d = new Date(o.paid_at || o.created_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status === 'instore' && d >= startDate && d <= endDate && bizMatch;
@@ -8406,10 +8408,10 @@ function renderHqDashboard() {
   // KPIs
   const getOrdTotal = o => +(o.total_price||o.total||0);
   const getOrdPayMethod = o => o.pay_method||o.payment_method||o.payment_status||'';
-  // Note: debtRepaidTotal is NOT added to totalRev - credit sales already counted when sold
-  const totalRev = allSales.reduce((s,o) => s + getOrdTotal(o), 0);
-  const qrRev = allSales.filter(o => getOrdPayMethod(o).includes('qr')).reduce((s,o) => s + getOrdTotal(o), 0);
-  const cashRev = allSales.filter(o => getOrdPayMethod(o).includes('cash')).reduce((s,o) => s + getOrdTotal(o), 0);
+  // Credit orders excluded from instoreOrders, only counted when debt is repaid
+  const totalRev = allSales.reduce((s,o) => s + getOrdTotal(o), 0) + debtRepaidTotal;
+  const qrRev = allSales.filter(o => getOrdPayMethod(o).includes('qr')).reduce((s,o) => s + getOrdTotal(o), 0) + debtRepaidQR;
+  const cashRev = allSales.filter(o => getOrdPayMethod(o).includes('cash')).reduce((s,o) => s + getOrdTotal(o), 0) + debtRepaidCash;
 
   const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
   setEl('hq-total-rev', 'RM ' + totalRev.toFixed(2));
