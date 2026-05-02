@@ -1160,17 +1160,17 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         </div>
 
         <div class="card" style="margin-top:14px">
-          <div class="card-title">📋 收银记录（门市 + 订单）</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+            <div class="card-title" style="margin-bottom:0">📋 收银记录（门市 + 订单）</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="date" id="hq-receipt-date" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)" onchange="renderHqDashboard()">
+              <button onclick="document.getElementById('hq-receipt-date').value='';renderHqDashboard()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer">全部</button>
+            </div>
+          </div>
           <div id="hq-instore-list"><div class="empty">暂无数据</div></div>
         </div>
 
-        <div class="card" style="margin-top:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <div class="card-title" style="margin-bottom:0">⚠️ 低库存预警</div>
-            <span style="font-size:11px;color:var(--text3)">店里库存不足 / 需订货</span>
-          </div>
-          <div id="hq-low-stock"><div class="empty">暂无数据</div></div>
-        </div>
+
       </div>
 
 
@@ -8455,19 +8455,30 @@ function renderHqDashboard() {
   // Instore history
   const histEl = document.getElementById('hq-instore-list');
   if(histEl) {
-    const recent = [...allSales].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 20);
-    if(!recent.length) { histEl.innerHTML = '<div class="empty">暂无记录</div>'; }
-    else histEl.innerHTML = recent.map(o => {
-      const d = new Date(o.created_at);
+    const receiptDateFilter = document.getElementById('hq-receipt-date')?.value || '';
+    let receiptSales = [...allSales].sort((a,b) => new Date(b.paid_at||b.created_at) - new Date(a.paid_at||a.created_at));
+    if(receiptDateFilter) {
+      const rStart = new Date(receiptDateFilter);
+      const rEnd = new Date(receiptDateFilter); rEnd.setDate(rEnd.getDate()+1);
+      receiptSales = receiptSales.filter(o => { const d = new Date(o.paid_at||o.created_at); return d >= rStart && d < rEnd; });
+    }
+    if(!receiptSales.length) { histEl.innerHTML = '<div class="empty">暂无记录</div>'; }
+    else histEl.innerHTML = '<div style="max-height:500px;overflow-y:auto">' + receiptSales.map(o => {
+      const d = new Date(o.paid_at||o.created_at);
       const timeStr = d.toLocaleDateString('zh-CN', {month:'short', day:'numeric'}) + ' ' + d.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit', hour12:false});
-      const payBadge = ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr' || o.pay_method === 'paid_qr' || o.payment_method === 'paid_qr')
+      const pm = o.pay_method||o.payment_method||o.payment_status||'';
+      const payBadge = pm.includes('qr')
         ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--blue-bg);color:var(--blue);font-weight:600">QR</span>'
-        : ((o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash' || o.pay_method === 'paid_cash' || o.payment_method === 'paid_cash')
+        : pm.includes('cash')
         ? '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--green-bg);color:var(--green);font-weight:600">Cash</span>'
         : '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--amber-bg);color:var(--amber);font-weight:600">未付</span>';
       const sourceBadge = o.status === 'instore'
         ? '<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:var(--surface2);color:var(--text3);font-weight:600">门市</span>'
         : '<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:var(--purple-bg);color:var(--purple);font-weight:600">订单</span>';
+      const oTbl = (o.business==='K19' || o._tbl==='g_orders') ? 'g_orders' : 'orders';
+      const voidBtn = o.status === 'instore'
+        ? `<button onclick="hqVoidSale('${o.id}','${oTbl}')" style="font-size:11px;padding:2px 8px;border:1px solid #fca5a5;border-radius:6px;background:none;color:#dc2626;cursor:pointer">撤回</button>`
+        : '';
       return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.item_name || '—'}</div>
@@ -8476,23 +8487,13 @@ function renderHqDashboard() {
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           ${payBadge}
           <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${(+(o.total_price||o.total||0)).toFixed(2)}</span>
+          ${voidBtn}
         </div>
       </div>`;
-    }).join('');
+    }).join('') + '</div>';
   }
 
-  // Low stock
-  const lowEl = document.getElementById('hq-low-stock');
-  if(lowEl) {
-    const lowItems = items.filter(i => !i.bundle_components && (i.shop_qty < 2 || (i.home_qty + i.shop_qty) < (i.threshold || 10)));
-    if(!lowItems.length) { lowEl.innerHTML = '<div class="empty" style="color:var(--green)">✓ 库存充足</div>'; }
-    else lowEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">` +
-      lowItems.slice(0,12).map(i => `
-        <div style="background:var(--surface2);border-radius:var(--radius-xs);padding:10px 12px;border-left:3px solid ${i.shop_qty === 0 ? 'var(--red)' : 'var(--amber)'}">
-          <div style="font-size:12px;font-weight:600;margin-bottom:3px">${i.name}</div>
-          <div style="font-size:11px;color:var(--text3)">家里 ${i.home_qty} · 店里 ${i.shop_qty}</div>
-        </div>`).join('') + '</div>';
-  }
+
 
   // Also render profit summary
   if(typeof renderHqProfit === 'function') renderHqProfit(allSales);
