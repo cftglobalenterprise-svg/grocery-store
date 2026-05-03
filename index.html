@@ -815,6 +815,19 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <span class="pos-total-label">总计</span>
                 <span class="pos-total-amount" id="pos-total-display">RM 0.00</span>
               </div>
+              <div id="pos-discount-row" style="display:none;align-items:center;gap:6px;padding:6px 0;border-top:1px dashed var(--border)">
+                <span style="font-size:12px;color:var(--text2);flex-shrink:0">折扣</span>
+                <input id="pos-discount-val" type="number" min="0" step="0.5" placeholder="0" style="width:70px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;text-align:center" oninput="updatePosCartUI()">
+                <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0">
+                  <button id="pos-disc-rm" onclick="setPosDiscountType('rm')" style="padding:5px 10px;font-size:12px;font-weight:700;background:var(--text);color:#fff;border:none;cursor:pointer">RM</button>
+                  <button id="pos-disc-pct" onclick="setPosDiscountType('pct')" style="padding:5px 10px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text2);border:none;cursor:pointer">%</button>
+                </div>
+                <span style="font-size:12px;color:#dc2626;font-weight:700;margin-left:auto" id="pos-discount-display"></span>
+              </div>
+              <div style="padding:4px 0 2px;display:flex;justify-content:space-between;align-items:center">
+                <button onclick="togglePosDiscount()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0">✂️ 折扣</button>
+                <span style="font-size:18px;font-weight:800;font-family:'DM Mono',monospace;color:var(--text)" id="pos-final-display"></span>
+              </div>
               <div class="pos-checkout-btns">
                 <button class="pos-pay-btn qr" id="pos-pay-qr" onclick="posCheckout('paid_qr')" disabled>
                   📲 QR Pay
@@ -3115,7 +3128,7 @@ function renderInstoreCart() {
   }
 }
 
-async function instoreCheckout(payMethod, creditName) {
+async function instoreCheckout(payMethod, creditName, discountAmt) {
   if(!instoreCart.length) { alert('购物车是空的，请先扫描商品'); return; }
 
   // ── 结账前强制拉最新库存，防止订单已预留但本地未更新 ──
@@ -3149,14 +3162,18 @@ async function instoreCheckout(payMethod, creditName) {
   // Recalculate bundle pricing fresh
   const { savings: checkoutSavings, itemFinalTotals: checkoutFinalTotals } = applyBundleRulesToCart(instoreCart);
   const brFinalTotals = checkoutFinalTotals && checkoutFinalTotals.size > 0 ? checkoutFinalTotals : (instoreCart._bundleItemFinalTotals || new Map());
-  const total = instoreCart.reduce((s,c) => {
+  const grossTotal = instoreCart.reduce((s,c) => {
     return s + (brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice);
   }, 0);
+  const discount = +(discountAmt||0);
+  const total = Math.max(0, grossTotal - discount);
+  const discountRatio = grossTotal > 0 ? (total / grossTotal) : 1;
 
   for(const c of instoreCart) {
     const item = items.find(i => String(i.id) === String(c.item.id));
     if(!item) { alert('结账失败：找不到商品 ' + c.item.name); setSync('err','失败'); return; }
-    const itemTotal = brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice;
+    const rawItemTotal = brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice;
+    const itemTotal = +(rawItemTotal * discountRatio).toFixed(2);
     const tbl = itemTable(item);
     const oTbl = orderTable(item);
     // Service items: skip stock deduction
@@ -3211,6 +3228,11 @@ async function instoreCheckout(payMethod, creditName) {
     if(debtErr) console.error('Debtor insert error:', debtErr.message);
   }
   instoreCart = [];
+  // Clear discount
+  const discRow = document.getElementById('pos-discount-row');
+  if(discRow) discRow.style.display = 'none';
+  const discVal = document.getElementById('pos-discount-val');
+  if(discVal) discVal.value = '';
   renderInstoreCart();
   updatePosCartUI();
   renderPosGrid();
@@ -7822,6 +7844,12 @@ function updatePosCartUI() {
   const baseTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
   const { savings } = applyBundleRulesToCart(instoreCart);
   const finalTotal = baseTotal - savings;
+  const discount = getPosDiscount(finalTotal);
+  const afterDiscount = Math.max(0, finalTotal - discount);
+  const discDisplay = document.getElementById('pos-discount-display');
+  const finalDisplay = document.getElementById('pos-final-display');
+  if(discDisplay) discDisplay.textContent = discount > 0 ? `-RM ${discount.toFixed(2)}` : '';
+  if(finalDisplay) finalDisplay.textContent = discount > 0 ? `RM ${afterDiscount.toFixed(2)}` : '';
   if(totalEl) {
     if(savings > 0) {
       totalEl.innerHTML = `<span style="font-size:11px;color:var(--green);display:block;text-align:right;margin-bottom:2px">套餐省 RM${savings.toFixed(2)}</span>RM ${finalTotal.toFixed(2)}`;
@@ -8006,6 +8034,40 @@ async function confirmCredit(payType) {
   if(creditBtn) { creditBtn.disabled = false; creditBtn.innerHTML = '📒 赊账<span class="pos-pay-btn-sub">欠款记录</span>'; }
 }
 
+
+let _posDiscountType = 'rm'; // 'rm' or 'pct'
+
+function togglePosDiscount() {
+  const row = document.getElementById('pos-discount-row');
+  if(!row) return;
+  const isOpen = row.style.display !== 'none';
+  row.style.display = isOpen ? 'none' : 'flex';
+  if(isOpen) {
+    document.getElementById('pos-discount-val').value = '';
+    updatePosCartUI();
+  } else {
+    document.getElementById('pos-discount-val').focus();
+  }
+}
+
+function setPosDiscountType(type) {
+  _posDiscountType = type;
+  const rmBtn = document.getElementById('pos-disc-rm');
+  const pctBtn = document.getElementById('pos-disc-pct');
+  if(rmBtn) { rmBtn.style.background = type==='rm' ? 'var(--text)' : 'var(--surface)'; rmBtn.style.color = type==='rm' ? '#fff' : 'var(--text2)'; }
+  if(pctBtn) { pctBtn.style.background = type==='pct' ? 'var(--text)' : 'var(--surface)'; pctBtn.style.color = type==='pct' ? '#fff' : 'var(--text2)'; }
+  updatePosCartUI();
+}
+
+function getPosDiscount(baseTotal) {
+  const row = document.getElementById('pos-discount-row');
+  if(!row || row.style.display === 'none') return 0;
+  const val = parseFloat(document.getElementById('pos-discount-val')?.value) || 0;
+  if(val <= 0) return 0;
+  if(_posDiscountType === 'pct') return Math.min(baseTotal, baseTotal * val / 100);
+  return Math.min(baseTotal, val);
+}
+
 async function posCheckout(method) {
   if(!instoreCart.length) return;
   if(method === 'credit') {
@@ -8020,7 +8082,10 @@ async function posCheckout(method) {
   if(btn) btn.textContent = '处理中...';
 
   try {
-    const ok = await instoreCheckout(method);
+    const baseForDisc = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const { savings: _s } = applyBundleRulesToCart(instoreCart);
+  const _discountAmt = getPosDiscount(baseForDisc - _s);
+  const ok = await instoreCheckout(method, undefined, _discountAmt);
     if(ok === true) {
       renderInstoreHistory();
       updatePosCartUI();
