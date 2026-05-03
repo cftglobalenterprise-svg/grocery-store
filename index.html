@@ -2953,8 +2953,8 @@ async function voidInstoreSale(idsStr) {
     if(payM && payM.includes('credit')) {
       const debtTblVoid = (o.business==='K19') ? 'g_debtors' : 'debtors';
       const oTime = new Date(o.created_at).getTime();
-      // Load fresh debtors to find match
-      const { data: freshDebts } = await sb.from(debtTblVoid).select('*').eq('status','unpaid');
+      // Load all debtors (both unpaid and paid) to find match by time
+      const { data: freshDebts } = await sb.from(debtTblVoid).select('*');
       const matchingDebt = (freshDebts||[]).find(d => Math.abs(new Date(d.created_at).getTime() - oTime) < 600000);
       if(matchingDebt) await sb.from(debtTblVoid).delete().eq('id', matchingDebt.id);
     }
@@ -4970,6 +4970,8 @@ function renderProfitReport() {
   const salesOrders = orders.filter(o => {
     const dt = new Date(o.created_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     return (o.status === 'instore' || o.status === 'collected') && dt >= start && dt <= end && bizMatch;
   });
 
@@ -5138,6 +5140,8 @@ function renderPnL() {
   // ── Revenue & COGS ──
   const salesOrders = orders.filter(o => {
     const dt = new Date(o.created_at);
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
   });
   const revenue = salesOrders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
@@ -5250,6 +5254,8 @@ function exportPnL() {
 
   const salesOrders = orders.filter(o => {
     const dt = new Date(o.created_at);
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
   });
   const revenue  = salesOrders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
@@ -8509,6 +8515,15 @@ async function hqVoidSale(orderId, tbl) {
       ? { home_qty: (item.home_qty||0) + qty }
       : { shop_qty: (item.shop_qty||0) + qty };
     await sb.from(stockTbl).update(stockUpdate).eq('id', item.id);
+  }
+  // If credit order, delete matching debt record (paid or unpaid)
+  const payM = o.pay_method || o.payment_method || o.payment_status || '';
+  if(payM && payM.includes('credit')) {
+    const debtTbl = (o.business==='K19') ? 'g_debtors' : 'debtors';
+    const oTime = new Date(o.created_at).getTime();
+    const { data: freshDebts } = await sb.from(debtTbl).select('*');
+    const matchingDebt = (freshDebts||[]).find(d => Math.abs(new Date(d.created_at).getTime() - oTime) < 600000);
+    if(matchingDebt) await sb.from(debtTbl).delete().eq('id', matchingDebt.id);
   }
   await sb.from(tbl).delete().eq('id', orderId);
   await loadItems();
