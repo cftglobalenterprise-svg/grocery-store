@@ -3172,7 +3172,10 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
   for(const c of instoreCart) {
     const item = items.find(i => String(i.id) === String(c.item.id));
     if(!item) { alert('结账失败：找不到商品 ' + c.item.name); setSync('err','失败'); return; }
-    const rawItemTotal = brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice;
+    // For service items with tiers, always use tier pricing (not bundle pricing)
+    const rawItemTotal = (c.item.is_service && c.item.service_tiers && c.item.service_tiers.length)
+      ? getInstoreItemPricing(c).totalPrice
+      : brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice;
     const itemTotal = +(rawItemTotal * discountRatio).toFixed(2);
     const tbl = itemTable(item);
     const oTbl = orderTable(item);
