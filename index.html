@@ -843,29 +843,38 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 </button>
               </div>
             </div>
-            <div class="pos-dash-strip" style="flex-direction:column;gap:6px">
-              <div style="display:flex;align-items:center;gap:8px;padding:0 2px">
-                <input type="date" id="dash-date-filter" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderDashboard()">
-                <button onclick="document.getElementById('dash-date-filter').value='';renderDashboard()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer">今日</button>
+            <!-- 折叠式营业额+记录 -->
+            <div style="border-top:1px solid var(--border);margin-top:4px">
+              <button onclick="togglePosSummary()" id="pos-summary-toggle" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:none;border:none;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+                <span>📊 营业额 &amp; 记录</span>
+                <span id="pos-summary-arrow" style="font-size:14px;transition:transform 0.2s">▾</span>
+              </button>
+              <div id="pos-summary-panel" style="display:none">
+                <div class="pos-dash-strip" style="flex-direction:column;gap:6px;padding:6px 10px">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <input type="date" id="dash-date-filter" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderDashboard()">
+                    <button onclick="document.getElementById('dash-date-filter').value='';renderDashboard()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer">今日</button>
+                  </div>
+                  <div style="display:flex;gap:6px">
+                    <div class="pos-dash-tile">
+                      <div class="pos-dash-val" id="dash-revenue" style="color:var(--green)">RM 0</div>
+                      <div class="pos-dash-lbl" id="dash-revenue-lbl">今日营业额</div>
+                    </div>
+                    <div class="pos-dash-tile">
+                      <div class="pos-dash-val" id="dash-qr" style="color:var(--blue)">RM 0</div>
+                      <div class="pos-dash-lbl">QR</div>
+                    </div>
+                    <div class="pos-dash-tile">
+                      <div class="pos-dash-val" id="dash-cash" style="color:var(--green)">RM 0</div>
+                      <div class="pos-dash-lbl">Cash</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="pos-history-wrap">
+                  <div class="pos-history-label">今日记录</div>
+                  <div id="ins-history-list"><div class="empty" style="padding:10px 0">暂无记录</div></div>
+                </div>
               </div>
-              <div style="display:flex;gap:6px">
-                <div class="pos-dash-tile">
-                  <div class="pos-dash-val" id="dash-revenue" style="color:var(--green)">RM 0</div>
-                  <div class="pos-dash-lbl" id="dash-revenue-lbl">今日营业额</div>
-                </div>
-                <div class="pos-dash-tile">
-                  <div class="pos-dash-val" id="dash-qr" style="color:var(--blue)">RM 0</div>
-                  <div class="pos-dash-lbl">QR</div>
-                </div>
-                <div class="pos-dash-tile">
-                  <div class="pos-dash-val" id="dash-cash" style="color:var(--green)">RM 0</div>
-                  <div class="pos-dash-lbl">Cash</div>
-                </div>
-              </div>
-            </div>
-            <div class="pos-history-wrap">
-              <div class="pos-history-label">今日记录</div>
-              <div id="ins-history-list"><div class="empty" style="padding:10px 0">暂无记录</div></div>
             </div>
           </div>
 
