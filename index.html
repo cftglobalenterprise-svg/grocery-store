@@ -820,14 +820,23 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <span class="pos-total-label">总计</span>
                 <span class="pos-total-amount" id="pos-total-display">RM 0.00</span>
               </div>
-              <div id="pos-discount-row" style="display:none;align-items:center;gap:6px;padding:6px 0;border-top:1px dashed var(--border)">
-                <span style="font-size:12px;color:var(--text2);flex-shrink:0">折扣</span>
-                <input id="pos-discount-val" type="number" min="0" step="0.5" placeholder="0" style="width:70px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;text-align:center" oninput="updatePosCartUI()">
-                <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0">
-                  <button id="pos-disc-rm" onclick="setPosDiscountType('rm')" style="padding:5px 10px;font-size:12px;font-weight:700;background:var(--text);color:#fff;border:none;cursor:pointer">RM</button>
-                  <button id="pos-disc-pct" onclick="setPosDiscountType('pct')" style="padding:5px 10px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text2);border:none;cursor:pointer">%</button>
+              <div id="pos-discount-row" style="display:none;flex-direction:column;gap:6px;padding:8px 0;border-top:1px dashed var(--border)">
+                <!-- Input row -->
+                <div style="display:flex;align-items:center;gap:6px" id="pos-discount-input-row">
+                  <span style="font-size:12px;color:var(--text2);flex-shrink:0">折扣</span>
+                  <input id="pos-discount-val" type="number" min="0" step="0.5" placeholder="0" style="width:70px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;text-align:center" oninput="updatePosCartUI()" onkeydown="if(event.key==='Enter')confirmPosDiscount()">
+                  <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0">
+                    <button id="pos-disc-rm" onclick="setPosDiscountType('rm')" style="padding:5px 10px;font-size:12px;font-weight:700;background:var(--text);color:#fff;border:none;cursor:pointer">RM</button>
+                    <button id="pos-disc-pct" onclick="setPosDiscountType('pct')" style="padding:5px 10px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text2);border:none;cursor:pointer">%</button>
+                  </div>
+                  <button onclick="confirmPosDiscount()" style="padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">✓ 确认</button>
                 </div>
-                <span style="font-size:12px;color:#dc2626;font-weight:700;margin-left:auto" id="pos-discount-display"></span>
+                <!-- Confirmed state row -->
+                <div id="pos-discount-confirmed-row" style="display:none;align-items:center;justify-content:space-between;background:#dcfce7;border-radius:8px;padding:6px 10px">
+                  <span style="font-size:12px;color:#15803d;font-weight:600">✓ 折扣已确认</span>
+                  <span style="font-size:14px;color:#dc2626;font-weight:700" id="pos-discount-display"></span>
+                  <button onclick="cancelPosDiscount()" style="padding:3px 8px;background:none;border:1px solid #dc2626;border-radius:6px;font-size:11px;color:#dc2626;cursor:pointer">✕ 取消</button>
+                </div>
               </div>
               <div style="padding:4px 0 2px;display:flex;justify-content:space-between;align-items:center">
                 <button onclick="togglePosDiscount()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0">✂️ 折扣</button>
@@ -3235,7 +3244,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
 
   // 赊账记录
   if((payMethod === 'credit' || payMethod === 'credit_qr' || payMethod === 'credit_cash') && creditName) {
-    const debtTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+    const debtTotal = total; // use discounted total (already calculated above)
     const debtItems = instoreCart.map(c=>c.item.name+' ×'+c.qty).join(', ');
     const isK19debt = instoreCart.some(c => c.item.business === 'K19' || c.item._table === 'g_items');
     const debtTbl = isK19debt ? 'g_debtors' : 'debtors';
@@ -3247,10 +3256,16 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
   }
   instoreCart = [];
   // Clear discount
+  _posDiscountConfirmed = false;
+  _posDiscountConfirmedAmt = 0;
   const discRow = document.getElementById('pos-discount-row');
   if(discRow) discRow.style.display = 'none';
   const discVal = document.getElementById('pos-discount-val');
   if(discVal) discVal.value = '';
+  const confirmedRow = document.getElementById('pos-discount-confirmed-row');
+  if(confirmedRow) confirmedRow.style.display = 'none';
+  const inputRow = document.getElementById('pos-discount-input-row');
+  if(inputRow) inputRow.style.display = 'flex';
   renderInstoreCart();
   updatePosCartUI();
   renderPosGrid();
@@ -7875,8 +7890,17 @@ function updatePosCartUI() {
   const afterDiscount = Math.max(0, finalTotal - discount);
   const discDisplay = document.getElementById('pos-discount-display');
   const finalDisplay = document.getElementById('pos-final-display');
-  if(discDisplay) discDisplay.textContent = discount > 0 ? `-RM ${discount.toFixed(2)}` : '';
-  if(finalDisplay) finalDisplay.textContent = discount > 0 ? `RM ${afterDiscount.toFixed(2)}` : '';
+  // Only update discDisplay if not in confirmed state (confirmed row manages its own display)
+  if(discDisplay && !_posDiscountConfirmed) discDisplay.textContent = discount > 0 ? `-RM ${discount.toFixed(2)}` : '';
+  if(finalDisplay) {
+    if(discount > 0) {
+      finalDisplay.textContent = `RM ${afterDiscount.toFixed(2)}`;
+      finalDisplay.style.color = _posDiscountConfirmed ? '#16a34a' : 'var(--text)';
+    } else {
+      finalDisplay.textContent = '';
+      finalDisplay.style.color = 'var(--text)';
+    }
+  }
   if(totalEl) {
     if(savings > 0) {
       totalEl.innerHTML = `<span style="font-size:11px;color:var(--green);display:block;text-align:right;margin-bottom:2px">套餐省 RM${savings.toFixed(2)}</span>RM ${finalTotal.toFixed(2)}`;
@@ -8045,9 +8069,13 @@ async function confirmCredit(payType) {
   document.getElementById('credit-modal').style.display = 'none';
   const creditBtn = document.getElementById('pos-pay-credit');
   if(creditBtn) { creditBtn.disabled = true; }
+  // Get discount amount same way as QR/Cash checkout
+  const baseForDisc = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const { savings: _s } = applyBundleRulesToCart(instoreCart);
+  const _discountAmt = getPosDiscount(baseForDisc - _s);
   let ok;
   try {
-    ok = await instoreCheckout('credit_' + payType, name);
+    ok = await instoreCheckout('credit_' + payType, name, _discountAmt);
   } catch(e) { console.error(e); }
   setSync('ok', ok === true ? '已记账 · ' + name : '');
   if(ok === true) {
@@ -8078,18 +8106,54 @@ function togglePosSummary() {
 }
 
 let _posDiscountType = 'rm'; // 'rm' or 'pct'
+let _posDiscountConfirmed = false; // true after user clicks ✓
+let _posDiscountConfirmedAmt = 0;  // locked discount amount
 
 function togglePosDiscount() {
   const row = document.getElementById('pos-discount-row');
   if(!row) return;
-  const isOpen = row.style.display !== 'none';
-  row.style.display = isOpen ? 'none' : 'flex';
+  const isOpen = row.style.display !== 'none' && row.style.display !== '';
   if(isOpen) {
-    document.getElementById('pos-discount-val').value = '';
-    updatePosCartUI();
+    // Close & reset
+    cancelPosDiscount();
+    row.style.display = 'none';
   } else {
-    document.getElementById('pos-discount-val').focus();
+    row.style.display = 'flex';
+    document.getElementById('pos-discount-input-row').style.display = 'flex';
+    document.getElementById('pos-discount-confirmed-row').style.display = 'none';
+    setTimeout(() => document.getElementById('pos-discount-val').focus(), 50);
   }
+}
+
+function confirmPosDiscount() {
+  const baseTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const { savings } = applyBundleRulesToCart(instoreCart);
+  const discount = getPosDiscount(baseTotal - savings);
+  if(discount <= 0) { alert('请输入折扣金额'); return; }
+
+  _posDiscountConfirmed = true;
+  _posDiscountConfirmedAmt = discount;
+
+  // Show confirmed row, hide input row
+  document.getElementById('pos-discount-input-row').style.display = 'none';
+  const confirmedRow = document.getElementById('pos-discount-confirmed-row');
+  confirmedRow.style.display = 'flex';
+  const discDisplay = document.getElementById('pos-discount-display');
+  if(discDisplay) discDisplay.textContent = `-RM ${discount.toFixed(2)}`;
+
+  updatePosCartUI();
+}
+
+function cancelPosDiscount() {
+  _posDiscountConfirmed = false;
+  _posDiscountConfirmedAmt = 0;
+  const inputRow = document.getElementById('pos-discount-input-row');
+  const confirmedRow = document.getElementById('pos-discount-confirmed-row');
+  const discVal = document.getElementById('pos-discount-val');
+  if(inputRow) inputRow.style.display = 'flex';
+  if(confirmedRow) confirmedRow.style.display = 'none';
+  if(discVal) discVal.value = '';
+  updatePosCartUI();
 }
 
 function setPosDiscountType(type) {
@@ -8102,8 +8166,10 @@ function setPosDiscountType(type) {
 }
 
 function getPosDiscount(baseTotal) {
+  // If confirmed, always return the locked amount
+  if(_posDiscountConfirmed) return _posDiscountConfirmedAmt;
   const row = document.getElementById('pos-discount-row');
-  if(!row || row.style.display === 'none') return 0;
+  if(!row || row.style.display === 'none' || row.style.display === '') return 0;
   const val = parseFloat(document.getElementById('pos-discount-val')?.value) || 0;
   if(val <= 0) return 0;
   if(_posDiscountType === 'pct') return Math.min(baseTotal, baseTotal * val / 100);
@@ -9226,8 +9292,12 @@ async function confirmCredit() {
   document.getElementById('credit-modal').style.display='none';
   const creditBtn = document.getElementById('pos-pay-credit');
   if(creditBtn) creditBtn.disabled = true;
+  // Get discount amount same way as QR/Cash checkout
+  const baseForDisc = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const { savings: _s } = applyBundleRulesToCart(instoreCart);
+  const _discountAmt = getPosDiscount(baseForDisc - _s);
   let ok;
-  try { ok = await instoreCheckout('credit', name); } catch(e) { console.error(e); }
+  try { ok = await instoreCheckout('credit', name, _discountAmt); } catch(e) { console.error(e); }
   setSync('ok', ok===true ? '已记账 · '+name : '');
   if(ok===true) {
     renderInstoreHistory();
