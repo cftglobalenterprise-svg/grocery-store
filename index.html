@@ -2175,7 +2175,7 @@ function setSync(state, msg) {
 
 async function init() {
   try {
-    await loadItems(); await loadOrders(); await loadBundleRules(); await loadPnlExpenses();
+    await Promise.all([loadItems(), loadOrders(), loadBundleRules(), loadPnlExpenses(), loadDebtors()]);
     subscribeRealtime();
     document.getElementById('loading').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
@@ -6348,7 +6348,14 @@ function renderDashboard() {
     const d = new Date(o.paid_at || o.created_at);
     return d >= start && d <= end;
   });
-  const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
+  // Also include debt repayments (paid debtors) in the date range
+  const debtRepaid = (typeof _debtors !== 'undefined' ? _debtors : []).filter(d => {
+    if(d.status !== 'paid' || !d.paid_at) return false;
+    const pd = new Date(d.paid_at);
+    return pd >= start && pd <= end;
+  });
+  const debtRepaidTotal = debtRepaid.reduce((s,d) => s + (+(d.amount||0)), 0);
+  const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0) + debtRepaidTotal;
   const qrRev    = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('qr')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   const cashRev  = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('cash')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   const lbl = document.getElementById('dash-revenue-lbl');
@@ -8109,7 +8116,10 @@ function togglePosSummary() {
     badge.style.color = _posSummaryOpen ? '#fff' : 'var(--text2)';
     badge.style.borderColor = _posSummaryOpen ? 'var(--green)' : 'var(--border)';
   }
-  if(_posSummaryOpen) { renderDashboard(); renderInstoreHistory(); }
+  if(_posSummaryOpen) { 
+    if(typeof loadDebtors === 'function') loadDebtors().then(() => { renderDashboard(); renderInstoreHistory(); });
+    else { renderDashboard(); renderInstoreHistory(); }
+  }
 }
 
 let _posDiscountType = 'rm'; // 'rm' or 'pct'
@@ -9439,7 +9449,9 @@ async function confirmDebtPayment(id, tbl, payType) {
   const { error } = await sb.from(tbl).update({ status:'paid', pay_type:payType, paid_at:new Date().toISOString() }).eq('id', id);
   if(error) { alert('操作失败：'+error.message); return; }
   showPosToast(payType==='qr' ? '✅ 已收款（QR）' : '✅ 已收款（Cash）');
+  await loadDebtors(); // refresh _debtors so dashboard badge updates
   renderDebtors();
+  renderDashboard(); // update badge revenue
 }
 
 async function deleteDebtRecord(id, tbl) {
