@@ -805,7 +805,12 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <div class="pos-cart-title">本次消费</div>
                 <div class="pos-cart-count" id="pos-cart-count">共 0 项</div>
               </div>
-              <button class="pos-cart-clear-btn" onclick="posClearCart()">清空</button>
+              <div style="display:flex;align-items:center;gap:6px">
+                <button onclick="togglePosSummary()" id="pos-sales-badge" title="营业额 & 记录" style="display:flex;align-items:center;gap:4px;padding:5px 9px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;transition:all 0.18s;white-space:nowrap">
+                  📊 <span id="pos-badge-revenue">RM 0</span>
+                </button>
+                <button class="pos-cart-clear-btn" onclick="posClearCart()">清空</button>
+              </div>
             </div>
             <div class="pos-cart-items" id="pos-cart-items-wrap">
               <div class="pos-cart-empty">点击商品卡片加入购物车</div>
@@ -843,39 +848,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 </button>
               </div>
             </div>
-            <!-- 折叠式营业额+记录 -->
-            <div style="border-top:1px solid var(--border);margin-top:4px">
-              <button onclick="togglePosSummary()" id="pos-summary-toggle" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:none;border:none;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
-                <span>📊 营业额 &amp; 记录</span>
-                <span id="pos-summary-arrow" style="font-size:14px;transition:transform 0.2s">▾</span>
-              </button>
-              <div id="pos-summary-panel" style="display:none">
-                <div class="pos-dash-strip" style="flex-direction:column;gap:6px;padding:6px 10px">
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <input type="date" id="dash-date-filter" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderDashboard()">
-                    <button onclick="document.getElementById('dash-date-filter').value='';renderDashboard()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer">今日</button>
-                  </div>
-                  <div style="display:flex;gap:6px">
-                    <div class="pos-dash-tile">
-                      <div class="pos-dash-val" id="dash-revenue" style="color:var(--green)">RM 0</div>
-                      <div class="pos-dash-lbl" id="dash-revenue-lbl">今日营业额</div>
-                    </div>
-                    <div class="pos-dash-tile">
-                      <div class="pos-dash-val" id="dash-qr" style="color:var(--blue)">RM 0</div>
-                      <div class="pos-dash-lbl">QR</div>
-                    </div>
-                    <div class="pos-dash-tile">
-                      <div class="pos-dash-val" id="dash-cash" style="color:var(--green)">RM 0</div>
-                      <div class="pos-dash-lbl">Cash</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="pos-history-wrap">
-                  <div class="pos-history-label">今日记录</div>
-                  <div id="ins-history-list"><div class="empty" style="padding:10px 0">暂无记录</div></div>
-                </div>
-              </div>
-            </div>
+            <!-- 营业额 modal (triggered by badge) -->
           </div>
 
         </div>
@@ -1469,6 +1442,36 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     </div>
   </div>
   <div class="cust-body" id="cust-body"></div>
+</div>
+
+<!-- SALES SUMMARY MODAL -->
+<div class="modal-overlay" id="sales-summary-modal" onclick="if(event.target===this)togglePosSummary()" style="display:none;z-index:1200">
+  <div class="modal" style="max-width:420px;max-height:80vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-shrink:0">
+      <h3 style="margin:0">📊 营业额 &amp; 记录</h3>
+      <button onclick="togglePosSummary()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);line-height:1">×</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-shrink:0">
+      <input type="date" id="dash-date-filter" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderDashboard()">
+      <button onclick="document.getElementById('dash-date-filter').value='';renderDashboard()" style="font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer;white-space:nowrap">今日</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0">
+      <div class="pos-dash-tile" style="flex:1">
+        <div class="pos-dash-val" id="dash-revenue" style="color:var(--green)">RM 0</div>
+        <div class="pos-dash-lbl" id="dash-revenue-lbl">今日营业额</div>
+      </div>
+      <div class="pos-dash-tile" style="flex:1">
+        <div class="pos-dash-val" id="dash-qr" style="color:var(--blue)">RM 0</div>
+        <div class="pos-dash-lbl">QR Pay</div>
+      </div>
+      <div class="pos-dash-tile" style="flex:1">
+        <div class="pos-dash-val" id="dash-cash" style="color:var(--green)">RM 0</div>
+        <div class="pos-dash-lbl">Cash</div>
+      </div>
+    </div>
+    <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px;flex-shrink:0">今日记录</div>
+    <div id="ins-history-list" style="overflow-y:auto;flex:1;min-height:0"><div class="empty" style="padding:10px 0">暂无记录</div></div>
+  </div>
 </div>
 
 <!-- CATEGORY MODAL -->
@@ -6330,6 +6333,9 @@ function renderDashboard() {
   const cashEl = document.getElementById('dash-cash');
   if(qrEl) qrEl.textContent = 'RM ' + qrRev.toFixed(2);
   if(cashEl) cashEl.textContent = 'RM ' + cashRev.toFixed(2);
+  // update badge
+  const badge = document.getElementById('pos-badge-revenue');
+  if(badge) badge.textContent = 'RM ' + revenue.toFixed(2);
 }
 
 // ── DATE LOOKUP HELPERS ────────────────────────────────────────────
@@ -8048,6 +8054,21 @@ async function confirmCredit(payType) {
   if(creditBtn) { creditBtn.disabled = false; creditBtn.innerHTML = '📒 赊账<span class="pos-pay-btn-sub">欠款记录</span>'; }
 }
 
+
+let _posSummaryOpen = false;
+function togglePosSummary() {
+  const modal = document.getElementById('sales-summary-modal');
+  if(!modal) return;
+  _posSummaryOpen = !_posSummaryOpen;
+  modal.style.display = _posSummaryOpen ? 'flex' : 'none';
+  const badge = document.getElementById('pos-sales-badge');
+  if(badge) {
+    badge.style.background = _posSummaryOpen ? 'var(--green)' : 'var(--surface)';
+    badge.style.color = _posSummaryOpen ? '#fff' : 'var(--text2)';
+    badge.style.borderColor = _posSummaryOpen ? 'var(--green)' : 'var(--border)';
+  }
+  if(_posSummaryOpen) { renderDashboard(); renderInstoreHistory(); }
+}
 
 let _posDiscountType = 'rm'; // 'rm' or 'pct'
 
