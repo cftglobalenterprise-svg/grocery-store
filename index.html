@@ -3175,6 +3175,9 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
   const { savings: checkoutSavings, itemFinalTotals: checkoutFinalTotals } = applyBundleRulesToCart(instoreCart);
   const brFinalTotals = checkoutFinalTotals && checkoutFinalTotals.size > 0 ? checkoutFinalTotals : (instoreCart._bundleItemFinalTotals || new Map());
   const grossTotal = instoreCart.reduce((s,c) => {
+    // Service items with tiers: always use tier pricing for grossTotal too
+    if(c.item.is_service && c.item.service_tiers && c.item.service_tiers.length)
+      return s + getInstoreItemPricing(c).totalPrice;
     return s + (brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice);
   }, 0);
   const discount = +(discountAmt||0);
@@ -7856,6 +7859,10 @@ function updatePosCartUI() {
     if(cashBtn) cashBtn.disabled = true;
     const cBtn = document.getElementById('pos-pay-credit'); if(cBtn) cBtn.disabled = true;
     if(countEl) countEl.textContent = '共 0 项';
+    const discDisplay = document.getElementById('pos-discount-display');
+    const finalDisplay = document.getElementById('pos-final-display');
+    if(discDisplay) discDisplay.textContent = '';
+    if(finalDisplay) finalDisplay.textContent = '';
     return;
   }
 
