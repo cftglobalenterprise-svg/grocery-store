@@ -6303,12 +6303,14 @@ function renderDashboard() {
   }
   const filtered = orders.filter(o => {
     if(o.status !== 'instore') return false;
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     const d = new Date(o.paid_at || o.created_at);
     return d >= start && d <= end;
   });
   const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
-  const qrRev    = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_qr').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-  const cashRev  = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'')==='paid_cash').reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const qrRev    = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('qr')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev  = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('cash')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   const lbl = document.getElementById('dash-revenue-lbl');
   if(lbl) lbl.textContent = pickedDate ? pickedDate.slice(5).replace('-','/') + ' 营业额' : '今日营业额';
   document.getElementById('dash-revenue').textContent = 'RM ' + revenue.toFixed(2);
