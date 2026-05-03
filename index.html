@@ -2961,6 +2961,7 @@ async function voidInstoreSale(idsStr) {
     await sb.from(oTblVoid).delete().eq('id',id);
   }
   await loadOrders();
+  await loadDebtors(); // refresh debt data after void
   renderDashboard();
   renderInstoreHistory();
   setSync('ok','已撤回 · '+timeNow());
@@ -8528,11 +8529,12 @@ async function hqVoidSale(orderId, tbl) {
   await sb.from(tbl).delete().eq('id', orderId);
   await loadItems();
   await loadOrders();
-  renderHqDashboard();
+  await renderHqDashboard();
   showPosToast('↩ 已撤回');
 }
 
-function renderHqDashboard() {
+async function renderHqDashboard() {
+  await loadDebtors(); // always get fresh debt data
   const period = document.getElementById('hq-period')?.value || 'month';
   const dateFrom = document.getElementById('hq-date-from')?.value;
   const dateTo = document.getElementById('hq-date-to')?.value;
