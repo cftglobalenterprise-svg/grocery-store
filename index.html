@@ -1021,11 +1021,34 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
               </div>
             </div>
             <div class="card">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="card-title" style="margin-bottom:0;color:var(--blue)">🚚 配送订单</div><div style="display:flex;gap:6px"><button class="btn" style="font-size:12px;padding:5px 10px" onclick="selectAllDelivery()">全选</button><button class="btn" style="font-size:12px;padding:5px 10px" onclick="copySelectedOrders()">复制</button><button class="btn" style="font-size:12px;padding:5px 10px;background:#25D366;color:#fff;border-color:#25D366" onclick="sendToRiderWhatsApp()">发 Rider</button></div></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="card-title" style="margin-bottom:0;color:var(--blue)">🚚 配送订单</div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button class="btn" style="font-size:12px;padding:5px 10px" onclick="selectAllDelivery()">全选</button>
+                  <button class="btn" style="font-size:12px;padding:5px 10px" onclick="copySelectedOrders()">复制</button>
+                  <button class="btn" style="font-size:12px;padding:5px 10px;background:#25D366;color:#fff;border-color:#25D366" onclick="sendToRiderWhatsApp()">发 Rider</button>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <input type="date" id="delivery-date-filter" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderOrders()">
+                <button onclick="document.getElementById('delivery-date-filter').value='';renderOrders()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer;white-space:nowrap">全部</button>
+                <button onclick="setOrderDateToday('delivery')" style="font-size:11px;padding:4px 10px;border:1px solid var(--blue);border-radius:8px;background:var(--blue-bg,#e8f4fd);color:var(--blue);cursor:pointer;white-space:nowrap;font-weight:600">今天</button>
+              </div>
               <div id="pending-delivery"><div class="empty">暂无配送订单</div></div>
             </div>
             <div class="card">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="card-title" style="margin-bottom:0">🏃 自取订单</div><div style="display:flex;gap:6px"><button class="btn" style="font-size:12px;padding:5px 10px" onclick="selectAllPickup()">全选</button><button class="btn" style="font-size:12px;padding:5px 10px" onclick="copySelectedPickup()">复制</button></div></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="card-title" style="margin-bottom:0">🏃 自取订单</div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button class="btn" style="font-size:12px;padding:5px 10px" onclick="selectAllPickup()">全选</button>
+                  <button class="btn" style="font-size:12px;padding:5px 10px" onclick="copySelectedPickup()">复制</button>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <input type="date" id="pickup-date-filter" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderOrders()">
+                <button onclick="document.getElementById('pickup-date-filter').value='';renderOrders()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer;white-space:nowrap">全部</button>
+                <button onclick="setOrderDateToday('pickup')" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2,#f0f0f0);color:var(--text2);cursor:pointer;white-space:nowrap;font-weight:600">今天</button>
+              </div>
               <div id="pending-pickup"><div class="empty">暂无自取订单</div></div>
             </div>
             <div class="card"><div class="card-title">历史记录</div><div id="done-list"><div class="empty">暂无记录</div></div></div>
@@ -3376,13 +3399,29 @@ function renderOrders() {
   });
 
   window._pendingGroups = {};
+  const deliveryDateFilter = document.getElementById('delivery-date-filter')?.value;
+  const pickupDateFilter = document.getElementById('pickup-date-filter')?.value;
   const deliveryGroups = [], pickupGroups = [];
   Object.values(grouped).forEach((g, gi) => {
     const gKey = 'pg_' + gi;
     window._pendingGroups[gKey] = g;
     g._key = gKey;
-    if(g.is_delivery) deliveryGroups.push(g);
-    else pickupGroups.push(g);
+    if(g.is_delivery) {
+      if(deliveryDateFilter) {
+        // Filter: only show groups where at least one order matches the date
+        const orderDate = g.dt ? g.dt.replace(/\//g,'-') : '';
+        // g.dt is like "2026/5/6", convert to "2026-05-06" for comparison
+        const gDateStr = g.orders[0] ? new Date(g.orders[0].created_at).toISOString().slice(0,10) : '';
+        if(gDateStr !== deliveryDateFilter) return;
+      }
+      deliveryGroups.push(g);
+    } else {
+      if(pickupDateFilter) {
+        const gDateStr = g.orders[0] ? new Date(g.orders[0].created_at).toISOString().slice(0,10) : '';
+        if(gDateStr !== pickupDateFilter) return;
+      }
+      pickupGroups.push(g);
+    }
   });
 
   function buildGroupHTML(g) {
@@ -3467,8 +3506,10 @@ function renderOrders() {
 
   const deliveryEl = document.getElementById('pending-delivery');
   const pickupEl   = document.getElementById('pending-pickup');
-  if(deliveryEl) deliveryEl.innerHTML = deliveryGroups.length ? deliveryGroups.map(buildGroupHTML).join('') : '<div class="empty">暂无配送订单</div>';
-  if(pickupEl)   pickupEl.innerHTML   = pickupGroups.length  ? pickupGroups.map(buildGroupHTML).join('')  : '<div class="empty">暂无自取订单</div>';
+  const deliveryEmpty = deliveryDateFilter ? `<div class="empty">${deliveryDateFilter} 无配送订单</div>` : '<div class="empty">暂无配送订单</div>';
+  const pickupEmpty = pickupDateFilter ? `<div class="empty">${pickupDateFilter} 无自取订单</div>` : '<div class="empty">暂无自取订单</div>';
+  if(deliveryEl) deliveryEl.innerHTML = deliveryGroups.length ? deliveryGroups.map(buildGroupHTML).join('') : deliveryEmpty;
+  if(pickupEl)   pickupEl.innerHTML   = pickupGroups.length  ? pickupGroups.map(buildGroupHTML).join('')  : pickupEmpty;
 
   if(dEl) {
     // Only collected/cancelled orders - exclude instore
@@ -3710,6 +3751,13 @@ async function savePendingEdit(gKey) {
   window._pendingGroups[gKey] = g;
   setSync('ok','已更新 · ' + timeNow());
   document.getElementById('pg-edit-' + gKey).style.display = 'none';
+}
+
+function setOrderDateToday(type) {
+  const today = new Date().toISOString().slice(0,10);
+  const id = type === 'delivery' ? 'delivery-date-filter' : 'pickup-date-filter';
+  const el = document.getElementById(id);
+  if(el) { el.value = today; renderOrders(); }
 }
 
 function selectAllDelivery() {
