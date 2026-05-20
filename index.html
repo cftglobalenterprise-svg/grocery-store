@@ -4366,7 +4366,7 @@ async function deleteBundleRule(id) {
 let _brEditingId = null; // null = new rule, id = editing existing
 
 function openEditBundleRule(id) {
-  const r = bundleRules.find(x => x.id === id);
+  const r = bundleRules.find(x => String(x.id) === String(id));
   if(!r) return;
   _brEditingId = id;
   document.getElementById('br-name').value = r.name;
