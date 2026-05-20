@@ -805,7 +805,12 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <div class="pos-cart-title">本次消费</div>
                 <div class="pos-cart-count" id="pos-cart-count">共 0 项</div>
               </div>
-              <button class="pos-cart-clear-btn" onclick="posClearCart()">清空</button>
+              <div style="display:flex;align-items:center;gap:6px">
+                <button onclick="togglePosSummary()" id="pos-sales-badge" title="营业额 & 记录" style="display:flex;align-items:center;gap:4px;padding:5px 9px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;transition:all 0.18s;white-space:nowrap">
+                  📊 <span id="pos-badge-revenue">RM 0</span>
+                </button>
+                <button class="pos-cart-clear-btn" onclick="posClearCart()">清空</button>
+              </div>
             </div>
             <div class="pos-cart-items" id="pos-cart-items-wrap">
               <div class="pos-cart-empty">点击商品卡片加入购物车</div>
@@ -815,14 +820,23 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <span class="pos-total-label">总计</span>
                 <span class="pos-total-amount" id="pos-total-display">RM 0.00</span>
               </div>
-              <div id="pos-discount-row" style="display:none;align-items:center;gap:6px;padding:6px 0;border-top:1px dashed var(--border)">
-                <span style="font-size:12px;color:var(--text2);flex-shrink:0">折扣</span>
-                <input id="pos-discount-val" type="number" min="0" step="0.5" placeholder="0" style="width:70px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;text-align:center" oninput="updatePosCartUI()">
-                <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0">
-                  <button id="pos-disc-rm" onclick="setPosDiscountType('rm')" style="padding:5px 10px;font-size:12px;font-weight:700;background:var(--text);color:#fff;border:none;cursor:pointer">RM</button>
-                  <button id="pos-disc-pct" onclick="setPosDiscountType('pct')" style="padding:5px 10px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text2);border:none;cursor:pointer">%</button>
+              <div id="pos-discount-row" style="display:none;flex-direction:column;gap:6px;padding:8px 0;border-top:1px dashed var(--border)">
+                <!-- Input row -->
+                <div style="display:flex;align-items:center;gap:6px" id="pos-discount-input-row">
+                  <span style="font-size:12px;color:var(--text2);flex-shrink:0">折扣</span>
+                  <input id="pos-discount-val" type="number" min="0" step="0.5" placeholder="0" style="width:70px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;text-align:center" oninput="updatePosCartUI()" onkeydown="if(event.key==='Enter')confirmPosDiscount()">
+                  <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0">
+                    <button id="pos-disc-rm" onclick="setPosDiscountType('rm')" style="padding:5px 10px;font-size:12px;font-weight:700;background:var(--text);color:#fff;border:none;cursor:pointer">RM</button>
+                    <button id="pos-disc-pct" onclick="setPosDiscountType('pct')" style="padding:5px 10px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text2);border:none;cursor:pointer">%</button>
+                  </div>
+                  <button onclick="confirmPosDiscount()" style="padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">✓ 确认</button>
                 </div>
-                <span style="font-size:12px;color:#dc2626;font-weight:700;margin-left:auto" id="pos-discount-display"></span>
+                <!-- Confirmed state row -->
+                <div id="pos-discount-confirmed-row" style="display:none;align-items:center;justify-content:space-between;background:#dcfce7;border-radius:8px;padding:6px 10px">
+                  <span style="font-size:12px;color:#15803d;font-weight:600">✓ 折扣已确认</span>
+                  <span style="font-size:14px;color:#dc2626;font-weight:700" id="pos-discount-display"></span>
+                  <button onclick="cancelPosDiscount()" style="padding:3px 8px;background:none;border:1px solid #dc2626;border-radius:6px;font-size:11px;color:#dc2626;cursor:pointer">✕ 取消</button>
+                </div>
               </div>
               <div style="padding:4px 0 2px;display:flex;justify-content:space-between;align-items:center">
                 <button onclick="togglePosDiscount()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0">✂️ 折扣</button>
@@ -843,39 +857,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 </button>
               </div>
             </div>
-            <!-- 折叠式营业额+记录 -->
-            <div style="border-top:1px solid var(--border);margin-top:4px">
-              <button onclick="togglePosSummary()" id="pos-summary-toggle" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:none;border:none;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
-                <span>📊 营业额 &amp; 记录</span>
-                <span id="pos-summary-arrow" style="font-size:14px;transition:transform 0.2s">▾</span>
-              </button>
-              <div id="pos-summary-panel" style="display:none">
-                <div class="pos-dash-strip" style="flex-direction:column;gap:6px;padding:6px 10px">
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <input type="date" id="dash-date-filter" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderDashboard()">
-                    <button onclick="document.getElementById('dash-date-filter').value='';renderDashboard()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer">今日</button>
-                  </div>
-                  <div style="display:flex;gap:6px">
-                    <div class="pos-dash-tile">
-                      <div class="pos-dash-val" id="dash-revenue" style="color:var(--green)">RM 0</div>
-                      <div class="pos-dash-lbl" id="dash-revenue-lbl">今日营业额</div>
-                    </div>
-                    <div class="pos-dash-tile">
-                      <div class="pos-dash-val" id="dash-qr" style="color:var(--blue)">RM 0</div>
-                      <div class="pos-dash-lbl">QR</div>
-                    </div>
-                    <div class="pos-dash-tile">
-                      <div class="pos-dash-val" id="dash-cash" style="color:var(--green)">RM 0</div>
-                      <div class="pos-dash-lbl">Cash</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="pos-history-wrap">
-                  <div class="pos-history-label">今日记录</div>
-                  <div id="ins-history-list"><div class="empty" style="padding:10px 0">暂无记录</div></div>
-                </div>
-              </div>
-            </div>
+            <!-- 营业额 modal (triggered by badge) -->
           </div>
 
         </div>
@@ -1039,11 +1021,34 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
               </div>
             </div>
             <div class="card">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="card-title" style="margin-bottom:0;color:var(--blue)">🚚 配送订单</div><div style="display:flex;gap:6px"><button class="btn" style="font-size:12px;padding:5px 10px" onclick="selectAllDelivery()">全选</button><button class="btn" style="font-size:12px;padding:5px 10px" onclick="copySelectedOrders()">复制</button><button class="btn" style="font-size:12px;padding:5px 10px;background:#25D366;color:#fff;border-color:#25D366" onclick="sendToRiderWhatsApp()">发 Rider</button></div></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="card-title" style="margin-bottom:0;color:var(--blue)">🚚 配送订单</div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button class="btn" style="font-size:12px;padding:5px 10px" onclick="selectAllDelivery()">全选</button>
+                  <button class="btn" style="font-size:12px;padding:5px 10px" onclick="copySelectedOrders()">复制</button>
+                  <button class="btn" style="font-size:12px;padding:5px 10px;background:#25D366;color:#fff;border-color:#25D366" onclick="sendToRiderWhatsApp()">发 Rider</button>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <input type="date" id="delivery-date-filter" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderOrders()">
+                <button onclick="document.getElementById('delivery-date-filter').value='';renderOrders()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer;white-space:nowrap">全部</button>
+                <button onclick="setOrderDateToday('delivery')" style="font-size:11px;padding:4px 10px;border:1px solid var(--blue);border-radius:8px;background:var(--blue-bg,#e8f4fd);color:var(--blue);cursor:pointer;white-space:nowrap;font-weight:600">今天</button>
+              </div>
               <div id="pending-delivery"><div class="empty">暂无配送订单</div></div>
             </div>
             <div class="card">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="card-title" style="margin-bottom:0">🏃 自取订单</div><div style="display:flex;gap:6px"><button class="btn" style="font-size:12px;padding:5px 10px" onclick="selectAllPickup()">全选</button><button class="btn" style="font-size:12px;padding:5px 10px" onclick="copySelectedPickup()">复制</button></div></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="card-title" style="margin-bottom:0">🏃 自取订单</div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button class="btn" style="font-size:12px;padding:5px 10px" onclick="selectAllPickup()">全选</button>
+                  <button class="btn" style="font-size:12px;padding:5px 10px" onclick="copySelectedPickup()">复制</button>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <input type="date" id="pickup-date-filter" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderOrders()">
+                <button onclick="document.getElementById('pickup-date-filter').value='';renderOrders()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer;white-space:nowrap">全部</button>
+                <button onclick="setOrderDateToday('pickup')" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2,#f0f0f0);color:var(--text2);cursor:pointer;white-space:nowrap;font-weight:600">今天</button>
+              </div>
               <div id="pending-pickup"><div class="empty">暂无自取订单</div></div>
             </div>
             <div class="card"><div class="card-title">历史记录</div><div id="done-list"><div class="empty">暂无记录</div></div></div>
@@ -1471,6 +1476,36 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
   <div class="cust-body" id="cust-body"></div>
 </div>
 
+<!-- SALES SUMMARY MODAL -->
+<div class="modal-overlay" id="sales-summary-modal" onclick="if(event.target===this)togglePosSummary()" style="display:none;z-index:1200">
+  <div class="modal" style="max-width:420px;max-height:80vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-shrink:0">
+      <h3 style="margin:0">📊 营业额 &amp; 记录</h3>
+      <button onclick="togglePosSummary()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);line-height:1">×</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-shrink:0">
+      <input type="date" id="dash-date-filter" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderDashboard()">
+      <button onclick="document.getElementById('dash-date-filter').value='';renderDashboard()" style="font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer;white-space:nowrap">今日</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0">
+      <div class="pos-dash-tile" style="flex:1">
+        <div class="pos-dash-val" id="dash-revenue" style="color:var(--green)">RM 0</div>
+        <div class="pos-dash-lbl" id="dash-revenue-lbl">今日营业额</div>
+      </div>
+      <div class="pos-dash-tile" style="flex:1">
+        <div class="pos-dash-val" id="dash-qr" style="color:var(--blue)">RM 0</div>
+        <div class="pos-dash-lbl">QR Pay</div>
+      </div>
+      <div class="pos-dash-tile" style="flex:1">
+        <div class="pos-dash-val" id="dash-cash" style="color:var(--green)">RM 0</div>
+        <div class="pos-dash-lbl">Cash</div>
+      </div>
+    </div>
+    <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px;flex-shrink:0">今日记录</div>
+    <div id="ins-history-list" style="overflow-y:auto;flex:1;min-height:0"><div class="empty" style="padding:10px 0">暂无记录</div></div>
+  </div>
+</div>
+
 <!-- CATEGORY MODAL -->
 <div class="modal-overlay" id="cat-modal">
   <div class="modal" style="max-width:420px">
@@ -1515,15 +1550,18 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     <div class="form-row"><label>商品名</label><input type="text" id="adj-name" placeholder="商品名称"></div>
     <div class="form-row">
       <label>商品类型</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
-          <input type="checkbox" id="adj-is-service" onchange="const tb=document.getElementById('adj-tier-btn');if(tb)tb.style.display=this.checked?'':'none'"> <span style="background:#0369a1;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px">服务</span>
+          <input type="checkbox" id="adj-is-service" onchange="const tb=document.getElementById('adj-tier-btn');if(tb)tb.style.display=this.checked?'':'none'">
+          <span style="background:#0369a1;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px">服务</span>
         </label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;opacity:0.6" title="杂货类型由数据库决定，不可更改">
-          <input type="checkbox" id="adj-is-grocery" disabled> <span style="background:#6d28d9;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px">杂货</span>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;opacity:0.55" title="杂货类型由数据库决定，不可更改">
+          <input type="checkbox" id="adj-is-grocery" disabled>
+          <span style="background:#6d28d9;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px">杂货</span>
         </label>
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px" title="勾选后结账不扣库存">
-          <input type="checkbox" id="adj-ignore-stock"> <span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px">不扣库存</span>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px" title="勾选后结账不扣库存（适合杂货类商品）">
+          <input type="checkbox" id="adj-ignore-stock">
+          <span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px">不扣库存</span>
         </label>
       </div>
     </div>
@@ -2177,7 +2215,7 @@ function setSync(state, msg) {
 
 async function init() {
   try {
-    await loadItems(); await loadOrders(); await loadBundleRules(); await loadPnlExpenses();
+    await Promise.all([loadItems(), loadOrders(), loadBundleRules(), loadPnlExpenses(), loadDebtors()]);
     subscribeRealtime();
     document.getElementById('loading').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
@@ -2960,14 +2998,15 @@ async function voidInstoreSale(idsStr) {
     if(payM && payM.includes('credit')) {
       const debtTblVoid = (o.business==='K19') ? 'g_debtors' : 'debtors';
       const oTime = new Date(o.created_at).getTime();
-      // Load fresh debtors to find match
-      const { data: freshDebts } = await sb.from(debtTblVoid).select('*').eq('status','unpaid');
+      // Load all debtors (both unpaid and paid) to find match by time
+      const { data: freshDebts } = await sb.from(debtTblVoid).select('*');
       const matchingDebt = (freshDebts||[]).find(d => Math.abs(new Date(d.created_at).getTime() - oTime) < 600000);
       if(matchingDebt) await sb.from(debtTblVoid).delete().eq('id', matchingDebt.id);
     }
     await sb.from(oTblVoid).delete().eq('id',id);
   }
   await loadOrders();
+  await loadDebtors(); // refresh debt data after void
   renderDashboard();
   renderInstoreHistory();
   setSync('ok','已撤回 · '+timeNow());
@@ -3191,6 +3230,9 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
   const { savings: checkoutSavings, itemFinalTotals: checkoutFinalTotals } = applyBundleRulesToCart(instoreCart);
   const brFinalTotals = checkoutFinalTotals && checkoutFinalTotals.size > 0 ? checkoutFinalTotals : (instoreCart._bundleItemFinalTotals || new Map());
   const grossTotal = instoreCart.reduce((s,c) => {
+    // Service items with tiers: always use tier pricing for grossTotal too
+    if(c.item.is_service && c.item.service_tiers && c.item.service_tiers.length)
+      return s + getInstoreItemPricing(c).totalPrice;
     return s + (brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice);
   }, 0);
   const discount = +(discountAmt||0);
@@ -3248,7 +3290,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
 
   // 赊账记录
   if((payMethod === 'credit' || payMethod === 'credit_qr' || payMethod === 'credit_cash') && creditName) {
-    const debtTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+    const debtTotal = total; // use discounted total (already calculated above)
     const debtItems = instoreCart.map(c=>c.item.name+' ×'+c.qty).join(', ');
     const isK19debt = instoreCart.some(c => c.item.business === 'K19' || c.item._table === 'g_items');
     const debtTbl = isK19debt ? 'g_debtors' : 'debtors';
@@ -3260,10 +3302,16 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
   }
   instoreCart = [];
   // Clear discount
+  _posDiscountConfirmed = false;
+  _posDiscountConfirmedAmt = 0;
   const discRow = document.getElementById('pos-discount-row');
   if(discRow) discRow.style.display = 'none';
   const discVal = document.getElementById('pos-discount-val');
   if(discVal) discVal.value = '';
+  const confirmedRow = document.getElementById('pos-discount-confirmed-row');
+  if(confirmedRow) confirmedRow.style.display = 'none';
+  const inputRow = document.getElementById('pos-discount-input-row');
+  if(inputRow) inputRow.style.display = 'flex';
   renderInstoreCart();
   updatePosCartUI();
   renderPosGrid();
@@ -3373,13 +3421,29 @@ function renderOrders() {
   });
 
   window._pendingGroups = {};
+  const deliveryDateFilter = document.getElementById('delivery-date-filter')?.value;
+  const pickupDateFilter = document.getElementById('pickup-date-filter')?.value;
   const deliveryGroups = [], pickupGroups = [];
   Object.values(grouped).forEach((g, gi) => {
     const gKey = 'pg_' + gi;
     window._pendingGroups[gKey] = g;
     g._key = gKey;
-    if(g.is_delivery) deliveryGroups.push(g);
-    else pickupGroups.push(g);
+    if(g.is_delivery) {
+      if(deliveryDateFilter) {
+        // Filter: only show groups where at least one order matches the date
+        const orderDate = g.dt ? g.dt.replace(/\//g,'-') : '';
+        // g.dt is like "2026/5/6", convert to "2026-05-06" for comparison
+        const gDateStr = g.orders[0] ? new Date(g.orders[0].created_at).toISOString().slice(0,10) : '';
+        if(gDateStr !== deliveryDateFilter) return;
+      }
+      deliveryGroups.push(g);
+    } else {
+      if(pickupDateFilter) {
+        const gDateStr = g.orders[0] ? new Date(g.orders[0].created_at).toISOString().slice(0,10) : '';
+        if(gDateStr !== pickupDateFilter) return;
+      }
+      pickupGroups.push(g);
+    }
   });
 
   function buildGroupHTML(g) {
@@ -3464,8 +3528,10 @@ function renderOrders() {
 
   const deliveryEl = document.getElementById('pending-delivery');
   const pickupEl   = document.getElementById('pending-pickup');
-  if(deliveryEl) deliveryEl.innerHTML = deliveryGroups.length ? deliveryGroups.map(buildGroupHTML).join('') : '<div class="empty">暂无配送订单</div>';
-  if(pickupEl)   pickupEl.innerHTML   = pickupGroups.length  ? pickupGroups.map(buildGroupHTML).join('')  : '<div class="empty">暂无自取订单</div>';
+  const deliveryEmpty = deliveryDateFilter ? `<div class="empty">${deliveryDateFilter} 无配送订单</div>` : '<div class="empty">暂无配送订单</div>';
+  const pickupEmpty = pickupDateFilter ? `<div class="empty">${pickupDateFilter} 无自取订单</div>` : '<div class="empty">暂无自取订单</div>';
+  if(deliveryEl) deliveryEl.innerHTML = deliveryGroups.length ? deliveryGroups.map(buildGroupHTML).join('') : deliveryEmpty;
+  if(pickupEl)   pickupEl.innerHTML   = pickupGroups.length  ? pickupGroups.map(buildGroupHTML).join('')  : pickupEmpty;
 
   if(dEl) {
     // Only collected/cancelled orders - exclude instore
@@ -3709,6 +3775,13 @@ async function savePendingEdit(gKey) {
   document.getElementById('pg-edit-' + gKey).style.display = 'none';
 }
 
+function setOrderDateToday(type) {
+  const today = new Date().toISOString().slice(0,10);
+  const id = type === 'delivery' ? 'delivery-date-filter' : 'pickup-date-filter';
+  const el = document.getElementById(id);
+  if(el) { el.value = today; renderOrders(); }
+}
+
 function selectAllDelivery() {
   document.querySelectorAll('.delivery-chk').forEach(chk => chk.checked = true);
 }
@@ -3912,7 +3985,7 @@ function searchAddToPending(gKey, query) {
 async function addItemToPending(gKey, itemId) {
   const g = window._pendingGroups[gKey];
   if(!g) return;
-  const item = items.find(i => i.id === itemId);
+  const item = items.find(i => String(i.id) === String(itemId));
   if(!item) return;
 
   const deduct = g.orders[0]?.deduct_from || 'home';
@@ -4968,6 +5041,8 @@ function renderProfitReport() {
   const salesOrders = orders.filter(o => {
     const dt = new Date(o.created_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     return (o.status === 'instore' || o.status === 'collected') && dt >= start && dt <= end && bizMatch;
   });
 
@@ -5136,6 +5211,8 @@ function renderPnL() {
   // ── Revenue & COGS ──
   const salesOrders = orders.filter(o => {
     const dt = new Date(o.created_at);
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
   });
   const revenue = salesOrders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
@@ -5248,6 +5325,8 @@ function exportPnL() {
 
   const salesOrders = orders.filter(o => {
     const dt = new Date(o.created_at);
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     return (o.status==='instore'||o.status==='collected') && dt>=start && dt<end;
   });
   const revenue  = salesOrders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
@@ -6339,7 +6418,14 @@ function renderDashboard() {
     const d = new Date(o.paid_at || o.created_at);
     return d >= start && d <= end;
   });
-  const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
+  // Also include debt repayments (paid debtors) in the date range
+  const debtRepaid = (typeof _debtors !== 'undefined' ? _debtors : []).filter(d => {
+    if(d.status !== 'paid' || !d.paid_at) return false;
+    const pd = new Date(d.paid_at);
+    return pd >= start && pd <= end;
+  });
+  const debtRepaidTotal = debtRepaid.reduce((s,d) => s + (+(d.amount||0)), 0);
+  const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0) + debtRepaidTotal;
   const qrRev    = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('qr')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   const cashRev  = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('cash')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   const lbl = document.getElementById('dash-revenue-lbl');
@@ -6349,6 +6435,9 @@ function renderDashboard() {
   const cashEl = document.getElementById('dash-cash');
   if(qrEl) qrEl.textContent = 'RM ' + qrRev.toFixed(2);
   if(cashEl) cashEl.textContent = 'RM ' + cashRev.toFixed(2);
+  // update badge
+  const badge = document.getElementById('pos-badge-revenue');
+  if(badge) badge.textContent = 'RM ' + revenue.toFixed(2);
 }
 
 // ── DATE LOOKUP HELPERS ────────────────────────────────────────────
@@ -7869,6 +7958,10 @@ function updatePosCartUI() {
     if(cashBtn) cashBtn.disabled = true;
     const cBtn = document.getElementById('pos-pay-credit'); if(cBtn) cBtn.disabled = true;
     if(countEl) countEl.textContent = '共 0 项';
+    const discDisplay = document.getElementById('pos-discount-display');
+    const finalDisplay = document.getElementById('pos-final-display');
+    if(discDisplay) discDisplay.textContent = '';
+    if(finalDisplay) finalDisplay.textContent = '';
     return;
   }
 
@@ -7881,8 +7974,17 @@ function updatePosCartUI() {
   const afterDiscount = Math.max(0, finalTotal - discount);
   const discDisplay = document.getElementById('pos-discount-display');
   const finalDisplay = document.getElementById('pos-final-display');
-  if(discDisplay) discDisplay.textContent = discount > 0 ? `-RM ${discount.toFixed(2)}` : '';
-  if(finalDisplay) finalDisplay.textContent = discount > 0 ? `RM ${afterDiscount.toFixed(2)}` : '';
+  // Only update discDisplay if not in confirmed state (confirmed row manages its own display)
+  if(discDisplay && !_posDiscountConfirmed) discDisplay.textContent = discount > 0 ? `-RM ${discount.toFixed(2)}` : '';
+  if(finalDisplay) {
+    if(discount > 0) {
+      finalDisplay.textContent = `RM ${afterDiscount.toFixed(2)}`;
+      finalDisplay.style.color = _posDiscountConfirmed ? '#16a34a' : 'var(--text)';
+    } else {
+      finalDisplay.textContent = '';
+      finalDisplay.style.color = 'var(--text)';
+    }
+  }
   if(totalEl) {
     if(savings > 0) {
       totalEl.innerHTML = `<span style="font-size:11px;color:var(--green);display:block;text-align:right;margin-bottom:2px">套餐省 RM${savings.toFixed(2)}</span>RM ${finalTotal.toFixed(2)}`;
@@ -8051,9 +8153,13 @@ async function confirmCredit(payType) {
   document.getElementById('credit-modal').style.display = 'none';
   const creditBtn = document.getElementById('pos-pay-credit');
   if(creditBtn) { creditBtn.disabled = true; }
+  // Get discount amount same way as QR/Cash checkout
+  const baseForDisc = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const { savings: _s } = applyBundleRulesToCart(instoreCart);
+  const _discountAmt = getPosDiscount(baseForDisc - _s);
   let ok;
   try {
-    ok = await instoreCheckout('credit_' + payType, name);
+    ok = await instoreCheckout('credit_' + payType, name, _discountAmt);
   } catch(e) { console.error(e); }
   setSync('ok', ok === true ? '已记账 · ' + name : '');
   if(ok === true) {
@@ -8068,19 +8174,73 @@ async function confirmCredit(payType) {
 }
 
 
+let _posSummaryOpen = false;
+function togglePosSummary() {
+  const modal = document.getElementById('sales-summary-modal');
+  if(!modal) return;
+  _posSummaryOpen = !_posSummaryOpen;
+  modal.style.display = _posSummaryOpen ? 'flex' : 'none';
+  const badge = document.getElementById('pos-sales-badge');
+  if(badge) {
+    badge.style.background = _posSummaryOpen ? 'var(--green)' : 'var(--surface)';
+    badge.style.color = _posSummaryOpen ? '#fff' : 'var(--text2)';
+    badge.style.borderColor = _posSummaryOpen ? 'var(--green)' : 'var(--border)';
+  }
+  if(_posSummaryOpen) { 
+    if(typeof loadDebtors === 'function') loadDebtors().then(() => { renderDashboard(); renderInstoreHistory(); });
+    else { renderDashboard(); renderInstoreHistory(); }
+  }
+}
+
 let _posDiscountType = 'rm'; // 'rm' or 'pct'
+let _posDiscountConfirmed = false; // true after user clicks ✓
+let _posDiscountConfirmedAmt = 0;  // locked discount amount
 
 function togglePosDiscount() {
   const row = document.getElementById('pos-discount-row');
   if(!row) return;
-  const isOpen = row.style.display !== 'none';
-  row.style.display = isOpen ? 'none' : 'flex';
+  const isOpen = row.style.display !== 'none' && row.style.display !== '';
   if(isOpen) {
-    document.getElementById('pos-discount-val').value = '';
-    updatePosCartUI();
+    // Close & reset
+    cancelPosDiscount();
+    row.style.display = 'none';
   } else {
-    document.getElementById('pos-discount-val').focus();
+    row.style.display = 'flex';
+    document.getElementById('pos-discount-input-row').style.display = 'flex';
+    document.getElementById('pos-discount-confirmed-row').style.display = 'none';
+    setTimeout(() => document.getElementById('pos-discount-val').focus(), 50);
   }
+}
+
+function confirmPosDiscount() {
+  const baseTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const { savings } = applyBundleRulesToCart(instoreCart);
+  const discount = getPosDiscount(baseTotal - savings);
+  if(discount <= 0) { alert('请输入折扣金额'); return; }
+
+  _posDiscountConfirmed = true;
+  _posDiscountConfirmedAmt = discount;
+
+  // Show confirmed row, hide input row
+  document.getElementById('pos-discount-input-row').style.display = 'none';
+  const confirmedRow = document.getElementById('pos-discount-confirmed-row');
+  confirmedRow.style.display = 'flex';
+  const discDisplay = document.getElementById('pos-discount-display');
+  if(discDisplay) discDisplay.textContent = `-RM ${discount.toFixed(2)}`;
+
+  updatePosCartUI();
+}
+
+function cancelPosDiscount() {
+  _posDiscountConfirmed = false;
+  _posDiscountConfirmedAmt = 0;
+  const inputRow = document.getElementById('pos-discount-input-row');
+  const confirmedRow = document.getElementById('pos-discount-confirmed-row');
+  const discVal = document.getElementById('pos-discount-val');
+  if(inputRow) inputRow.style.display = 'flex';
+  if(confirmedRow) confirmedRow.style.display = 'none';
+  if(discVal) discVal.value = '';
+  updatePosCartUI();
 }
 
 function setPosDiscountType(type) {
@@ -8093,8 +8253,10 @@ function setPosDiscountType(type) {
 }
 
 function getPosDiscount(baseTotal) {
+  // If confirmed, always return the locked amount
+  if(_posDiscountConfirmed) return _posDiscountConfirmedAmt;
   const row = document.getElementById('pos-discount-row');
-  if(!row || row.style.display === 'none') return 0;
+  if(!row || row.style.display === 'none' || row.style.display === '') return 0;
   const val = parseFloat(document.getElementById('pos-discount-val')?.value) || 0;
   if(val <= 0) return 0;
   if(_posDiscountType === 'pct') return Math.min(baseTotal, baseTotal * val / 100);
@@ -8435,14 +8597,24 @@ async function hqVoidSale(orderId, tbl) {
       : { shop_qty: (item.shop_qty||0) + qty };
     await sb.from(stockTbl).update(stockUpdate).eq('id', item.id);
   }
+  // If credit order, delete matching debt record (paid or unpaid)
+  const payM = o.pay_method || o.payment_method || o.payment_status || '';
+  if(payM && payM.includes('credit')) {
+    const debtTbl = (o.business==='K19') ? 'g_debtors' : 'debtors';
+    const oTime = new Date(o.created_at).getTime();
+    const { data: freshDebts } = await sb.from(debtTbl).select('*');
+    const matchingDebt = (freshDebts||[]).find(d => Math.abs(new Date(d.created_at).getTime() - oTime) < 600000);
+    if(matchingDebt) await sb.from(debtTbl).delete().eq('id', matchingDebt.id);
+  }
   await sb.from(tbl).delete().eq('id', orderId);
   await loadItems();
   await loadOrders();
-  renderHqDashboard();
+  await renderHqDashboard();
   showPosToast('↩ 已撤回');
 }
 
-function renderHqDashboard() {
+async function renderHqDashboard() {
+  await loadDebtors(); // always get fresh debt data
   const period = document.getElementById('hq-period')?.value || 'month';
   const dateFrom = document.getElementById('hq-date-from')?.value;
   const dateTo = document.getElementById('hq-date-to')?.value;
@@ -9178,8 +9350,21 @@ function showDebtCustomerModal(title, name, phone, note, onSave) {
 
 // Credit checkout modal - select registered customer
 function openCreditModal() {
-  const cartTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
-  const cartItems = instoreCart.map(c=>`• ${c.item.name} ×${c.qty}  RM ${getInstoreItemPricing(c).totalPrice.toFixed(2)}`).join('\n');
+  const rawTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const { savings: _bundleSavings } = applyBundleRulesToCart(instoreCart);
+  const afterBundle = rawTotal - _bundleSavings;
+  const discountAmt = getPosDiscount(afterBundle);
+  const cartTotal = Math.max(0, afterBundle - discountAmt);
+  const discountRatio = afterBundle > 0 ? (cartTotal / afterBundle) : 1;
+
+  // Show per-item discounted amounts in preview
+  const cartItems = instoreCart.map(c => {
+    const itemRaw = getInstoreItemPricing(c).totalPrice;
+    const itemFinal = +(itemRaw * discountRatio).toFixed(2);
+    return `• ${c.item.name} ×${c.qty}  RM ${itemFinal.toFixed(2)}`;
+  }).join('\n');
+
+  const discountNote = discountAmt > 0 ? ` <span style="color:#dc2626;font-size:12px">（折扣 -RM ${discountAmt.toFixed(2)}）</span>` : '';
   const customers = _debtorCustomers.length ? _debtorCustomers : [];
   const custOpts = customers.length
     ? customers.map(c=>`<option value="${c.name}">${c.name}${c.phone?' ('+c.phone+')':''}</option>`).join('')
@@ -9189,7 +9374,7 @@ function openCreditModal() {
   if(!m) { m=document.createElement('div'); m.id='credit-modal'; m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(m); }
   m.innerHTML = `<div style="background:var(--bg);border-radius:16px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
     <h3 style="margin:0 0 4px;font-size:17px">📒 赊账</h3>
-    <div style="font-size:13px;color:var(--text3);margin-bottom:12px">合计 <b style="color:var(--text);font-family:'DM Mono',monospace">RM ${cartTotal.toFixed(2)}</b></div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px">合计 <b style="color:var(--text);font-family:'DM Mono',monospace">RM ${cartTotal.toFixed(2)}</b>${discountNote}</div>
     <div style="background:var(--surface);border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--text2);white-space:pre-line;max-height:110px;overflow-y:auto;line-height:1.8">${cartItems}</div>
     <div style="margin-bottom:16px">
       <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">选择顾客</label>
@@ -9217,8 +9402,12 @@ async function confirmCredit() {
   document.getElementById('credit-modal').style.display='none';
   const creditBtn = document.getElementById('pos-pay-credit');
   if(creditBtn) creditBtn.disabled = true;
+  // Get discount amount same way as QR/Cash checkout
+  const baseForDisc = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const { savings: _s } = applyBundleRulesToCart(instoreCart);
+  const _discountAmt = getPosDiscount(baseForDisc - _s);
   let ok;
-  try { ok = await instoreCheckout('credit', name); } catch(e) { console.error(e); }
+  try { ok = await instoreCheckout('credit', name, _discountAmt); } catch(e) { console.error(e); }
   setSync('ok', ok===true ? '已记账 · '+name : '');
   if(ok===true) {
     renderInstoreHistory();
@@ -9330,7 +9519,9 @@ async function confirmDebtPayment(id, tbl, payType) {
   const { error } = await sb.from(tbl).update({ status:'paid', pay_type:payType, paid_at:new Date().toISOString() }).eq('id', id);
   if(error) { alert('操作失败：'+error.message); return; }
   showPosToast(payType==='qr' ? '✅ 已收款（QR）' : '✅ 已收款（Cash）');
+  await loadDebtors(); // refresh _debtors so dashboard badge updates
   renderDebtors();
+  renderDashboard(); // update badge revenue
 }
 
 async function deleteDebtRecord(id, tbl) {
