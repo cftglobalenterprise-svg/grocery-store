@@ -3528,8 +3528,13 @@ function renderOrders() {
         <ul class="order-items-list" id="pg-items-${gKey}" style="margin-top:4px">${itemLines}${totalLine}</ul>
       </div>
       <div class="order-actions" style="flex-shrink:0">
-        <button class="btn" style="font-size:11px;padding:4px 7px;background:#1a5276;color:#fff;border-color:#1a5276;white-space:nowrap" onclick="collectGroup('${ids}','paid_qr')">QR</button>
-        <button class="btn" style="font-size:11px;padding:4px 7px;background:#2d6a4f;color:#fff;border-color:#2d6a4f;white-space:nowrap" onclick="collectGroup('${ids}','paid_cash')">Cash</button>
+        ${g.is_delivery ? `<div style="display:flex;align-items:center;gap:2px;margin-bottom:5px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 5px">
+          <span style="font-size:10px">🚚</span>
+          <span style="font-size:10px;color:var(--text3)">RM</span>
+          <input type="number" id="pg-fee-${gKey}" value="5" min="0" step="0.5" style="width:40px;padding:1px 3px;font-size:12px;font-weight:700;border:none;background:transparent;color:var(--text);font-family:'DM Mono',monospace;text-align:center" title="送货费">
+        </div>` : ''}
+        <button class="btn" style="font-size:11px;padding:4px 7px;background:#1a5276;color:#fff;border-color:#1a5276;white-space:nowrap" onclick="collectGroup('${ids}','paid_qr','${gKey}')">QR</button>
+        <button class="btn" style="font-size:11px;padding:4px 7px;background:#2d6a4f;color:#fff;border-color:#2d6a4f;white-space:nowrap" onclick="collectGroup('${ids}','paid_cash','${gKey}')">Cash</button>
         <button class="btn btn-danger" style="font-size:11px;padding:4px 7px" onclick="cancelGroup('${ids}')">✕</button>
       </div>
     </div>`;
@@ -4083,9 +4088,38 @@ function sendToRiderWhatsApp() {
   window.open(`https://wa.me/60165531109?text=${encodeURIComponent(text)}`, '_blank');
 }
 
-async function collectGroup(idsStr, payMethod) {
+async function collectGroup(idsStr, payMethod, gKey) {
   const ids = idsStr.split(',');
   setSync('busy','更新中...');
+
+  // If delivery, insert delivery fee as a separate order row
+  if(gKey) {
+    const feeEl = document.getElementById('pg-fee-' + gKey);
+    const feeAmt = feeEl ? (parseFloat(feeEl.value) || 0) : 0;
+    if(feeAmt > 0) {
+      // Get group info from first order
+      const firstOrder = orders.find(x => String(x.id) === String(ids[0]));
+      if(firstOrder) {
+        const oTbl = firstOrder.business === 'K19' ? 'g_orders' : 'orders';
+        await sb.from(oTbl).insert({
+          customer: firstOrder.customer,
+          item_id: null,
+          item_name: '🚚 送货费',
+          qty: 1,
+          location: firstOrder.location,
+          deduct_from: firstOrder.deduct_from || 'shop',
+          status: 'collected',
+          total_price: feeAmt,
+          is_delivery: true,
+          is_delivery_fee: true,
+          payment_status: payMethod,
+          paid_at: new Date().toISOString(),
+          business: firstOrder.business || 'A'
+        });
+      }
+    }
+  }
+
   for(const id of ids) {
     const upd = { status: 'collected' };
     if(payMethod) { upd.payment_status = payMethod; upd.paid_at = new Date().toISOString(); }
@@ -6425,8 +6459,17 @@ function renderDashboard() {
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
     if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     const d = new Date(o.paid_at || o.created_at);
-    return d >= start && d <= end;
+    return d >= start && d < end;
   });
+  // Also include collected (delivery/pickup) orders for the date
+  const collectedFiltered = orders.filter(o => {
+    if(o.status !== 'collected' || !o.paid_at) return false;
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
+    const d = new Date(o.paid_at);
+    return d >= start && d < end;
+  });
+  const allFiltered = [...filtered, ...collectedFiltered];
   // Also include debt repayments (paid debtors) in the date range
   const debtRepaid = (typeof _debtors !== 'undefined' ? _debtors : []).filter(d => {
     if(d.status !== 'paid' || !d.paid_at) return false;
@@ -6434,9 +6477,9 @@ function renderDashboard() {
     return pd >= start && pd <= end;
   });
   const debtRepaidTotal = debtRepaid.reduce((s,d) => s + (+(d.amount||0)), 0);
-  const revenue  = filtered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0) + debtRepaidTotal;
-  const qrRev    = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('qr')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-  const cashRev  = filtered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('cash')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const revenue  = allFiltered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0) + debtRepaidTotal;
+  const qrRev    = allFiltered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('qr')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev  = allFiltered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('cash')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
   const lbl = document.getElementById('dash-revenue-lbl');
   if(lbl) lbl.textContent = pickedDate ? pickedDate.slice(5).replace('-','/') + ' 营业额' : '今日营业额';
   document.getElementById('dash-revenue').textContent = 'RM ' + revenue.toFixed(2);
