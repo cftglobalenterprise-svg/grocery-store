@@ -11774,10 +11774,19 @@ async function performClock() {
 
     const closeBtn = document.getElementById('clock-close-btn');
     if(closeBtn) closeBtn.textContent = '关闭';
+
+    // Auto logout after clock out
+    setTimeout(() => {
+      closeClockModal();
+      if(typeof doLogout === 'function') doLogout();
+      else location.reload();
+    }, 2500);
   }
 
-  // Auto-close after 3s
-  setTimeout(() => { if(document.getElementById('clock-step-done').style.display !== 'none') closeClockModal(); }, 3000);
+  // Auto-close after 3s for clock IN only
+  if(emp._action === 'in') {
+    setTimeout(() => { if(document.getElementById('clock-step-done').style.display !== 'none') closeClockModal(); }, 3000);
+  }
 }
 
 function clockGoBack() {
@@ -11792,8 +11801,24 @@ function clockGoBack() {
 async function postLoginClockCheck() {
   await detectShopIP();
   if(!_shopIpDetected) return;
+
+  // Load employees first
+  await loadClockData();
+  const today = new Date().toISOString().slice(0,10);
+
+  // Check today's logs
+  const { data: todayLogs } = await sb.from('attendance_logs')
+    .select('emp_id, clock_in, clock_out').eq('date', today);
+  const logs = todayLogs || [];
+
+  // Show modal only if someone still needs to clock in or out
+  const needsClock = _clockEmployees.some(emp => {
+    const log = logs.find(l => l.emp_id === emp.id);
+    return !log || (log.clock_in && !log.clock_out);
+  });
+  if(!needsClock) return; // all done today, skip
+
   const closeBtn = document.getElementById('clock-close-btn');
-  // HQ (boss) can skip, branch staff must clock in
   if(_loginRole === 'hq') {
     if(closeBtn) { closeBtn.style.display = ''; closeBtn.textContent = '我是老板，跳过'; }
   } else {
