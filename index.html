@@ -2243,13 +2243,22 @@ async function loadItems() {
 }
 
 async function loadOrders() {
-  const [resA, resK] = await Promise.all([
-    sb.from('orders').select('*').order('created_at', {ascending:false}),
-    sb.from('g_orders').select('*').order('created_at', {ascending:false}),
+  async function fetchAll(table, extraMap) {
+    let all = [], from = 0, pageSize = 1000;
+    while(true) {
+      const res = await sb.from(table).select('*').order('created_at', {ascending:false}).range(from, from + pageSize - 1);
+      if(res.error) throw res.error;
+      const rows = (res.data || []).map(x => ({ ...x, ...extraMap }));
+      all = all.concat(rows);
+      if(rows.length < pageSize) break;
+      from += pageSize;
+    }
+    return all;
+  }
+  const [aOrds, kOrds] = await Promise.all([
+    fetchAll('orders',   { business: 'A'   }),
+    fetchAll('g_orders', { business: 'K19' }),
   ]);
-  if(resA.error) throw resA.error;
-  const aOrds = (resA.data || []).map(x => ({ ...x, business: x.business || 'A' }));
-  const kOrds = (resK.data || []).map(x => ({ ...x, business: x.business || 'K19' }));
   orders = [...aOrds, ...kOrds].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
   renderOrders();
   renderInstoreHistory();
@@ -9136,19 +9145,27 @@ let _debtors = [];
 let _debtorCustomers = []; // registered credit customers
 
 async function loadDebtors() {
-  const [r1, r2, c1, c2] = await Promise.all([
-    sb.from('g_debtors').select('*').order('created_at', {ascending:false}),
-    sb.from('debtors').select('*').order('created_at', {ascending:false}),
+  async function fetchAllFrom(table, mapFn) {
+    let all = [], from = 0, pageSize = 1000;
+    while(true) {
+      const res = await sb.from(table).select('*').order('created_at', {ascending:false}).range(from, from + pageSize - 1);
+      if(res.error) break;
+      all = all.concat((res.data||[]).map(mapFn));
+      if((res.data||[]).length < pageSize) break;
+      from += pageSize;
+    }
+    return all;
+  }
+  const [r1data, r2data, c1res, c2res] = await Promise.all([
+    fetchAllFrom('g_debtors', d=>({...d,_tbl:'g_debtors'})),
+    fetchAllFrom('debtors',   d=>({...d,_tbl:'debtors'})),
     sb.from('g_debtor_customers').select('*').order('name'),
     sb.from('debtor_customers').select('*').order('name')
   ]);
-  _debtors = [
-    ...(r1.data||[]).map(d=>({...d,_tbl:'g_debtors'})),
-    ...(r2.data||[]).map(d=>({...d,_tbl:'debtors'}))
-  ].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  _debtors = [...r1data, ...r2data].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
   _debtorCustomers = [
-    ...(c1.data||[]).map(c=>({...c,_tbl:'g_debtor_customers'})),
-    ...(c2.data||[]).map(c=>({...c,_tbl:'debtor_customers'}))
+    ...(c1res.data||[]).map(c=>({...c,_tbl:'g_debtor_customers'})),
+    ...(c2res.data||[]).map(c=>({...c,_tbl:'debtor_customers'}))
   ].sort((a,b)=>a.name.localeCompare(b.name));
 }
 
