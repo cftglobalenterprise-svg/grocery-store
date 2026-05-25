@@ -3562,14 +3562,25 @@ function renderOrders() {
   if(pickupEl)   pickupEl.innerHTML   = pickupGroups.length  ? pickupGroups.map(buildGroupHTML).join('')  : pickupEmpty;
 
   if(dEl) {
-    // Only collected/cancelled orders - exclude instore
-    const doneOrders = orders.filter(o => o.status === 'collected' || o.status === 'cancelled').slice(0, 60);
+    // Only collected/cancelled orders - exclude instore, exclude standalone delivery fee rows
+    const doneOrders = orders.filter(o => (o.status === 'collected' || o.status === 'cancelled') && !o.is_delivery_fee).slice(0, 60);
     const doneGrouped = {};
     doneOrders.forEach(o => {
-      const minute = new Date(o.created_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const t = new Date(o.paid_at || o.created_at);
+      const minute = t.toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
       const key = o.customer + '||' + (o.location||'') + '||' + minute;
-      if(!doneGrouped[key]) doneGrouped[key] = { customer: o.customer, location: o.location, status: o.status, is_delivery: o.is_delivery, payment_status: o.payment_status, minute, orders: [] };
+      if(!doneGrouped[key]) doneGrouped[key] = { customer: o.customer, location: o.location, status: o.status, is_delivery: o.is_delivery, payment_status: o.payment_status, minute, orders: [], deliveryFee: 0 };
       doneGrouped[key].orders.push(o);
+    });
+    // Attach delivery fee to matching group (match by customer+location within 10 min of paid_at)
+    orders.filter(o => o.is_delivery_fee && (o.status === 'collected')).forEach(feeRow => {
+      const feeTime = new Date(feeRow.paid_at || feeRow.created_at).getTime();
+      const match = Object.values(doneGrouped).find(g => {
+        if(g.customer !== feeRow.customer) return false;
+        const gTime = new Date(g.orders[0].paid_at || g.orders[0].created_at).getTime();
+        return Math.abs(gTime - feeTime) < 600000; // within 10 min
+      });
+      if(match) match.deliveryFee += +(feeRow.total_price||feeRow.total||0);
     });
     const payBadge = (ps) => {
       if(ps === 'paid_qr')   return '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#d6eaf8;color:#1a5276;border:1px solid #5dade2">QR</span>';
@@ -3587,7 +3598,7 @@ function renderOrders() {
       const itemLines = g.orders.map(o=>{
         const sub = (+(o.total_price||o.total||0)) > 0 ? ` <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px">RM ${(+(o.total_price||o.total||0)).toFixed(2)}</span>` : '';
         return `<div style="font-size:12px;color:var(--text2);padding:1px 0">• ${o.item_name} × ${o.qty}${sub}</div>`;
-      }).join('');
+      }).join('') + (g.deliveryFee > 0 ? `<div style="font-size:12px;color:#b45309;padding:1px 0">🚚 送货费（Rider）<span style="font-family:'DM Mono',monospace;font-size:11px"> -RM ${g.deliveryFee.toFixed(2)}</span></div>` : '');
       return `<div class="order-row${g.is_delivery?' is-delivery':''}" style="display:flex;align-items:flex-start;gap:8px">
         <div class="order-info" style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
@@ -8877,6 +8888,10 @@ async function renderHqDashboard() {
         ? '<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:var(--surface2);color:var(--text3);font-weight:600">门市</span>'
         : '<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:var(--purple-bg);color:var(--purple);font-weight:600">订单</span>';
       const oTbl = (o.business==='K19' || o._tbl==='g_orders') ? 'g_orders' : 'orders';
+      // Find matching delivery fee row
+      const oTime = new Date(o.paid_at||o.created_at).getTime();
+      const feeRow = orders.find(f => f.is_delivery_fee && f.customer === o.customer && Math.abs(new Date(f.paid_at||f.created_at).getTime() - oTime) < 600000);
+      const feeTag = feeRow ? `<span style="font-size:10px;color:#b45309;font-weight:600">🚚 -RM ${(+(feeRow.total_price||feeRow.total||0)).toFixed(2)}</span>` : '';
       const voidBtn = (o.status === 'instore' || o.status === 'collected')
         ? `<button onclick="hqVoidSale('${o.id}','${oTbl}')" style="font-size:11px;padding:2px 8px;border:1px solid #fca5a5;border-radius:6px;background:none;color:#dc2626;cursor:pointer">撤回</button>`
         : '';
@@ -8888,6 +8903,7 @@ async function renderHqDashboard() {
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           ${payBadge}
           <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${(+(o.total_price||o.total||0)).toFixed(2)}</span>
+          ${feeTag}
           ${voidBtn}
         </div>
       </div>`;
