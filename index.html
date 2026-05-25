@@ -11535,7 +11535,7 @@ async function openClockModal(auto) {
 
   // Update close btn
   const closeBtn = document.getElementById('clock-close-btn');
-  if(closeBtn) closeBtn.style.display = auto ? 'none' : '';
+  if(closeBtn) { closeBtn.style.display = ''; closeBtn.textContent = '稍后再打卡'; }
 
   document.getElementById('clock-modal').style.display = 'flex';
   setInterval(updateClockTime, 1000);
