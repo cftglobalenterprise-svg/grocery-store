@@ -5099,9 +5099,19 @@ function renderProfitReport() {
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
     if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
+    if(o.is_delivery_fee) return false; // delivery fee is cost, not revenue
     const dt = new Date(o.status === 'collected' && o.paid_at ? o.paid_at : o.created_at);
     return (o.status === 'instore' || o.status === 'collected') && dt >= start && dt <= end && bizMatch;
   });
+
+  // Delivery fees = rider cost (paid by us, not revenue)
+  const deliveryFeeOrders = orders.filter(o => {
+    if(!o.is_delivery_fee) return false;
+    const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
+    const dt = new Date(o.paid_at || o.created_at);
+    return dt >= start && dt <= end && bizMatch;
+  });
+  const totalDeliveryFees = deliveryFeeOrders.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
 
   const byItem = {};
   salesOrders.forEach(o => {
@@ -5120,6 +5130,8 @@ function renderProfitReport() {
     totalRevenue += d.revenue; totalCost += d.totalCost;
     if(!cost) noCostCount++;
   });
+  // Add rider delivery fees as cost
+  totalCost += totalDeliveryFees;
   const totalProfit = totalRevenue - totalCost;
   const margin = totalRevenue>0 ? (totalProfit/totalRevenue*100).toFixed(1) : 0;
 
@@ -6469,9 +6481,10 @@ function renderDashboard() {
     end   = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1);
   }
 
-  // 1. 门市 — instore only, exclude credit
+  // 1. 门市 — instore only, exclude credit, exclude delivery fee
   const instoreOrders = orders.filter(o => {
     if(o.status !== 'instore') return false;
+    if(o.is_delivery_fee) return false;
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
     if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     const d = new Date(o.paid_at || o.created_at);
@@ -6479,9 +6492,10 @@ function renderDashboard() {
   });
   const instoreRev = instoreOrders.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
 
-  // 2. 订单 — collected only (paid_at in range), exclude credit
+  // 2. 订单 — collected only (paid_at in range), exclude credit, exclude delivery fee
   const orderOrders = orders.filter(o => {
     if(o.status !== 'collected' || !o.paid_at) return false;
+    if(o.is_delivery_fee) return false;
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
     if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     const d = new Date(o.paid_at);
@@ -8723,22 +8737,33 @@ async function renderHqDashboard() {
     }
   }
 
-  // 1. 门市收银 — status='instore', exclude credit orders (credit counted when repaid)
+  // 1. 门市收银 — status='instore', exclude credit, exclude delivery fee
   const instoreOrders = orders.filter(o => {
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
     if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
+    if(o.is_delivery_fee) return false;
     const d = new Date(o.paid_at || o.created_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status === 'instore' && d >= startDate && d <= endDate && bizMatch;
   });
 
-  // 2. 当天完成订单 — status='collected', MUST have paid_at
+  // 2. 当天完成订单 — status='collected', MUST have paid_at, exclude delivery fee
   const collectedOrders = orders.filter(o => {
-    if(!o.paid_at) return false; // no paid_at = not yet properly collected
+    if(!o.paid_at) return false;
+    if(o.is_delivery_fee) return false;
     const d = new Date(o.paid_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status === 'collected' && d >= startDate && d <= endDate && bizMatch;
   });
+
+  // Delivery fees (rider cost)
+  const deliveryFeeOrders = orders.filter(o => {
+    if(!o.is_delivery_fee) return false;
+    const d = new Date(o.paid_at || o.created_at);
+    const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
+    return d >= startDate && d <= endDate && bizMatch;
+  });
+  const totalDeliveryFeesHq = deliveryFeeOrders.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
 
   // 3. 赊账还款 — from _debtors where status='paid' and paid_at in range
   const debtPayments = (typeof _debtors !== 'undefined' ? _debtors : []).filter(d => {
@@ -8872,7 +8897,7 @@ async function renderHqDashboard() {
 
 
   // Also render profit summary
-  if(typeof renderHqProfit === 'function') renderHqProfit(allSales);
+  if(typeof renderHqProfit === 'function') renderHqProfit(allSales, totalDeliveryFeesHq);
   const picker = document.getElementById('hq-pnl-month');
   if(picker && !picker.value) {
     const _n = new Date();
@@ -9018,7 +9043,7 @@ async function applyBulkPrice() {
 }
 
 // ── HQ profit integration ───────────────────────────────
-function renderHqProfit(allSales) {
+function renderHqProfit(allSales, deliveryFeeCost) {
   // Calculate profit using item costs
   let totalRev = 0, totalCost = 0;
   allSales.forEach(o => {
@@ -9028,6 +9053,8 @@ function renderHqProfit(allSales) {
     const cost = it && it.cost_price ? +(it.cost_price) * (+(o.qty||1)) : 0;
     totalCost += cost;
   });
+  // Add rider delivery fees as cost
+  totalCost += (deliveryFeeCost || 0);
   const gross = totalRev - totalCost;
   const margin = totalRev > 0 ? (gross/totalRev*100) : 0;
 
