@@ -187,6 +187,8 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 /* ── POS CART ────────────────────────────────────── */
 .pos-cart { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--surface); overflow: hidden; min-height: 0; }
 .pos-cart-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.clock-pin-btn { padding:14px;font-size:18px;font-weight:700;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);cursor:pointer;transition:background 0.12s; }
+.clock-pin-btn:active { background:var(--surface2); }
 .pos-cart-title { font-size: 15px; font-weight: 700; }
 .pos-cart-count { font-size: 12px; color: var(--text3); }
 .pos-cart-clear-btn { font-size: 12px; color: var(--red); cursor: pointer; padding: 4px 8px; border-radius: 6px; background: none; border: none; font-family: 'DM Sans', sans-serif; }
@@ -770,6 +772,10 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </button>
       <button class="nav-btn hq-only" id="navbtn-lhdn" onclick="posSwitchTab('lhdn')" style="display:none">
         <span class="nav-icon">🗂️</span> 税务 LHDN
+      </button>
+      <div class="nav-divider" id="nav-divider-clock" style="display:none"></div>
+      <button class="nav-btn" id="navbtn-clock" onclick="openClockModal()" style="display:none">
+        <span class="nav-icon">⏱</span> 打卡
       </button>
 
     </div>
@@ -1520,6 +1526,59 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
   </div>
 </div>
 
+<!-- CLOCK IN/OUT MODAL -->
+<div class="modal-overlay" id="clock-modal" style="display:none;z-index:1300" onclick="if(event.target===this&&!_clockRequired)closeClockModal()">
+  <div class="modal" style="max-width:360px;text-align:center">
+    <div id="clock-ph-banner" style="display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:13px;color:#92400e;font-weight:600"></div>
+    <div style="font-size:40px;margin-bottom:4px" id="clock-emoji">⏱</div>
+    <div style="font-size:18px;font-weight:800;margin-bottom:4px" id="clock-title">打卡</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:16px" id="clock-time"></div>
+
+    <!-- Step 1: Select employee -->
+    <div id="clock-step-select">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:600">选择你的名字</div>
+      <div id="clock-emp-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;max-height:200px;overflow-y:auto"></div>
+    </div>
+
+    <!-- Step 2: Enter PIN -->
+    <div id="clock-step-pin" style="display:none">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:6px">Hi <b id="clock-emp-name-display"></b>，输入你的 PIN</div>
+      <div style="display:flex;justify-content:center;gap:8px;margin-bottom:12px" id="clock-pin-dots">
+        <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border);background:var(--surface)" id="pin-dot-0"></div>
+        <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border);background:var(--surface)" id="pin-dot-1"></div>
+        <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border);background:var(--surface)" id="pin-dot-2"></div>
+        <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border);background:var(--surface)" id="pin-dot-3"></div>
+      </div>
+      <!-- PIN numpad -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:220px;margin:0 auto 12px">
+        <button onclick="clockPinInput('1')" class="clock-pin-btn">1</button>
+        <button onclick="clockPinInput('2')" class="clock-pin-btn">2</button>
+        <button onclick="clockPinInput('3')" class="clock-pin-btn">3</button>
+        <button onclick="clockPinInput('4')" class="clock-pin-btn">4</button>
+        <button onclick="clockPinInput('5')" class="clock-pin-btn">5</button>
+        <button onclick="clockPinInput('6')" class="clock-pin-btn">6</button>
+        <button onclick="clockPinInput('7')" class="clock-pin-btn">7</button>
+        <button onclick="clockPinInput('8')" class="clock-pin-btn">8</button>
+        <button onclick="clockPinInput('9')" class="clock-pin-btn">9</button>
+        <button onclick="clockPinClear()" class="clock-pin-btn" style="font-size:11px;color:var(--text3)">清除</button>
+        <button onclick="clockPinInput('0')" class="clock-pin-btn">0</button>
+        <button onclick="clockPinBackspace()" class="clock-pin-btn" style="font-size:16px">⌫</button>
+      </div>
+      <div style="font-size:12px;color:#dc2626;min-height:18px;margin-bottom:8px" id="clock-pin-error"></div>
+      <button onclick="clockGoBack()" style="font-size:12px;background:none;border:none;color:var(--text3);cursor:pointer;margin-bottom:4px">← 返回</button>
+    </div>
+
+    <!-- Step 3: Success -->
+    <div id="clock-step-done" style="display:none">
+      <div style="font-size:36px;margin-bottom:8px" id="clock-done-emoji">✅</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px" id="clock-done-msg"></div>
+      <div style="font-size:13px;color:var(--text3)" id="clock-done-detail"></div>
+    </div>
+
+    <button onclick="closeClockModal()" id="clock-close-btn" style="margin-top:14px;font-size:12px;background:none;border:none;color:var(--text3);cursor:pointer">稍后再打卡</button>
+  </div>
+</div>
+
 <!-- CATEGORY MODAL -->
 <div class="modal-overlay" id="cat-modal">
   <div class="modal" style="max-width:420px">
@@ -1965,6 +2024,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     <div class="form-row"><label>职位</label><input type="text" id="emp-position" placeholder="例：Cashier、Manager" style="flex:1"></div>
     <div class="form-row"><label>入职日期</label><input type="date" id="emp-joindate" style="flex:1"></div>
     <div class="form-row"><label>月薪 (RM)</label><input type="number" id="emp-salary" placeholder="例：1800" step="0.01" style="flex:1" oninput="updateEmpRatesPreview()"></div>
+    <div class="form-row"><label>打卡 PIN <span style="font-size:10px;color:var(--text3)">（4位数）</span></label><input type="password" id="emp-clock-pin" placeholder="设置4位打卡密码" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="flex:1;letter-spacing:4px"></div>
 
     <!-- Leave entitlement -->
     <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 8px">📅 年假 / 病假 (天/年)</div>
@@ -8660,6 +8720,9 @@ function applyRolePermissions(role) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     const instoreBtn = document.getElementById('navbtn-instore');
     if(instoreBtn) instoreBtn.classList.add('active');
+    // Show clock nav
+    ['navbtn-clock','nav-divider-clock'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = ''; });
+    setTimeout(postLoginClockCheck, 800);
 
   } else {
     // 总部: 全部功能 + 总部报表
@@ -8676,6 +8739,8 @@ function applyRolePermissions(role) {
     if(bundleBtn) bundleBtn.style.display = '';
     document.body.classList.add('hq-mode');
     _profitUnlocked = true;
+    // Show clock nav
+    ['navbtn-clock','nav-divider-clock'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = ''; });
     // Start on HQ dashboard
     setTimeout(() => {
       posSwitchTab('hq');
@@ -8683,6 +8748,7 @@ function applyRolePermissions(role) {
       const hqBtn = document.getElementById('navbtn-hq');
       if(hqBtn) hqBtn.classList.add('active');
       renderHqDashboard();
+      postLoginClockCheck();
     }, 500);
   }
 }
@@ -10119,6 +10185,7 @@ function prRowToEmp(r) {
     annualLeave: r.annual_leave ?? 8, mcLeave: r.mc_leave ?? 14,
     emergencyLeave: r.emergency_leave ?? 3,
     useEpf: r.use_epf !== false, useSocso: r.use_socso !== false, useEis: r.use_eis !== false,
+    clockPin: r.clock_pin || '',
   };
 }
 async function prUpsertEmployee(emp) {
@@ -10127,6 +10194,7 @@ async function prUpsertEmployee(emp) {
     join_date: emp.joinDate || null, salary: emp.salary,
     annual_leave: emp.annualLeave, mc_leave: emp.mcLeave, emergency_leave: emp.emergencyLeave,
     use_epf: emp.useEpf, use_socso: emp.useSocso, use_eis: emp.useEis,
+    clock_pin: emp.clockPin || null,
   };
   const { error } = await sb.from('payroll_employees').upsert(row, { onConflict: 'id' });
   if (error) { console.error('prUpsertEmployee:', error); return false; }
@@ -10360,6 +10428,7 @@ function openAddEmployeeModal() {
   document.getElementById('emp-epf').checked = true;
   document.getElementById('emp-socso').checked = true;
   document.getElementById('emp-eis').checked = true;
+  const pinEl = document.getElementById('emp-clock-pin'); if(pinEl) pinEl.value = '';
   document.getElementById('emp-rates-preview').style.display = 'none';
   document.getElementById('employee-modal').classList.add('open');
   document.body.classList.add('modal-open');
@@ -10380,6 +10449,7 @@ function openEditEmployeeModal(id) {
   document.getElementById('emp-epf').checked = emp.useEpf !== false;
   document.getElementById('emp-socso').checked = emp.useSocso !== false;
   document.getElementById('emp-eis').checked = emp.useEis !== false;
+  const pinEl = document.getElementById('emp-clock-pin'); if(pinEl) pinEl.value = emp.clockPin || '';
   updateEmpRatesPreview();
   document.getElementById('employee-modal').classList.add('open');
   document.body.classList.add('modal-open');
@@ -10405,6 +10475,7 @@ async function saveEmployee() {
     useEpf: document.getElementById('emp-epf').checked,
     useSocso: document.getElementById('emp-socso').checked,
     useEis: document.getElementById('emp-eis').checked,
+    clockPin: (document.getElementById('emp-clock-pin')?.value || '').trim() || null,
   };
   const ok = await prUpsertEmployee(data);
   if (!ok) { showPosToast('❌ 保存失败，请检查网络'); return; }
@@ -11381,6 +11452,306 @@ ${lhdnGetClosingStock().rows.slice(0,50).map(r=>'<tr><td>'+r.name+'</td><td>'+r.
   const win  = window.open(url,'_blank');
   if (!win) showPosToast('❌ 请允许弹出窗口');
   else { showPosToast('✅ 正在生成报告...'); setTimeout(()=>URL.revokeObjectURL(url),10000); }
+}
+
+// ══════════════════════════════════════════════════════════
+// ⏱ ATTENDANCE / CLOCK IN-OUT SYSTEM
+// ══════════════════════════════════════════════════════════
+
+const SHOP_IP = '115.164.33.38';
+const WORK_START = '09:30';   // official start
+const WORK_END   = '18:00';   // official end
+const LUNCH_HRS  = 0.5;       // lunch deduction
+const OT_RATE    = 1.5;       // default OT multiplier
+const NORMAL_HRS = 8.0;       // normal hours per day (8.5 - 0.5 lunch)
+
+let _clockEmployees = [];
+let _clockSelectedEmp = null;
+let _clockPinBuffer = '';
+let _clockRequired = false;
+let _shopIpDetected = false;
+let _publicHolidays = [];
+
+async function detectShopIP() {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json');
+    const data = await res.json();
+    _shopIpDetected = data.ip === SHOP_IP;
+  } catch { _shopIpDetected = false; }
+}
+
+async function loadClockData() {
+  // Load employees
+  const { data: emps } = await sb.from('payroll_employees').select('id,name,clock_pin').order('name');
+  _clockEmployees = emps || [];
+  // Load public holidays
+  const { data: ph } = await sb.from('public_holidays').select('date,name');
+  _publicHolidays = ph || [];
+}
+
+function getTodayPH() {
+  const today = new Date().toISOString().slice(0,10);
+  return _publicHolidays.find(h => h.date === today) || null;
+}
+
+async function getTodayLog(empId) {
+  const today = new Date().toISOString().slice(0,10);
+  const { data } = await sb.from('attendance_logs').select('*').eq('emp_id', empId).eq('date', today).maybeSingle();
+  return data;
+}
+
+function updateClockTime() {
+  const el = document.getElementById('clock-time');
+  if(el) {
+    const now = new Date();
+    el.textContent = now.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false}) + '  ' + now.toLocaleDateString('zh-CN', {year:'numeric', month:'long', day:'numeric', weekday:'short'});
+  }
+}
+
+async function openClockModal(auto) {
+  if(!_shopIpDetected) {
+    if(auto) return; // silent if auto-trigger
+    showPosToast('⚠️ 只能在店里打卡');
+    return;
+  }
+  await loadClockData();
+  _clockRequired = !!auto;
+  _clockSelectedEmp = null;
+  _clockPinBuffer = '';
+
+  // Check PH
+  const ph = getTodayPH();
+  const phBanner = document.getElementById('clock-ph-banner');
+  if(ph) {
+    phBanner.style.display = '';
+    phBanner.textContent = '🎉 今天是公众假期：' + ph.name + ' — 上班薪资 ×2';
+  } else {
+    phBanner.style.display = 'none';
+  }
+
+  // Show employee list
+  clockShowStep('select');
+  renderClockEmpList();
+
+  // Update close btn
+  const closeBtn = document.getElementById('clock-close-btn');
+  if(closeBtn) closeBtn.style.display = auto ? 'none' : '';
+
+  document.getElementById('clock-modal').style.display = 'flex';
+  setInterval(updateClockTime, 1000);
+  updateClockTime();
+}
+
+function closeClockModal() {
+  document.getElementById('clock-modal').style.display = 'none';
+  _clockRequired = false;
+}
+
+function clockShowStep(step) {
+  ['select','pin','done'].forEach(s => {
+    const el = document.getElementById('clock-step-' + s);
+    if(el) el.style.display = s === step ? '' : 'none';
+  });
+}
+
+async function renderClockEmpList() {
+  const list = document.getElementById('clock-emp-list');
+  if(!list) return;
+  const today = new Date().toISOString().slice(0,10);
+
+  // Check today's log for each employee
+  const logs = await Promise.all(_clockEmployees.map(e =>
+    sb.from('attendance_logs').select('clock_in,clock_out').eq('emp_id', e.id).eq('date', today).maybeSingle()
+  ));
+
+  list.innerHTML = _clockEmployees.map((e, i) => {
+    const log = logs[i]?.data;
+    let badge = '';
+    if(log?.clock_out) badge = '<span style="font-size:10px;background:#d1fae5;color:#065f46;padding:2px 7px;border-radius:10px;font-weight:600">已下班</span>';
+    else if(log?.clock_in) badge = '<span style="font-size:10px;background:#dbeafe;color:#1e40af;padding:2px 7px;border-radius:10px;font-weight:600">已上班</span>';
+    return `<button onclick="clockSelectEmp('${e.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;font-size:14px;font-weight:600;color:var(--text)">
+      <span>${e.name}</span>${badge}
+    </button>`;
+  }).join('') || '<div class="empty">暂无员工，请先在薪资页面添加员工</div>';
+}
+
+async function clockSelectEmp(empId) {
+  _clockSelectedEmp = _clockEmployees.find(e => e.id === empId);
+  if(!_clockSelectedEmp) return;
+
+  // Check if PIN is set
+  if(!_clockSelectedEmp.clock_pin) {
+    showPosToast('⚠️ ' + _clockSelectedEmp.name + ' 还没设置PIN，请先在薪资管理设置');
+    return;
+  }
+
+  // Determine action (clock in or out)
+  const log = await getTodayLog(empId);
+  let action = '';
+  if(!log || !log.clock_in) action = 'in';
+  else if(!log.clock_out) action = 'out';
+  else { showPosToast('✅ ' + _clockSelectedEmp.name + ' 今天已完成打卡'); return; }
+
+  _clockSelectedEmp._action = action;
+  _clockSelectedEmp._log = log;
+
+  // Update title
+  const titleEl = document.getElementById('clock-title');
+  const emojiEl = document.getElementById('clock-emoji');
+  if(action === 'in') {
+    titleEl.textContent = '🐴 牛马的开始';
+    emojiEl.textContent = '🐴';
+  } else {
+    titleEl.textContent = '🛋 放工摆烂';
+    emojiEl.textContent = '🛋';
+  }
+
+  document.getElementById('clock-emp-name-display').textContent = _clockSelectedEmp.name;
+  clockShowStep('pin');
+  _clockPinBuffer = '';
+  updatePinDots();
+}
+
+function clockPinInput(digit) {
+  if(_clockPinBuffer.length >= 4) return;
+  _clockPinBuffer += digit;
+  updatePinDots();
+  if(_clockPinBuffer.length === 4) {
+    setTimeout(confirmClockPin, 200);
+  }
+}
+
+function clockPinBackspace() {
+  _clockPinBuffer = _clockPinBuffer.slice(0, -1);
+  updatePinDots();
+}
+
+function clockPinClear() {
+  _clockPinBuffer = '';
+  updatePinDots();
+}
+
+function updatePinDots() {
+  for(let i = 0; i < 4; i++) {
+    const dot = document.getElementById('pin-dot-' + i);
+    if(dot) {
+      dot.style.background = i < _clockPinBuffer.length ? 'var(--text)' : 'var(--surface)';
+      dot.style.borderColor = i < _clockPinBuffer.length ? 'var(--text)' : 'var(--border)';
+    }
+  }
+}
+
+async function confirmClockPin() {
+  const errEl = document.getElementById('clock-pin-error');
+  if(_clockPinBuffer !== _clockSelectedEmp.clock_pin) {
+    errEl.textContent = '❌ PIN 错误，请重试';
+    _clockPinBuffer = '';
+    updatePinDots();
+    return;
+  }
+  errEl.textContent = '';
+  await performClock();
+}
+
+async function performClock() {
+  const emp = _clockSelectedEmp;
+  const now = new Date();
+  const today = now.toISOString().slice(0,10);
+  const ph = getTodayPH();
+
+  if(emp._action === 'in') {
+    // Clock IN — if before 9:30, record as 9:30
+    const clockInTime = now;
+    const [sh, sm] = WORK_START.split(':').map(Number);
+    const officialStart = new Date(now); officialStart.setHours(sh, sm, 0, 0);
+    const effectiveIn = now < officialStart ? officialStart : now;
+
+    const { error } = await sb.from('attendance_logs').insert({
+      emp_id: emp.id, emp_name: emp.name, date: today,
+      clock_in: effectiveIn.toISOString(),
+      is_ph: !!ph, ph_name: ph?.name || null,
+      status: 'present'
+    });
+    if(error) { showPosToast('❌ 打卡失败：' + error.message); return; }
+
+    clockShowStep('done');
+    document.getElementById('clock-done-emoji').textContent = '🐴';
+    document.getElementById('clock-done-msg').textContent = emp.name + ' 上班打卡成功！';
+    const timeStr = effectiveIn.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit', hour12:false});
+    document.getElementById('clock-done-detail').textContent = '上班时间：' + timeStr + (ph ? '  🎉 公假 ×2' : '');
+
+  } else {
+    // Clock OUT — calculate hours
+    const log = emp._log;
+    const clockIn = new Date(log.clock_in);
+    const clockOut = now;
+    const totalMins = (clockOut - clockIn) / 60000;
+    const workedHours = Math.max(0, totalMins / 60 - LUNCH_HRS);
+
+    const [eh, em] = WORK_END.split(':').map(Number);
+    const officialEnd = new Date(now); officialEnd.setHours(eh, em, 0, 0);
+
+    let workHours = 0, otHours = 0;
+    if(clockOut <= officialEnd) {
+      workHours = workedHours;
+      otHours = 0;
+    } else {
+      const normalMins = (officialEnd - clockIn) / 60000 - LUNCH_HRS * 60;
+      workHours = Math.max(0, normalMins / 60);
+      const otMins = (clockOut - officialEnd) / 60000;
+      otHours = Math.max(0, otMins / 60);
+    }
+
+    workHours = Math.round(workHours * 100) / 100;
+    otHours = Math.round(otHours * 100) / 100;
+
+    const { error } = await sb.from('attendance_logs').update({
+      clock_out: clockOut.toISOString(),
+      work_hours: workHours,
+      ot_hours: otHours
+    }).eq('id', log.id);
+    if(error) { showPosToast('❌ 打卡失败：' + error.message); return; }
+
+    // Auto-sync OT to payroll_ot_logs if OT > 0
+    if(otHours > 0) {
+      const month = today.slice(0,7);
+      const existing = await sb.from('payroll_ot_logs').select('id').eq('emp_id', emp.id).eq('ot_date', today);
+      if(!existing.data?.length) {
+        const inTime = clockIn.toTimeString().slice(0,5);
+        const outTime = clockOut.toTimeString().slice(0,5);
+        await sb.from('payroll_ot_logs').insert({
+          emp_id: emp.id, month, ot_date: today,
+          start_time: inTime, end_time: outTime, hours: otHours
+        });
+      }
+    }
+
+    clockShowStep('done');
+    document.getElementById('clock-done-emoji').textContent = '🛋';
+    document.getElementById('clock-done-msg').textContent = emp.name + ' 下班打卡成功！';
+    const detail = `工作 ${workHours.toFixed(1)}h` + (otHours > 0 ? `  OT ${otHours.toFixed(1)}h ×${OT_RATE}` : '') + (ph ? '  🎉 公假 ×2' : '');
+    document.getElementById('clock-done-detail').textContent = detail;
+
+    const closeBtn = document.getElementById('clock-close-btn');
+    if(closeBtn) closeBtn.textContent = '关闭';
+  }
+
+  // Auto-close after 3s
+  setTimeout(() => { if(document.getElementById('clock-step-done').style.display !== 'none') closeClockModal(); }, 3000);
+}
+
+function clockGoBack() {
+  _clockPinBuffer = '';
+  updatePinDots();
+  clockShowStep('select');
+  renderClockEmpList();
+}
+
+// ── Called after login to check IP and auto-show clock modal ──
+async function postLoginClockCheck() {
+  await detectShopIP();
+  if(!_shopIpDetected) return;
+  await openClockModal(true); // auto = true (no close btn, silent)
 }
 
 </script>
