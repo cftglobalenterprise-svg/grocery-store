@@ -1487,18 +1487,32 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <input type="date" id="dash-date-filter" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);flex:1" onchange="renderDashboard()">
       <button onclick="document.getElementById('dash-date-filter').value='';renderDashboard()" style="font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);cursor:pointer;white-space:nowrap">今日</button>
     </div>
+    <!-- Total -->
+    <div style="background:var(--green);border-radius:10px;padding:10px 14px;margin-bottom:8px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.8);font-weight:600;letter-spacing:0.5px" id="dash-revenue-lbl">今日总营业额</div>
+        <div style="font-size:22px;font-weight:800;color:#fff;font-family:'DM Mono',monospace" id="dash-revenue">RM 0</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:rgba(255,255,255,0.75)">QR <span id="dash-qr" style="font-weight:700">RM 0</span></div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.75)">Cash <span id="dash-cash" style="font-weight:700">RM 0</span></div>
+      </div>
+    </div>
+    <!-- Breakdown: instore + orders -->
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0">
       <div class="pos-dash-tile" style="flex:1">
-        <div class="pos-dash-val" id="dash-revenue" style="color:var(--green)">RM 0</div>
-        <div class="pos-dash-lbl" id="dash-revenue-lbl">今日营业额</div>
+        <div class="pos-dash-val" id="dash-instore-rev" style="color:var(--text);font-size:15px">RM 0</div>
+        <div class="pos-dash-lbl">🏪 门市</div>
       </div>
+      <div style="display:flex;align-items:center;color:var(--text3);font-size:16px;font-weight:300">+</div>
       <div class="pos-dash-tile" style="flex:1">
-        <div class="pos-dash-val" id="dash-qr" style="color:var(--blue)">RM 0</div>
-        <div class="pos-dash-lbl">QR Pay</div>
+        <div class="pos-dash-val" id="dash-orders-rev" style="color:var(--text);font-size:15px">RM 0</div>
+        <div class="pos-dash-lbl">📦 订单</div>
       </div>
+      <div style="display:flex;align-items:center;color:var(--text3);font-size:16px;font-weight:300">+</div>
       <div class="pos-dash-tile" style="flex:1">
-        <div class="pos-dash-val" id="dash-cash" style="color:var(--green)">RM 0</div>
-        <div class="pos-dash-lbl">Cash</div>
+        <div class="pos-dash-val" id="dash-debt-rev" style="color:var(--text);font-size:15px">RM 0</div>
+        <div class="pos-dash-lbl">💰 还款</div>
       </div>
     </div>
     <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px;flex-shrink:0">今日记录</div>
@@ -5082,10 +5096,10 @@ function renderProfitReport() {
   const { start, end } = getProfitDateRange();
   const bizFilter = document.getElementById('profit-biz-filter')?.value || '';
   const salesOrders = orders.filter(o => {
-    const dt = new Date(o.created_at);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
     if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
+    const dt = new Date(o.status === 'collected' && o.paid_at ? o.paid_at : o.created_at);
     return (o.status === 'instore' || o.status === 'collected') && dt >= start && dt <= end && bizMatch;
   });
 
@@ -6448,45 +6462,60 @@ function renderDashboard() {
   if(pickedDate) {
     const [y,m,d] = pickedDate.split('-').map(Number);
     start = new Date(y, m-1, d);
-    end = new Date(y, m-1, d+1);
+    end   = new Date(y, m-1, d+1);
   } else {
     const now = new Date();
     start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    end = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1);
+    end   = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1);
   }
-  const filtered = orders.filter(o => {
+
+  // 1. 门市 — instore only, exclude credit
+  const instoreOrders = orders.filter(o => {
     if(o.status !== 'instore') return false;
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
     if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     const d = new Date(o.paid_at || o.created_at);
     return d >= start && d < end;
   });
-  // Also include collected (delivery/pickup) orders for the date
-  const collectedFiltered = orders.filter(o => {
+  const instoreRev = instoreOrders.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
+
+  // 2. 订单 — collected only (paid_at in range), exclude credit
+  const orderOrders = orders.filter(o => {
     if(o.status !== 'collected' || !o.paid_at) return false;
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
     if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     const d = new Date(o.paid_at);
     return d >= start && d < end;
   });
-  const allFiltered = [...filtered, ...collectedFiltered];
-  // Also include debt repayments (paid debtors) in the date range
+  const ordersRev = orderOrders.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
+
+  // 3. 赊账还款
   const debtRepaid = (typeof _debtors !== 'undefined' ? _debtors : []).filter(d => {
     if(d.status !== 'paid' || !d.paid_at) return false;
     const pd = new Date(d.paid_at);
-    return pd >= start && pd <= end;
+    return pd >= start && pd < end;
   });
-  const debtRepaidTotal = debtRepaid.reduce((s,d) => s + (+(d.amount||0)), 0);
-  const revenue  = allFiltered.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0) + debtRepaidTotal;
-  const qrRev    = allFiltered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('qr')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-  const cashRev  = allFiltered.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('cash')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const debtRev = debtRepaid.reduce((s,d) => s + (+(d.amount||0)), 0);
+
+  // Total
+  const allOrders = [...instoreOrders, ...orderOrders];
+  const revenue = instoreRev + ordersRev + debtRev;
+  const qrRev   = allOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('qr')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+  const cashRev = allOrders.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('cash')).reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+
   const lbl = document.getElementById('dash-revenue-lbl');
-  if(lbl) lbl.textContent = pickedDate ? pickedDate.slice(5).replace('-','/') + ' 营业额' : '今日营业额';
+  if(lbl) lbl.textContent = pickedDate ? pickedDate.slice(5).replace('-','/') + ' 总营业额' : '今日总营业额';
   document.getElementById('dash-revenue').textContent = 'RM ' + revenue.toFixed(2);
   const qrEl = document.getElementById('dash-qr');
   const cashEl = document.getElementById('dash-cash');
   if(qrEl) qrEl.textContent = 'RM ' + qrRev.toFixed(2);
   if(cashEl) cashEl.textContent = 'RM ' + cashRev.toFixed(2);
+  const instoreEl = document.getElementById('dash-instore-rev');
+  const ordersEl  = document.getElementById('dash-orders-rev');
+  const debtEl    = document.getElementById('dash-debt-rev');
+  if(instoreEl) instoreEl.textContent = 'RM ' + instoreRev.toFixed(2);
+  if(ordersEl)  ordersEl.textContent  = 'RM ' + ordersRev.toFixed(2);
+  if(debtEl)    debtEl.textContent    = 'RM ' + debtRev.toFixed(2);
   // update badge
   const badge = document.getElementById('pos-badge-revenue');
   if(badge) badge.textContent = 'RM ' + revenue.toFixed(2);
