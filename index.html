@@ -10503,7 +10503,37 @@ async function openAttendanceModal(empId) {
   const ex = await prFetchAttendance(empId, _prCurrentMonth) || {};
   const otLogsLoaded = await prFetchOtLogs(empId, _prCurrentMonth);
 
-  document.getElementById('att-days').value = ex.workDays != null ? ex.workDays : '';
+  // Auto-calculate days from attendance_logs (clock-in records)
+  let autoClockDays = 0;
+  try {
+    const monthStart = _prCurrentMonth + '-01';
+    const monthEnd = _prCurrentMonth + '-31';
+    const { data: clockLogs } = await sb.from('attendance_logs')
+      .select('date, clock_in, clock_out')
+      .eq('emp_id', empId)
+      .gte('date', monthStart)
+      .lte('date', monthEnd)
+      .not('clock_in', 'is', null);
+    autoClockDays = (clockLogs || []).filter(l => l.clock_in).length;
+  } catch(e) {}
+
+  // If no manual record yet, pre-fill with auto clock days; otherwise keep manual value
+  const manualDays = ex.workDays != null ? ex.workDays : null;
+  const displayDays = manualDays != null ? manualDays : autoClockDays;
+  document.getElementById('att-days').value = displayDays || '';
+
+  // Show hint if auto days differ from manual
+  const daysEl = document.getElementById('att-days');
+  if(autoClockDays > 0) {
+    let hint = document.getElementById('att-days-hint');
+    if(!hint) {
+      hint = document.createElement('div');
+      hint.id = 'att-days-hint';
+      hint.style.cssText = 'font-size:11px;color:var(--blue);margin-top:3px';
+      daysEl?.parentNode?.appendChild(hint);
+    }
+    hint.textContent = '⏱ 打卡记录：' + autoClockDays + ' 天（可手动修改）';
+  }
   document.getElementById('att-leave').value = ex.leaveDays != null ? ex.leaveDays : '';
   document.getElementById('att-al-used').value = ex.alUsed != null ? ex.alUsed : '';
   document.getElementById('att-mc-used').value = ex.mcUsed != null ? ex.mcUsed : '';
