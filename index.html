@@ -1575,7 +1575,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <div style="font-size:13px;color:var(--text3)" id="clock-done-detail"></div>
     </div>
 
-    <button onclick="closeClockModal()" id="clock-close-btn" style="margin-top:14px;font-size:12px;background:none;border:none;color:var(--text3);cursor:pointer">稍后再打卡</button>
+    <button onclick="closeClockModal()" id="clock-close-btn" style="display:none;margin-top:14px;font-size:12px;background:none;border:none;color:var(--text3);cursor:pointer">稍后再打卡</button>
   </div>
 </div>
 
@@ -11542,8 +11542,16 @@ async function openClockModal(auto) {
   updateClockTime();
 }
 
+function clockKeyHandler(e) {
+  if(document.getElementById('clock-step-pin')?.style.display === 'none') return;
+  if(e.key >= '0' && e.key <= '9') { clockPinInput(e.key); e.preventDefault(); }
+  else if(e.key === 'Backspace') { clockPinBackspace(); e.preventDefault(); }
+  else if(e.key === 'Escape') { clockGoBack(); e.preventDefault(); }
+}
+
 function closeClockModal() {
   document.getElementById('clock-modal').style.display = 'none';
+  document.removeEventListener('keydown', clockKeyHandler);
   _clockRequired = false;
 }
 
@@ -11610,6 +11618,8 @@ async function clockSelectEmp(empId) {
   clockShowStep('pin');
   _clockPinBuffer = '';
   updatePinDots();
+  // Enable keyboard input
+  document.addEventListener('keydown', clockKeyHandler);
 }
 
 function clockPinInput(digit) {
@@ -11743,6 +11753,7 @@ async function performClock() {
 function clockGoBack() {
   _clockPinBuffer = '';
   updatePinDots();
+  document.removeEventListener('keydown', clockKeyHandler);
   clockShowStep('select');
   renderClockEmpList();
 }
@@ -11751,7 +11762,14 @@ function clockGoBack() {
 async function postLoginClockCheck() {
   await detectShopIP();
   if(!_shopIpDetected) return;
-  await openClockModal(true); // auto = true (no close btn, silent)
+  const closeBtn = document.getElementById('clock-close-btn');
+  // HQ (boss) can skip, branch staff must clock in
+  if(_loginRole === 'hq') {
+    if(closeBtn) { closeBtn.style.display = ''; closeBtn.textContent = '我是老板，跳过'; }
+  } else {
+    if(closeBtn) closeBtn.style.display = 'none';
+  }
+  await openClockModal(true);
 }
 
 </script>
