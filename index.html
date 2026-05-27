@@ -2025,6 +2025,13 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     <div class="form-row"><label>入职日期</label><input type="date" id="emp-joindate" style="flex:1"></div>
     <div class="form-row"><label>月薪 (RM)</label><input type="number" id="emp-salary" placeholder="例：1800" step="0.01" style="flex:1" oninput="updateEmpRatesPreview()"></div>
     <div class="form-row"><label>打卡 PIN <span style="font-size:10px;color:var(--text3)">（4位数）</span></label><input type="password" id="emp-clock-pin" placeholder="设置4位打卡密码" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="flex:1;letter-spacing:4px"></div>
+    <div class="form-row" style="align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px 12px">
+      <div>
+        <div style="font-size:13px;font-weight:600">需要打卡</div>
+        <div style="font-size:11px;color:var(--text3)">关闭则不显示在打卡页面</div>
+      </div>
+      <label class="toggle-switch"><input type="checkbox" id="emp-require-punch" checked><span class="toggle-slider"></span></label>
+    </div>
 
     <!-- Leave entitlement -->
     <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 8px">📅 年假 / 病假 (天/年)</div>
@@ -10210,6 +10217,7 @@ function prRowToEmp(r) {
     emergencyLeave: r.emergency_leave ?? 3,
     useEpf: r.use_epf !== false, useSocso: r.use_socso !== false, useEis: r.use_eis !== false,
     clockPin: r.clock_pin || '',
+    requirePunch: r.require_punch !== false,
   };
 }
 async function prUpsertEmployee(emp) {
@@ -10219,6 +10227,7 @@ async function prUpsertEmployee(emp) {
     annual_leave: emp.annualLeave, mc_leave: emp.mcLeave, emergency_leave: emp.emergencyLeave,
     use_epf: emp.useEpf, use_socso: emp.useSocso, use_eis: emp.useEis,
     clock_pin: emp.clockPin || null,
+    require_punch: emp.requirePunch !== false,
   };
   const { error } = await sb.from('payroll_employees').upsert(row, { onConflict: 'id' });
   if (error) { console.error('prUpsertEmployee:', error); return false; }
@@ -10474,6 +10483,7 @@ function openEditEmployeeModal(id) {
   document.getElementById('emp-socso').checked = emp.useSocso !== false;
   document.getElementById('emp-eis').checked = emp.useEis !== false;
   const pinEl = document.getElementById('emp-clock-pin'); if(pinEl) pinEl.value = emp.clockPin || '';
+  const rpEl = document.getElementById('emp-require-punch'); if(rpEl) rpEl.checked = emp.requirePunch !== false;
   updateEmpRatesPreview();
   document.getElementById('employee-modal').classList.add('open');
   document.body.classList.add('modal-open');
@@ -10500,6 +10510,7 @@ async function saveEmployee() {
     useSocso: document.getElementById('emp-socso').checked,
     useEis: document.getElementById('emp-eis').checked,
     clockPin: (document.getElementById('emp-clock-pin')?.value || '').trim() || null,
+    requirePunch: document.getElementById('emp-require-punch')?.checked !== false,
   };
   const ok = await prUpsertEmployee(data);
   if (!ok) { showPosToast('❌ 保存失败，请检查网络'); return; }
@@ -10709,6 +10720,30 @@ function confirmOtEntry() {
   renderOtDraftList(); updateAttCalcPreview();
 }
 function deleteOtEntry(id) { _prOtDraft=_prOtDraft.filter(e=>e.id!==id); renderOtDraftList(); updateAttCalcPreview(); }
+function openOtEdit(id) {
+  const el = document.getElementById('ot-edit-'+id);
+  if(!el) return;
+  // Close any other open edit rows
+  document.querySelectorAll('[id^="ot-edit-"]').forEach(e => { if(e.id !== 'ot-edit-'+id) e.style.display='none'; });
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+function closeOtEdit(id) {
+  const el = document.getElementById('ot-edit-'+id);
+  if(el) el.style.display='none';
+}
+function saveOtEdit(id) {
+  const entry = _prOtDraft.find(e=>e.id===id);
+  if(!entry) return;
+  const date = document.getElementById('ot-edit-date-'+id)?.value;
+  const start = document.getElementById('ot-edit-start-'+id)?.value;
+  const end = document.getElementById('ot-edit-end-'+id)?.value;
+  if(!date||!start||!end) { alert('请填写完整'); return; }
+  const [sh,sm]=start.split(':').map(Number), [eh,em]=end.split(':').map(Number);
+  let mins=(eh*60+em)-(sh*60+sm); if(mins<0)mins+=1440;
+  if(mins<=0) { alert('结束时间必须晚于开始时间'); return; }
+  entry.date=date; entry.start=start; entry.end=end; entry.hours=parseFloat((mins/60).toFixed(4));
+  renderOtDraftList(); updateAttCalcPreview();
+}
 function renderOtDraftList() {
   const c=document.getElementById('ot-entries-list'), tr=document.getElementById('ot-total-row');
   if (!c) return;
@@ -10718,11 +10753,34 @@ function renderOtDraftList() {
     if(tr)tr.style.display='none'; return;
   }
   c.innerHTML=sorted.map(e=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface2);border-radius:var(--radius-xs);margin-bottom:4px;border:1px solid var(--border)">
-      <div style="font-size:12px;font-weight:700;color:var(--text2);min-width:60px">${formatDateShort(e.date)}</div>
-      <div style="font-family:'DM Mono',monospace;font-size:12px;flex:1">${e.start} → ${e.end}</div>
-      <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--blue)">${Number(e.hours).toFixed(2)}h</div>
-      <button onclick="deleteOtEntry('${e.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 4px">✕</button>
+    <div id="ot-row-${e.id}" style="border-radius:var(--radius-xs);margin-bottom:4px;border:1px solid var(--border);overflow:hidden">
+      <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface2)">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);min-width:60px">${formatDateShort(e.date)}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:12px;flex:1">${e.start} → ${e.end}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--blue)">${Number(e.hours).toFixed(2)}h</div>
+        <button onclick="openOtEdit('${e.id}')" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:13px;padding:2px 5px" title="编辑">✏️</button>
+        <button onclick="deleteOtEntry('${e.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 4px">✕</button>
+      </div>
+      <div id="ot-edit-${e.id}" style="display:none;background:var(--blue-bg);border-top:1px solid var(--blue-border);padding:8px 10px">
+        <div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:6px;margin-bottom:6px;align-items:end">
+          <div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:2px">日期</div>
+            <input type="date" id="ot-edit-date-${e.id}" value="${e.date}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text)">
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:2px">开始</div>
+            <input type="time" id="ot-edit-start-${e.id}" value="${e.start}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:2px">结束</div>
+            <input type="time" id="ot-edit-end-${e.id}" value="${e.end}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:6px">
+          <button onclick="closeOtEdit('${e.id}')" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer">取消</button>
+          <button onclick="saveOtEdit('${e.id}')" style="font-size:11px;padding:4px 10px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-weight:600">✓ 保存</button>
+        </div>
+      </div>
     </div>`).join('');
   const total=prCalcOtHours(sorted);
   if(tr){tr.style.display='flex';const th=document.getElementById('ot-total-hours');if(th)th.textContent=total.toFixed(2)+' 小时';}
@@ -11536,8 +11594,8 @@ async function detectShopIP() {
 
 async function loadClockData() {
   // Load employees
-  const { data: emps } = await sb.from('payroll_employees').select('id,name,clock_pin').order('name');
-  _clockEmployees = emps || [];
+  const { data: emps } = await sb.from('payroll_employees').select('id,name,clock_pin,require_punch').order('name');
+  _clockEmployees = (emps || []).filter(e => e.require_punch !== false);
   // Load public holidays
   const { data: ph } = await sb.from('public_holidays').select('date,name');
   _publicHolidays = ph || [];
