@@ -10779,24 +10779,24 @@ function renderOtDraftList() {
         <button onclick="openOtEdit(${idx})" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:13px;padding:2px 5px" title="编辑">✏️</button>
         <button onclick="deleteOtEntry('${e.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 4px">✕</button>
       </div>
-      <div id="ot-edit-${idx}" style="display:none;background:var(--blue-bg);border-top:1px solid var(--blue-border);padding:8px 10px">
-        <div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:6px;margin-bottom:6px;align-items:end">
-          <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:2px">日期</div>
-            <input type="date" id="ot-edit-date-${idx}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text)">
+      <div id="ot-edit-${idx}" style="display:none;background:#eef3ff;border-top:1px solid #b8c9f0;padding:10px 12px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+          <div style="flex:1;min-width:110px">
+            <div style="font-size:10px;color:#666;margin-bottom:3px">日期</div>
+            <input type="date" id="ot-edit-date-${idx}" style="display:block;width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #b8c9f0;border-radius:6px;font-size:12px;background:#fff;color:#222">
           </div>
-          <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:2px">开始</div>
-            <input type="time" id="ot-edit-start-${idx}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+          <div style="flex:1;min-width:90px">
+            <div style="font-size:10px;color:#666;margin-bottom:3px">开始</div>
+            <input type="time" id="ot-edit-start-${idx}" style="display:block;width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #b8c9f0;border-radius:6px;font-size:12px;background:#fff;color:#222">
           </div>
-          <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:2px">结束</div>
-            <input type="time" id="ot-edit-end-${idx}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+          <div style="flex:1;min-width:90px">
+            <div style="font-size:10px;color:#666;margin-bottom:3px">结束</div>
+            <input type="time" id="ot-edit-end-${idx}" style="display:block;width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #b8c9f0;border-radius:6px;font-size:12px;background:#fff;color:#222">
           </div>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:6px">
-          <button onclick="closeOtEdit(${idx})" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer">取消</button>
-          <button onclick="saveOtEdit(${idx})" style="font-size:11px;padding:4px 10px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-weight:600">✓ 保存</button>
+          <button onclick="closeOtEdit(${idx})" style="font-size:11px;padding:4px 12px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer">取消</button>
+          <button onclick="saveOtEdit(${idx})" style="font-size:11px;padding:4px 12px;border:1px solid #3b5bdb;border-radius:6px;background:#3b5bdb;color:#fff;cursor:pointer;font-weight:600">✓ 保存</button>
         </div>
       </div>
     </div>`).join('');
