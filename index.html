@@ -10720,44 +10720,46 @@ function confirmOtEntry() {
   renderOtDraftList(); updateAttCalcPreview();
 }
 function deleteOtEntry(id) { _prOtDraft=_prOtDraft.filter(e=>e.id!==id); renderOtDraftList(); updateAttCalcPreview(); }
-function openOtEdit(id) {
+function openOtEdit(idx) {
   // Close any other open edit rows first
   document.querySelectorAll('[id^="ot-edit-"]').forEach(function(e) {
-    if(e.id !== 'ot-edit-'+id) e.style.display='none';
+    if(e.id !== 'ot-edit-'+idx) e.style.display='none';
   });
-  const el = document.getElementById('ot-edit-'+id);
+  const el = document.getElementById('ot-edit-'+idx);
   if(!el) return;
   const isOpen = el.style.display === 'block';
   el.style.display = isOpen ? 'none' : 'block';
   if(!isOpen) {
-    // Find entry by matching index in sorted draft list
     const sorted = _prOtDraft.slice().sort(function(a,b){ return a.date.localeCompare(b.date)||a.start.localeCompare(b.start); });
-    const entry = sorted.find(function(e){ return String(e.id) === String(id); });
+    const entry = sorted[idx];
     if(entry) {
-      const dEl = document.getElementById('ot-edit-date-'+id);
-      const sEl = document.getElementById('ot-edit-start-'+id);
-      const eEl = document.getElementById('ot-edit-end-'+id);
-      if(dEl) { dEl.value = ''; dEl.value = entry.date; }
-      if(sEl) { sEl.value = ''; sEl.value = entry.start; }
-      if(eEl) { eEl.value = ''; eEl.value = entry.end; }
+      const dEl = document.getElementById('ot-edit-date-'+idx);
+      const sEl = document.getElementById('ot-edit-start-'+idx);
+      const eEl = document.getElementById('ot-edit-end-'+idx);
+      if(dEl) { dEl.value = entry.date; }
+      if(sEl) { sEl.value = entry.start; }
+      if(eEl) { eEl.value = entry.end; }
     }
   }
 }
-function closeOtEdit(id) {
-  const el = document.getElementById('ot-edit-'+id);
+function closeOtEdit(idx) {
+  const el = document.getElementById('ot-edit-'+idx);
   if(el) el.style.display='none';
 }
-function saveOtEdit(id) {
-  const entry = _prOtDraft.find(e=>String(e.id)===String(id));
+function saveOtEdit(idx) {
+  const sorted = _prOtDraft.slice().sort(function(a,b){ return a.date.localeCompare(b.date)||a.start.localeCompare(b.start); });
+  const entry = sorted[idx];
   if(!entry) return;
-  const date = document.getElementById('ot-edit-date-'+id)?.value;
-  const start = document.getElementById('ot-edit-start-'+id)?.value;
-  const end = document.getElementById('ot-edit-end-'+id)?.value;
+  const date = document.getElementById('ot-edit-date-'+idx)?.value;
+  const start = document.getElementById('ot-edit-start-'+idx)?.value;
+  const end = document.getElementById('ot-edit-end-'+idx)?.value;
   if(!date||!start||!end) { alert('请填写完整'); return; }
   const [sh,sm]=start.split(':').map(Number), [eh,em]=end.split(':').map(Number);
   let mins=(eh*60+em)-(sh*60+sm); if(mins<0)mins+=1440;
   if(mins<=0) { alert('结束时间必须晚于开始时间'); return; }
-  entry.date=date; entry.start=start; entry.end=end; entry.hours=parseFloat((mins/60).toFixed(4));
+  // Update the actual entry in _prOtDraft
+  const real = _prOtDraft.find(e=>e.id===entry.id);
+  if(real) { real.date=date; real.start=start; real.end=end; real.hours=parseFloat((mins/60).toFixed(4)); }
   renderOtDraftList(); updateAttCalcPreview();
 }
 function renderOtDraftList() {
@@ -10768,33 +10770,33 @@ function renderOtDraftList() {
     c.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0;text-align:center">暂无 OT 记录</div>';
     if(tr)tr.style.display='none'; return;
   }
-  c.innerHTML=sorted.map(e=>`
-    <div id="ot-row-${e.id}" style="border-radius:var(--radius-xs);margin-bottom:4px;border:1px solid var(--border);overflow:hidden">
+  c.innerHTML=sorted.map((e,idx)=>`
+    <div id="ot-row-${idx}" style="border-radius:var(--radius-xs);margin-bottom:4px;border:1px solid var(--border);overflow:hidden">
       <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface2)">
         <div style="font-size:12px;font-weight:700;color:var(--text2);min-width:60px">${formatDateShort(e.date)}</div>
         <div style="font-family:'DM Mono',monospace;font-size:12px;flex:1">${e.start} → ${e.end}</div>
         <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--blue)">${Number(e.hours).toFixed(2)}h</div>
-        <button onclick="openOtEdit('${e.id}')" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:13px;padding:2px 5px" title="编辑">✏️</button>
+        <button onclick="openOtEdit(${idx})" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:13px;padding:2px 5px" title="编辑">✏️</button>
         <button onclick="deleteOtEntry('${e.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 4px">✕</button>
       </div>
-      <div id="ot-edit-${e.id}" style="display:none;background:var(--blue-bg);border-top:1px solid var(--blue-border);padding:8px 10px">
+      <div id="ot-edit-${idx}" style="display:none;background:var(--blue-bg);border-top:1px solid var(--blue-border);padding:8px 10px">
         <div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:6px;margin-bottom:6px;align-items:end">
           <div>
             <div style="font-size:10px;color:var(--text3);margin-bottom:2px">日期</div>
-            <input type="date" id="ot-edit-date-${e.id}" value="${e.date}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text)">
+            <input type="date" id="ot-edit-date-${idx}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text)">
           </div>
           <div>
             <div style="font-size:10px;color:var(--text3);margin-bottom:2px">开始</div>
-            <input type="time" id="ot-edit-start-${e.id}" value="${e.start}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+            <input type="time" id="ot-edit-start-${idx}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
           </div>
           <div>
             <div style="font-size:10px;color:var(--text3);margin-bottom:2px">结束</div>
-            <input type="time" id="ot-edit-end-${e.id}" value="${e.end}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+            <input type="time" id="ot-edit-end-${idx}" style="width:100%;padding:5px 8px;border:1px solid var(--blue-border);border-radius:var(--radius-xs);font-size:12px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
           </div>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:6px">
-          <button onclick="closeOtEdit('${e.id}')" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer">取消</button>
-          <button onclick="saveOtEdit('${e.id}')" style="font-size:11px;padding:4px 10px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-weight:600">✓ 保存</button>
+          <button onclick="closeOtEdit(${idx})" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer">取消</button>
+          <button onclick="saveOtEdit(${idx})" style="font-size:11px;padding:4px 10px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-weight:600">✓ 保存</button>
         </div>
       </div>
     </div>`).join('');
