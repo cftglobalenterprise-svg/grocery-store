@@ -11602,11 +11602,26 @@ let _shopIpDetected = false;
 let _publicHolidays = [];
 
 async function detectShopIP() {
-  try {
-    const res = await fetch('https://api.ipify.org?format=json');
-    const data = await res.json();
-    _shopIpDetected = data.ip === SHOP_IP;
-  } catch { _shopIpDetected = false; }
+  // If branch login, allow clock regardless of IP (branch password is already the gate)
+  if(_currentRole === 'branch') { _shopIpDetected = true; return; }
+  // For manual clock button from HQ, try IP check
+  const sources = [
+    'https://api.ipify.org?format=json',
+    'https://api4.my-ip.io/v2/ip.json',
+    'https://ipapi.co/json/'
+  ];
+  for(const url of sources) {
+    try {
+      const res = await Promise.race([
+        fetch(url),
+        new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),3000))
+      ]);
+      const data = await res.json();
+      const ip = data.ip || data.IPv4 || data.ipAddress;
+      if(ip) { _shopIpDetected = (ip === SHOP_IP); return; }
+    } catch { continue; }
+  }
+  _shopIpDetected = false;
 }
 
 async function loadClockData() {
