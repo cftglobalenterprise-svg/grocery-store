@@ -2122,8 +2122,14 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </div>
     </div>
 
+    <!-- SECTION: Attendance Log from clock -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">🕐 上下班记录</div>
+    <div id="att-clock-log-list" style="margin-bottom:14px">
+      <div style="font-size:12px;color:var(--text3);text-align:center;padding:8px">加载中...</div>
+    </div>
+
     <!-- SECTION: OT Log -->
-    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">⏰ OT 记录</div>
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">⏰ OT 记录 <span style="font-size:9px;font-weight:400;color:var(--text3)">（超过 18:30 才算，从 18:00 起计）</span></div>
     <div style="margin-bottom:14px">
       <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
         <button class="btn" style="font-size:12px;padding:5px 10px;background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)" onclick="openOtEntryRow()">+ 新增 OT</button>
@@ -10543,13 +10549,14 @@ async function openAttendanceModal(empId) {
     const monthStart = _prCurrentMonth + '-01';
     const monthEnd = _prCurrentMonth + '-31';
     const { data: clockLogs } = await sb.from('attendance_logs')
-      .select('date, clock_in, clock_out')
+      .select('date, clock_in, clock_out, ot_hours, is_ph')
       .eq('emp_id', empId)
       .gte('date', monthStart)
       .lte('date', monthEnd)
       .not('clock_in', 'is', null);
     autoClockDays = (clockLogs || []).filter(l => l.clock_in).length;
-  } catch(e) {}
+    renderAttClockLogList(clockLogs || []);
+  } catch(e) { renderAttClockLogList([]); }
 
   // If no manual record yet, pre-fill with auto clock days; otherwise keep manual value
   const manualDays = ex.workDays != null ? ex.workDays : null;
@@ -10761,6 +10768,36 @@ function saveOtEdit(idx) {
   if(real) { real.date=date; real.start=start; real.end=end; real.hours=parseFloat((mins/60).toFixed(4)); }
   renderOtDraftList(); updateAttCalcPreview();
 }
+function renderAttClockLogList(logs) {
+  const c = document.getElementById('att-clock-log-list');
+  if(!c) return;
+  if(!logs || logs.length === 0) {
+    c.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px;background:var(--surface2);border-radius:var(--radius-xs)">本月暂无打卡记录</div>';
+    return;
+  }
+  const sorted = logs.slice().sort((a,b) => a.date.localeCompare(b.date));
+  c.innerHTML = `
+    <div style="border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden">
+      <div style="display:grid;grid-template-columns:80px 80px 80px 1fr;gap:0;background:var(--surface2);padding:6px 10px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
+        <span>日期</span><span>上班</span><span>下班</span><span style="text-align:right">OT</span>
+      </div>
+      ${sorted.map(l => {
+        const inT = l.clock_in ? new Date(l.clock_in).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false}) : '--:--';
+        const outT = l.clock_out ? new Date(l.clock_out).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false}) : '--:--';
+        const dateStr = l.date.slice(5).replace('-','/');
+        const ot = Number(l.ot_hours || 0);
+        const otStr = ot > 0 ? `<span style="color:var(--blue);font-weight:700;font-family:'DM Mono',monospace">${ot.toFixed(2)}h</span>` : '<span style="color:var(--text3)">-</span>';
+        const ph = l.is_ph ? ' <span style="font-size:9px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:8px">PH</span>' : '';
+        return `<div style="display:grid;grid-template-columns:80px 80px 80px 1fr;gap:0;padding:6px 10px;border-top:1px solid var(--border);font-size:12px;background:var(--surface)">
+          <span style="font-weight:600;color:var(--text2)">${dateStr}${ph}</span>
+          <span style="font-family:'DM Mono',monospace">${inT}</span>
+          <span style="font-family:'DM Mono',monospace;color:${l.clock_out?'var(--text)':'var(--text3)'}">${outT}</span>
+          <span style="text-align:right">${otStr}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
 function renderOtDraftList() {
   const c=document.getElementById('ot-entries-list'), tr=document.getElementById('ot-total-row');
   if (!c) return;
@@ -11847,16 +11884,21 @@ async function performClock() {
 
     const [eh, em] = WORK_END.split(':').map(Number);
     const officialEnd = new Date(now); officialEnd.setHours(eh, em, 0, 0);
+    // OT threshold: must work >= 30 mins past WORK_END to qualify
+    const OT_THRESHOLD_MINS = 30;
 
     let workHours = 0, otHours = 0;
-    if(clockOut <= officialEnd) {
+    const minsAfterEnd = Math.max(0, (clockOut - officialEnd) / 60000);
+
+    if(minsAfterEnd < OT_THRESHOLD_MINS) {
+      // Less than 30 mins over = no OT, count as normal day
       workHours = workedHours;
       otHours = 0;
     } else {
+      // 30+ mins over = OT starts from WORK_END (18:00)
       const normalMins = (officialEnd - clockIn) / 60000 - LUNCH_HRS * 60;
       workHours = Math.max(0, normalMins / 60);
-      const otMins = (clockOut - officialEnd) / 60000;
-      otHours = Math.max(0, otMins / 60);
+      otHours = Math.max(0, minsAfterEnd / 60); // from 18:00 onwards
     }
 
     workHours = Math.round(workHours * 100) / 100;
