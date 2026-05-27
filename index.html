@@ -10721,9 +10721,9 @@ function confirmOtEntry() {
 }
 function deleteOtEntry(id) { _prOtDraft=_prOtDraft.filter(e=>e.id!==id); renderOtDraftList(); updateAttCalcPreview(); }
 function openOtEdit(idx) {
-  // Close any other open edit rows first
+  // Close any other open edit rows first (only match ot-edit-N, not ot-edit-date-N)
   document.querySelectorAll('[id^="ot-edit-"]').forEach(function(e) {
-    if(e.id !== 'ot-edit-'+idx) e.style.display='none';
+    if(/^ot-edit-\d+$/.test(e.id) && e.id !== 'ot-edit-'+idx) e.style.display='none';
   });
   const el = document.getElementById('ot-edit-'+idx);
   if(!el) return;
