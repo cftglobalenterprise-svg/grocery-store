@@ -8758,8 +8758,8 @@ function applyRolePermissions(role) {
     if(bundleBtn) bundleBtn.style.display = '';
     document.body.classList.add('hq-mode');
     _profitUnlocked = true;
-    // Show clock nav
-    ['navbtn-clock','nav-divider-clock'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = ''; });
+    // HQ: hide clock nav (not needed)
+    ['navbtn-clock','nav-divider-clock'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
     // Start on HQ dashboard
     setTimeout(() => {
       posSwitchTab('hq');
@@ -8767,7 +8767,6 @@ function applyRolePermissions(role) {
       const hqBtn = document.getElementById('navbtn-hq');
       if(hqBtn) hqBtn.classList.add('active');
       renderHqDashboard();
-      postLoginClockCheck();
     }, 500);
   }
 }
@@ -11640,9 +11639,12 @@ function updateClockTime() {
 
 async function openClockModal(auto) {
   if(!_shopIpDetected) {
-    if(auto) return; // silent if auto-trigger
-    showPosToast('⚠️ 只能在店里打卡');
-    return;
+    await detectShopIP();
+    if(!_shopIpDetected) {
+      if(auto) return;
+      showPosToast('⚠️ 只能在店里打卡');
+      return;
+    }
   }
   await loadClockData();
   _clockRequired = !!auto;
@@ -11873,20 +11875,29 @@ async function performClock() {
     document.getElementById('clock-done-detail').textContent = detail;
 
     const closeBtn = document.getElementById('clock-close-btn');
-    if(closeBtn) closeBtn.textContent = '关闭';
+    if(closeBtn) { closeBtn.style.display = ''; closeBtn.textContent = '关闭'; }
+  }
 
-    // Auto logout after clock out
-    setTimeout(() => {
+  // Auto-close after 3s
+  setTimeout(async () => {
+    if(document.getElementById('clock-step-done')?.style.display !== 'none') {
       closeClockModal();
-      if(typeof doLogout === 'function') doLogout();
-      else location.reload();
-    }, 2500);
-  }
-
-  // Auto-close after 3s for clock IN only
-  if(emp._action === 'in') {
-    setTimeout(() => { if(document.getElementById('clock-step-done').style.display !== 'none') closeClockModal(); }, 3000);
-  }
+      // After clock out: check if all employees done -> reload to reset state
+      if(emp._action === 'out') {
+        const today = new Date().toISOString().slice(0,10);
+        const { data: logs } = await sb.from('attendance_logs')
+          .select('emp_id,clock_in,clock_out').eq('date', today);
+        const allDone = _clockEmployees.length > 0 && _clockEmployees.every(e => {
+          const l = (logs||[]).find(x => x.emp_id === e.id);
+          return l && l.clock_in && l.clock_out;
+        });
+        if(allDone) {
+          // All clocked out - don't reopen modal
+          return;
+        }
+      }
+    }
+  }, 3000);
 }
 
 function clockGoBack() {
@@ -11899,31 +11910,44 @@ function clockGoBack() {
 
 // ── Called after login to check IP and auto-show clock modal ──
 async function postLoginClockCheck() {
+  // Clock check only for branch login
+  if(_currentRole !== 'branch') return;
+
   await detectShopIP();
   if(!_shopIpDetected) return;
 
-  // Load employees first
   await loadClockData();
-  const today = new Date().toISOString().slice(0,10);
+  const now = new Date();
+  const today = now.toISOString().slice(0,10);
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
+  // Work window: 9:00 (30 min before 9:30) to end of day
+  const CLOCK_START_MINS = 9 * 60; // 9:00am
+  if(nowMins < CLOCK_START_MINS) return; // too early, don't show
 
   // Check today's logs
   const { data: todayLogs } = await sb.from('attendance_logs')
     .select('emp_id, clock_in, clock_out').eq('date', today);
   const logs = todayLogs || [];
 
-  // Show modal only if someone still needs to clock in or out
+  // Check if all employees have clocked OUT already -> don't show
+  const allClockedOut = _clockEmployees.length > 0 && _clockEmployees.every(emp => {
+    const log = logs.find(l => l.emp_id === emp.id);
+    return log && log.clock_in && log.clock_out;
+  });
+  if(allClockedOut) return;
+
+  // Check if someone still needs clock IN or has clocked IN but not OUT
   const needsClock = _clockEmployees.some(emp => {
     const log = logs.find(l => l.emp_id === emp.id);
-    return !log || (log.clock_in && !log.clock_out);
+    return !log || !log.clock_in || (log.clock_in && !log.clock_out);
   });
-  if(!needsClock) return; // all done today, skip
+  if(!needsClock) return;
 
+  // Show close button for branch (稍后再打卡)
   const closeBtn = document.getElementById('clock-close-btn');
-  if(_loginRole === 'hq') {
-    if(closeBtn) { closeBtn.style.display = ''; closeBtn.textContent = '我是老板，跳过'; }
-  } else {
-    if(closeBtn) closeBtn.style.display = 'none';
-  }
+  if(closeBtn) { closeBtn.style.display = ''; closeBtn.textContent = '稍后再打卡'; }
+
   await openClockModal(true);
 }
 
