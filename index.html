@@ -10721,22 +10721,25 @@ function confirmOtEntry() {
 }
 function deleteOtEntry(id) { _prOtDraft=_prOtDraft.filter(e=>e.id!==id); renderOtDraftList(); updateAttCalcPreview(); }
 function openOtEdit(id) {
+  // Close any other open edit rows first
+  document.querySelectorAll('[id^="ot-edit-"]').forEach(function(e) {
+    if(e.id !== 'ot-edit-'+id) e.style.display='none';
+  });
   const el = document.getElementById('ot-edit-'+id);
   if(!el) return;
-  // Close any other open edit rows
-  document.querySelectorAll('[id^="ot-edit-"]').forEach(e => { if(e.id !== 'ot-edit-'+id) e.style.display='none'; });
   const isOpen = el.style.display === 'block';
   el.style.display = isOpen ? 'none' : 'block';
   if(!isOpen) {
-    // Set values via JS after making visible (more reliable than HTML value attr)
-    const entry = _prOtDraft.find(e => e.id === id);
+    // Find entry by matching index in sorted draft list
+    const sorted = _prOtDraft.slice().sort(function(a,b){ return a.date.localeCompare(b.date)||a.start.localeCompare(b.start); });
+    const entry = sorted.find(function(e){ return String(e.id) === String(id); });
     if(entry) {
       const dEl = document.getElementById('ot-edit-date-'+id);
       const sEl = document.getElementById('ot-edit-start-'+id);
       const eEl = document.getElementById('ot-edit-end-'+id);
-      if(dEl) dEl.value = entry.date;
-      if(sEl) sEl.value = entry.start;
-      if(eEl) eEl.value = entry.end;
+      if(dEl) { dEl.value = ''; dEl.value = entry.date; }
+      if(sEl) { sEl.value = ''; sEl.value = entry.start; }
+      if(eEl) { eEl.value = ''; eEl.value = entry.end; }
     }
   }
 }
@@ -10745,7 +10748,7 @@ function closeOtEdit(id) {
   if(el) el.style.display='none';
 }
 function saveOtEdit(id) {
-  const entry = _prOtDraft.find(e=>e.id===id);
+  const entry = _prOtDraft.find(e=>String(e.id)===String(id));
   if(!entry) return;
   const date = document.getElementById('ot-edit-date-'+id)?.value;
   const start = document.getElementById('ot-edit-start-'+id)?.value;
