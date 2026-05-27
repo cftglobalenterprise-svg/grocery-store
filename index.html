@@ -11515,11 +11515,25 @@ let _shopIpDetected = false;
 let _publicHolidays = [];
 
 async function detectShopIP() {
-  try {
-    const res = await fetch('https://api.ipify.org?format=json');
-    const data = await res.json();
-    _shopIpDetected = data.ip === SHOP_IP;
-  } catch { _shopIpDetected = false; }
+  const apis = [
+    'https://api4.my-ip.io/v2/ip.json',   // IPv4 only
+    'https://ipv4.icanhazip.com',           // returns plain text IPv4
+    'https://api.ipify.org?format=json',
+  ];
+  for(const url of apis) {
+    try {
+      const res = await fetch(url, {signal: AbortSignal.timeout(3000)});
+      const text = await res.text();
+      let ip = '';
+      try { ip = JSON.parse(text).ip || JSON.parse(text).IPv4 || ''; } catch { ip = text.trim(); }
+      // Only match IPv4
+      if(ip && ip.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+        _shopIpDetected = ip === SHOP_IP;
+        return;
+      }
+    } catch { continue; }
+  }
+  _shopIpDetected = false;
 }
 
 async function loadClockData() {
@@ -11552,8 +11566,14 @@ function updateClockTime() {
 
 async function openClockModal(auto) {
   if(!_shopIpDetected) {
-    if(auto) return; // silent if auto-trigger
-    showPosToast('⚠️ 只能在店里打卡');
+    if(auto) return;
+    // Show detected IP for debugging
+    let detectedIp = '无法检测';
+    try {
+      const r = await fetch('https://ipv4.icanhazip.com', {signal: AbortSignal.timeout(3000)});
+      detectedIp = (await r.text()).trim();
+    } catch {}
+    showPosToast(`⚠️ 只能在店里打卡（当前IP: ${detectedIp}，店里IP: ${SHOP_IP}）`);
     return;
   }
   await loadClockData();
