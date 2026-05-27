@@ -3111,6 +3111,18 @@ async function voidOrderSale(idsStr) {
     }
     const oTblV2 = (o.business==='K19') ? 'g_orders' : 'orders';
     await sb.from(oTblV2).delete().eq('id',id);
+    // Also delete associated delivery fee row (same customer, within 10 minutes)
+    if(!o.is_delivery_fee) {
+      const oTime = new Date(o.paid_at||o.created_at).getTime();
+      const feeRow = orders.find(f =>
+        f.is_delivery_fee &&
+        f.customer === o.customer &&
+        Math.abs(new Date(f.paid_at||f.created_at).getTime() - oTime) < 600000
+      );
+      if(feeRow) {
+        await sb.from(oTblV2).delete().eq('id', feeRow.id);
+      }
+    }
   }
   await loadItems();
   await loadOrders();
@@ -8779,6 +8791,18 @@ async function hqVoidSale(orderId, tbl) {
     if(matchingDebt) await sb.from(debtTbl).delete().eq('id', matchingDebt.id);
   }
   await sb.from(tbl).delete().eq('id', orderId);
+  // Also delete associated delivery fee row (same customer, within 10 minutes)
+  if(!o.is_delivery_fee) {
+    const oTime = new Date(o.paid_at||o.created_at).getTime();
+    const feeRow = orders.find(f =>
+      f.is_delivery_fee &&
+      f.customer === o.customer &&
+      Math.abs(new Date(f.paid_at||f.created_at).getTime() - oTime) < 600000
+    );
+    if(feeRow) {
+      await sb.from(tbl).delete().eq('id', feeRow.id);
+    }
+  }
   await loadItems();
   await loadOrders();
   await renderHqDashboard();
