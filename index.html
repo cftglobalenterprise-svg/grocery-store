@@ -8729,7 +8729,7 @@ function applyRolePermissions(role) {
     if(instoreBtn) instoreBtn.classList.add('active');
     // Show clock nav
     ['navbtn-clock','nav-divider-clock'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = ''; });
-    setTimeout(postLoginClockCheck, 800);
+    setTimeout(postLoginClockCheck, 1500);
 
   } else {
     // 总部: 全部功能 + 总部报表
@@ -11516,22 +11516,20 @@ let _publicHolidays = [];
 
 async function detectShopIP() {
   const apis = [
-    'https://api4.my-ip.io/v2/ip.json',   // IPv4 only
-    'https://ipv4.icanhazip.com',           // returns plain text IPv4
-    'https://api.ipify.org?format=json',
+    { url: 'https://ipv4.icanhazip.com', parse: t => t.trim() },
+    { url: 'https://api.ipify.org?format=json', parse: t => { try { return JSON.parse(t).ip; } catch { return t.trim(); } } },
+    { url: 'https://checkip.amazonaws.com', parse: t => t.trim() },
   ];
-  for(const url of apis) {
+  for(const api of apis) {
     try {
-      const res = await fetch(url, {signal: AbortSignal.timeout(3000)});
-      const text = await res.text();
-      let ip = '';
-      try { ip = JSON.parse(text).ip || JSON.parse(text).IPv4 || ''; } catch { ip = text.trim(); }
-      // Only match IPv4
-      if(ip && ip.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+      const res = await fetch(api.url, {signal: AbortSignal.timeout(4000)});
+      const ip = api.parse(await res.text());
+      if(ip && /^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
+        console.log('[Clock] IP:', ip, 'Match:', ip === SHOP_IP);
         _shopIpDetected = ip === SHOP_IP;
         return;
       }
-    } catch { continue; }
+    } catch(e) { continue; }
   }
   _shopIpDetected = false;
 }
