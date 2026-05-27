@@ -10725,7 +10725,20 @@ function openOtEdit(id) {
   if(!el) return;
   // Close any other open edit rows
   document.querySelectorAll('[id^="ot-edit-"]').forEach(e => { if(e.id !== 'ot-edit-'+id) e.style.display='none'; });
-  el.style.display = el.style.display==='none' ? 'block' : 'none';
+  const isOpen = el.style.display === 'block';
+  el.style.display = isOpen ? 'none' : 'block';
+  if(!isOpen) {
+    // Set values via JS after making visible (more reliable than HTML value attr)
+    const entry = _prOtDraft.find(e => e.id === id);
+    if(entry) {
+      const dEl = document.getElementById('ot-edit-date-'+id);
+      const sEl = document.getElementById('ot-edit-start-'+id);
+      const eEl = document.getElementById('ot-edit-end-'+id);
+      if(dEl) dEl.value = entry.date;
+      if(sEl) sEl.value = entry.start;
+      if(eEl) eEl.value = entry.end;
+    }
+  }
 }
 function closeOtEdit(id) {
   const el = document.getElementById('ot-edit-'+id);
