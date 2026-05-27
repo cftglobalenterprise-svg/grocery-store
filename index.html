@@ -773,6 +773,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn hq-only" id="navbtn-lhdn" onclick="posSwitchTab('lhdn')" style="display:none">
         <span class="nav-icon">🗂️</span> 税务 LHDN
       </button>
+      <button class="nav-btn hq-only" id="navbtn-holidays" onclick="posSwitchTab('holidays')" style="display:none">
+        <span class="nav-icon">🎉</span> 公众假期
+      </button>
       <div class="nav-divider" id="nav-divider-clock" style="display:none"></div>
       <button class="nav-btn" id="navbtn-clock" onclick="openClockModal()" style="display:none">
         <span class="nav-icon">⏱</span> 打卡
@@ -1394,6 +1397,81 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </div>
 
       <!-- ══ CUSTOMERS PAGE ════════════════════════════ -->
+      <!-- HOLIDAYS / MEMO PAGE -->
+      <div id="page-holidays" class="page">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:20px;font-weight:700">🗓️ 日历 & 备忘录</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">公众假期 · 会议 · 出差 · 待办事项</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="calPrevMonth()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface);cursor:pointer;font-size:16px">‹</button>
+            <span id="cal-month-label" style="font-size:15px;font-weight:700;min-width:120px;text-align:center"></span>
+            <button onclick="calNextMonth()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface);cursor:pointer;font-size:16px">›</button>
+            <button onclick="calAddEvent()" style="padding:6px 14px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:600">+ 新增</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start">
+          <!-- Calendar grid -->
+          <div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+              <div style="text-align:center;font-size:11px;font-weight:700;color:var(--red);padding:4px">日</div>
+              <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">一</div>
+              <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">二</div>
+              <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">三</div>
+              <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">四</div>
+              <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">五</div>
+              <div style="text-align:center;font-size:11px;font-weight:700;color:var(--blue);padding:4px">六</div>
+            </div>
+            <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+          </div>
+
+          <!-- Event list -->
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">本月事项</div>
+            <div id="cal-event-list" style="display:flex;flex-direction:column;gap:6px"></div>
+          </div>
+        </div>
+
+        <!-- Add/Edit Event Modal -->
+        <div id="cal-event-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;align-items:center;justify-content:center">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:360px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+            <div style="font-size:16px;font-weight:700;margin-bottom:16px" id="cal-modal-title">新增事项</div>
+            <input type="hidden" id="cal-edit-id">
+            <div style="margin-bottom:12px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">日期</div>
+              <input type="date" id="cal-event-date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            </div>
+            <div style="margin-bottom:12px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">标题</div>
+              <input type="text" id="cal-event-title" placeholder="例：Hari Raya、会议、出差..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            </div>
+            <div style="margin-bottom:12px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">类型</div>
+              <select id="cal-event-type" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)">
+                <option value="ph">🎉 公众假期 (PH)</option>
+                <option value="meeting">📋 会议</option>
+                <option value="trip">✈️ 出差</option>
+                <option value="todo">✅ 待办</option>
+                <option value="other">📌 其他</option>
+              </select>
+            </div>
+            <div style="margin-bottom:16px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">备注（可选）</div>
+              <textarea id="cal-event-note" rows="2" placeholder="备注..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:8px">
+              <button id="cal-delete-btn" onclick="calDeleteEvent()" style="display:none;padding:8px 16px;border:1px solid var(--red);border-radius:var(--radius-xs);background:none;color:var(--red);cursor:pointer;font-size:13px">删除</button>
+              <div style="display:flex;gap:8px;margin-left:auto">
+                <button onclick="calCloseModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">取消</button>
+                <button onclick="calSaveEvent()" style="padding:8px 16px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:600">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="page-debtors" class="page">
         <div style="max-width:700px;margin:0 auto;padding:16px">
           <!-- Tabs -->
@@ -8554,6 +8632,7 @@ function posSwitchTab(t) {
   else if(t === 'customers') { renderCustomerList(); }
   else if(t === 'payroll') { renderPayrollPage(); }
   else if(t === 'lhdn') { renderLhdnPage(); }
+  else if(t === 'holidays') { renderCalPage(); }
 }
 
 function posSidebarFinanceUnlock() {
@@ -8752,7 +8831,7 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-debtors',
-     'navbtn-finance','navbtn-hq','navbtn-customers','navbtn-payroll','navbtn-lhdn'].forEach(id => {
+     'navbtn-finance','navbtn-hq','navbtn-customers','navbtn-payroll','navbtn-lhdn','navbtn-holidays'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
@@ -11964,6 +12043,189 @@ function clockGoBack() {
   clockShowStep('select');
   renderClockEmpList();
 }
+
+// ── CALENDAR / MEMO PAGE ─────────────────────────────────────────
+let _calYear = new Date().getFullYear();
+let _calMonth = new Date().getMonth(); // 0-indexed
+let _calEvents = [];
+let _calEditId = null;
+
+const CAL_TYPE_META = {
+  ph:      { label:'公众假期', color:'#dc2626', bg:'#fee2e2', emoji:'🎉' },
+  meeting: { label:'会议',     color:'#7c3aed', bg:'#ede9fe', emoji:'📋' },
+  trip:    { label:'出差',     color:'#0369a1', bg:'#e0f2fe', emoji:'✈️' },
+  todo:    { label:'待办',     color:'#059669', bg:'#d1fae5', emoji:'✅' },
+  other:   { label:'其他',     color:'#92400e', bg:'#fef3c7', emoji:'📌' },
+};
+
+async function loadCalEvents() {
+  const { data } = await sb.from('calendar_events').select('*').order('date');
+  _calEvents = data || [];
+}
+
+async function renderCalPage() {
+  await loadCalEvents();
+  renderCalGrid();
+  renderCalEventList();
+}
+
+function calPrevMonth() {
+  _calMonth--;
+  if(_calMonth < 0) { _calMonth = 11; _calYear--; }
+  renderCalGrid(); renderCalEventList();
+}
+
+function calNextMonth() {
+  _calMonth++;
+  if(_calMonth > 11) { _calMonth = 0; _calYear++; }
+  renderCalGrid(); renderCalEventList();
+}
+
+function renderCalGrid() {
+  const monthNames = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+  const label = document.getElementById('cal-month-label');
+  if(label) label.textContent = _calYear + '年 ' + monthNames[_calMonth];
+
+  const grid = document.getElementById('cal-grid');
+  if(!grid) return;
+
+  const today = new Date().toISOString().slice(0,10);
+  const firstDay = new Date(_calYear, _calMonth, 1).getDay();
+  const daysInMonth = new Date(_calYear, _calMonth+1, 0).getDate();
+
+  const monthStr = _calYear + '-' + String(_calMonth+1).padStart(2,'0');
+  const monthEvents = _calEvents.filter(e => e.date && e.date.startsWith(monthStr));
+
+  let cells = '';
+  // Empty cells before first day
+  for(let i = 0; i < firstDay; i++) {
+    cells += '<div style="min-height:60px"></div>';
+  }
+  for(let d = 1; d <= daysInMonth; d++) {
+    const dateStr = monthStr + '-' + String(d).padStart(2,'0');
+    const dayEvents = monthEvents.filter(e => e.date === dateStr);
+    const isToday = dateStr === today;
+    const isSun = new Date(_calYear, _calMonth, d).getDay() === 0;
+    const isSat = new Date(_calYear, _calMonth, d).getDay() === 6;
+    const hasPH = dayEvents.some(e => e.type === 'ph');
+
+    const dayColor = hasPH ? '#dc2626' : isSun ? '#ef4444' : isSat ? '#3b82f6' : 'var(--text)';
+    const todayStyle = isToday ? 'border:2px solid var(--blue);' : 'border:1px solid var(--border);';
+    const bgStyle = hasPH ? 'background:#fff5f5;' : 'background:var(--surface);';
+
+    const eventDots = dayEvents.slice(0,3).map(e => {
+      const meta = CAL_TYPE_META[e.type] || CAL_TYPE_META.other;
+      return `<div style="font-size:9px;padding:1px 4px;border-radius:3px;background:${meta.bg};color:${meta.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="calEditEvent('${e.id}')">${e.title}</div>`;
+    }).join('');
+
+    cells += `<div style="${todayStyle}${bgStyle}border-radius:6px;padding:4px;min-height:60px;cursor:pointer" onclick="calAddEventOnDate('${dateStr}')">
+      <div style="font-size:13px;font-weight:700;color:${dayColor};margin-bottom:2px">${d}</div>
+      <div style="display:flex;flex-direction:column;gap:1px">${eventDots}</div>
+    </div>`;
+  }
+  grid.innerHTML = cells;
+}
+
+function renderCalEventList() {
+  const list = document.getElementById('cal-event-list');
+  if(!list) return;
+  const monthStr = _calYear + '-' + String(_calMonth+1).padStart(2,'0');
+  const monthEvents = _calEvents.filter(e => e.date && e.date.startsWith(monthStr))
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  if(!monthEvents.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">本月暂无事项</div>';
+    return;
+  }
+  list.innerHTML = monthEvents.map(e => {
+    const meta = CAL_TYPE_META[e.type] || CAL_TYPE_META.other;
+    const d = new Date(e.date + 'T00:00:00');
+    const dayStr = (d.getMonth()+1) + '/' + d.getDate() + ' ' + ['日','一','二','三','四','五','六'][d.getDay()];
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${meta.color};border-radius:var(--radius-xs);padding:8px 10px;cursor:pointer" onclick="calEditEvent('${e.id}')">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <span style="font-size:10px;font-weight:700;color:${meta.color};background:${meta.bg};padding:1px 6px;border-radius:8px">${meta.emoji} ${meta.label}</span>
+        <span style="font-size:11px;color:var(--text3)">${dayStr}</span>
+      </div>
+      <div style="font-size:13px;font-weight:600;margin-top:4px">${e.title}</div>
+      ${e.note ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${e.note}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function calAddEvent() {
+  _calEditId = null;
+  document.getElementById('cal-modal-title').textContent = '新增事项';
+  document.getElementById('cal-edit-id').value = '';
+  document.getElementById('cal-event-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('cal-event-title').value = '';
+  document.getElementById('cal-event-type').value = 'ph';
+  document.getElementById('cal-event-note').value = '';
+  document.getElementById('cal-delete-btn').style.display = 'none';
+  document.getElementById('cal-event-modal').style.display = 'flex';
+}
+
+function calAddEventOnDate(dateStr) {
+  calAddEvent();
+  document.getElementById('cal-event-date').value = dateStr;
+}
+
+function calEditEvent(id) {
+  const ev = _calEvents.find(e => String(e.id) === String(id));
+  if(!ev) return;
+  _calEditId = id;
+  document.getElementById('cal-modal-title').textContent = '编辑事项';
+  document.getElementById('cal-edit-id').value = id;
+  document.getElementById('cal-event-date').value = ev.date;
+  document.getElementById('cal-event-title').value = ev.title;
+  document.getElementById('cal-event-type').value = ev.type || 'other';
+  document.getElementById('cal-event-note').value = ev.note || '';
+  document.getElementById('cal-delete-btn').style.display = '';
+  document.getElementById('cal-event-modal').style.display = 'flex';
+}
+
+function calCloseModal() {
+  document.getElementById('cal-event-modal').style.display = 'none';
+}
+
+async function calSaveEvent() {
+  const date = document.getElementById('cal-event-date').value;
+  const title = document.getElementById('cal-event-title').value.trim();
+  const type = document.getElementById('cal-event-type').value;
+  const note = document.getElementById('cal-event-note').value.trim();
+  if(!date || !title) { alert('请填写日期和标题'); return; }
+
+  const row = { date, title, type, note: note || null };
+
+  if(_calEditId) {
+    await sb.from('calendar_events').update(row).eq('id', _calEditId);
+    // If PH type, also update public_holidays table
+    if(type === 'ph') {
+      await sb.from('public_holidays').upsert({ date, name: title }, { onConflict: 'date' });
+    } else {
+      await sb.from('public_holidays').delete().eq('date', date);
+    }
+  } else {
+    await sb.from('calendar_events').insert(row);
+    if(type === 'ph') {
+      await sb.from('public_holidays').upsert({ date, name: title }, { onConflict: 'date' });
+    }
+  }
+  calCloseModal();
+  await renderCalPage();
+}
+
+async function calDeleteEvent() {
+  if(!_calEditId) return;
+  if(!confirm('确定删除这个事项？')) return;
+  const ev = _calEvents.find(e => String(e.id) === String(_calEditId));
+  await sb.from('calendar_events').delete().eq('id', _calEditId);
+  if(ev && ev.type === 'ph') {
+    await sb.from('public_holidays').delete().eq('date', ev.date);
+  }
+  calCloseModal();
+  await renderCalPage();
+}
+
 
 // ── Called after login to check IP and auto-show clock modal ──
 async function postLoginClockCheck() {
