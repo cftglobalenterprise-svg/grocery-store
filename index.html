@@ -1117,6 +1117,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <input type="date" id="hq-date-from" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderHqDashboard()">
             <span style="font-size:12px;color:var(--text3)">至</span>
             <input type="date" id="hq-date-to" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderHqDashboard()">
+            <button onclick="generateHqReport()" style="padding:6px 14px;border:1px solid var(--green);border-radius:var(--radius-xs);background:var(--green);color:#fff;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">📊 Export PDF</button>
           </div>
         </div>
 
@@ -9110,6 +9111,228 @@ async function renderHqDashboard() {
     picker.value = _n.getFullYear()+'-'+String(_n.getMonth()+1).padStart(2,'0');
     if(typeof renderHqPnL === 'function') renderHqPnL();
   }
+}
+
+
+// ── HQ MONTHLY REPORT PDF ─────────────────────────────────────────
+async function generateHqReport() {
+  // Gather same data as renderHqDashboard
+  const period = document.getElementById('hq-period')?.value || 'month';
+  const dateFrom = document.getElementById('hq-date-from')?.value;
+  const dateTo = document.getElementById('hq-date-to')?.value;
+  const bizFilter = document.getElementById('hq-biz-filter')?.value || '';
+
+  const now = new Date();
+  let startDate, endDate;
+  if(dateFrom && dateTo) {
+    startDate = new Date(dateFrom); endDate = new Date(dateTo); endDate.setHours(23,59,59,999);
+  } else if(period === 'today') {
+    startDate = new Date(now); startDate.setHours(0,0,0,0);
+    endDate = new Date(now); endDate.setHours(23,59,59,999);
+  } else if(period === 'week') {
+    const day = now.getDay();
+    startDate = new Date(now); startDate.setDate(now.getDate()-day); startDate.setHours(0,0,0,0);
+    endDate = new Date(now); endDate.setHours(23,59,59,999);
+  } else if(period === 'month') {
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    endDate = new Date(now.getFullYear(), now.getMonth()+1, 0, 23, 59, 59, 999);
+  } else {
+    startDate = new Date('2000-01-01'); endDate = new Date('2099-12-31');
+  }
+
+  const periodLabel = dateFrom && dateTo
+    ? dateFrom + ' to ' + dateTo
+    : period === 'today' ? 'Today — ' + now.toLocaleDateString('en-MY',{day:'2-digit',month:'short',year:'numeric'})
+    : period === 'week' ? 'This Week'
+    : period === 'month' ? now.toLocaleDateString('en-MY',{month:'long',year:'numeric'})
+    : 'All Time';
+
+  const bizLabel = bizFilter === 'K19' ? 'KEDAI 19 (Grocery)' : bizFilter === 'A' ? 'CFT Global (Vape)' : 'Both Businesses';
+
+  const filterOrder = (o, tbl) => {
+    if(o.is_delivery_fee) return false;
+    const pm = o.pay_method||o.payment_method||o.payment_status||'';
+    if(pm==='credit'||pm==='credit_qr'||pm==='credit_cash') return false;
+    const d = new Date(o.paid_at||o.created_at);
+    if(d < startDate || d > endDate) return false;
+    if(!bizFilter) return true;
+    if(bizFilter === 'K19') return tbl === 'g_orders' || o.business === 'K19';
+    if(bizFilter === 'A') return tbl === 'orders' && o.business !== 'K19';
+    return true;
+  };
+
+  const cftOrders = orders.filter(o => filterOrder(o, 'orders') && (o.status==='instore'||o.status==='collected'));
+  const k19Orders = orders.filter(o => filterOrder(o, 'g_orders') && o.business==='K19' && (o.status==='instore'||o.status==='collected'));
+  const allOrd = [...cftOrders, ...k19Orders];
+
+  const delivFees = orders.filter(o => {
+    if(!o.is_delivery_fee) return false;
+    const d = new Date(o.paid_at||o.created_at);
+    if(d < startDate || d > endDate) return false;
+    if(bizFilter === 'K19') return o.business==='K19';
+    if(bizFilter === 'A') return o.business!=='K19';
+    return true;
+  });
+  const totalDelivFee = delivFees.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
+
+  const getTotal = o => +(o.total_price||o.total||0);
+  const getCost = o => {
+    const it = items.find(i=>i.id===o.item_id);
+    return it && it.cost_price ? +(it.cost_price)*(+(o.qty||1)) : 0;
+  };
+
+  // Per-business stats
+  const calcBizStats = (ords) => {
+    const rev = ords.reduce((s,o)=>s+getTotal(o),0);
+    const cost = ords.reduce((s,o)=>s+getCost(o),0);
+    const qr = ords.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('qr')).reduce((s,o)=>s+getTotal(o),0);
+    const cash = ords.filter(o=>(o.pay_method||o.payment_method||o.payment_status||'').includes('cash')).reduce((s,o)=>s+getTotal(o),0);
+    const txns = ords.length;
+    const profit = rev - cost;
+    const margin = rev > 0 ? (profit/rev*100) : 0;
+    // Top items
+    const itemMap = {};
+    ords.forEach(o => {
+      const k = o.item_name||'Unknown';
+      if(!itemMap[k]) itemMap[k]={qty:0,rev:0,cost:0};
+      itemMap[k].qty += +(o.qty||1);
+      itemMap[k].rev += getTotal(o);
+      itemMap[k].cost += getCost(o);
+    });
+    const topItems = Object.entries(itemMap).sort((a,b)=>b[1].rev-a[1].rev).slice(0,8);
+    return { rev, cost, profit, margin, qr, cash, txns, topItems };
+  };
+
+  const cftStats = calcBizStats(cftOrders);
+  const k19Stats = calcBizStats(k19Orders);
+  const allStats = calcBizStats(allOrd);
+  const totalProfit = allStats.profit - totalDelivFee;
+  const totalMargin = allStats.rev > 0 ? (totalProfit/allStats.rev*100) : 0;
+
+  const today = new Date().toLocaleDateString('en-MY',{day:'2-digit',month:'short',year:'numeric'});
+  const fmt = v => 'RM ' + Number(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  const fmtPct = v => v.toFixed(1) + '%';
+
+  const bizRow = (label, s, deliv=0) => {
+    const p = s.profit - deliv;
+    const m = s.rev > 0 ? (p/s.rev*100) : 0;
+    return `<tr>
+      <td style="font-weight:600">${label}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">${fmt(s.rev)}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">${fmt(s.cost+deliv)}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${p>=0?'#1e6641':'#8b2318'}">${fmt(p)}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace">${fmtPct(m)}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace">${s.txns}</td>
+    </tr>`;
+  };
+
+  const topTable = (stats, label) => stats.topItems.length ? `
+    <div style="margin-bottom:20px">
+      <div style="font-size:12px;font-weight:700;color:#6b6560;text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">${label} — Top Products</div>
+      <table><thead><tr><th>#</th><th>Product</th><th style="text-align:right">Qty</th><th style="text-align:right">Revenue</th><th style="text-align:right">Cost</th><th style="text-align:right">Gross Profit</th></tr></thead><tbody>
+      ${stats.topItems.map(([name,d],i)=>`<tr>
+        <td style="color:#9e9890">${i+1}</td>
+        <td style="font-weight:500">${name}</td>
+        <td style="text-align:right;font-family:'Courier New',monospace">${d.qty}</td>
+        <td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">${fmt(d.rev)}</td>
+        <td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">${fmt(d.cost)}</td>
+        <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${(d.rev-d.cost)>=0?'#1e6641':'#8b2318'}">${fmt(d.rev-d.cost)}</td>
+      </tr>`).join('')}
+      </tbody></table>
+    </div>` : '';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Business Report — ${periodLabel}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1a1814;font-size:13px}
+.page{width:210mm;margin:0 auto;padding:24px 28px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:3px solid #1a1814;margin-bottom:20px}
+.co{font-size:18px;font-weight:800}.co-sub{font-size:11px;color:#6b6560;margin-top:2px}
+.rpt-label{text-align:right}.rpt-label h2{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#6b6560}
+.rpt-label .period{font-size:17px;font-weight:800;color:#1e6641}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.kpi{background:#f5f2ee;border-radius:8px;padding:12px 14px;text-align:center}
+.kpi-label{font-size:9px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px}
+.kpi-val{font-size:20px;font-weight:800;font-family:'Courier New',monospace}
+.section-title{font-size:12px;font-weight:700;color:#6b6560;text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #ddd8d0}
+table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px}
+th{font-size:9px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.7px;padding:6px 8px;text-align:left;border-bottom:2px solid #ddd8d0;background:#f5f2ee}
+td{padding:8px 8px;border-bottom:1px solid #f0ede8}
+tr:hover td{background:#fafaf8}
+.total-row td{font-weight:700;border-top:2px solid #1a1814;background:#f5f2ee}
+.highlight{background:#f0f5f0}
+.footer{display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid #ddd8d0;margin-top:16px;font-size:10px;color:#9e9890}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.badge-green{background:#d1fae5;color:#065f46}
+.badge-red{background:#fee2e2;color:#8b2318}
+@media print{body{padding:0}.page{padding:18px 22px}}
+</style></head><body><div class="page">
+
+<div class="hdr">
+  <div>
+    <div class="co">CFT GLOBAL ENTERPRISE</div>
+    <div class="co-sub">Business Performance Report &middot; Confidential &middot; ${bizLabel}</div>
+  </div>
+  <div class="rpt-label">
+    <h2>Monthly Report</h2>
+    <div class="period">${periodLabel}</div>
+    <div style="font-size:10px;color:#9e9890;margin-top:3px">Generated: ${today}</div>
+  </div>
+</div>
+
+<!-- KPI Summary -->
+<div class="kpi-grid">
+  <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-val" style="color:#1e6641">${fmt(allStats.rev)}</div></div>
+  <div class="kpi"><div class="kpi-label">Total Cost</div><div class="kpi-val" style="color:#8b2318">${fmt(allStats.cost+totalDelivFee)}</div></div>
+  <div class="kpi"><div class="kpi-label">Gross Profit</div><div class="kpi-val" style="color:${totalProfit>=0?'#1e6641':'#8b2318'}">${fmt(totalProfit)}</div></div>
+  <div class="kpi"><div class="kpi-label">Profit Margin</div><div class="kpi-val" style="color:${totalMargin>=0?'#1e6641':'#8b2318'}">${fmtPct(totalMargin)}</div></div>
+</div>
+
+<!-- Business Breakdown -->
+<div class="section-title">Revenue & Profit by Business</div>
+<table>
+<thead><tr><th>Business</th><th style="text-align:right">Revenue</th><th style="text-align:right">Cost</th><th style="text-align:right">Gross Profit</th><th style="text-align:right">Margin</th><th style="text-align:right">Transactions</th></tr></thead>
+<tbody>
+${!bizFilter || bizFilter==='A' ? bizRow('CFT Global Enterprise (Vape / E-Cig)', cftStats, totalDelivFee) : ''}
+${!bizFilter || bizFilter==='K19' ? bizRow('KEDAI 19 (Grocery Store)', k19Stats) : ''}
+${!bizFilter ? `<tr class="total-row">
+  <td>TOTAL — Both Businesses</td>
+  <td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">${fmt(allStats.rev)}</td>
+  <td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">${fmt(allStats.cost+totalDelivFee)}</td>
+  <td style="text-align:right;font-family:'Courier New',monospace;font-weight:800;color:${totalProfit>=0?'#1e6641':'#8b2318'}">${fmt(totalProfit)}</td>
+  <td style="text-align:right;font-family:'Courier New',monospace">${fmtPct(totalMargin)}</td>
+  <td style="text-align:right;font-family:'Courier New',monospace">${allStats.txns}</td>
+</tr>` : ''}
+</tbody></table>
+
+<!-- Payment Method Breakdown -->
+<div class="section-title">Payment Method Breakdown</div>
+<table>
+<thead><tr><th>Business</th><th style="text-align:right">QR Pay</th><th style="text-align:right">Cash</th><th style="text-align:right">Total</th></tr></thead>
+<tbody>
+${!bizFilter || bizFilter==='A' ? `<tr><td>CFT Global Enterprise (Vape)</td><td style="text-align:right;font-family:'Courier New',monospace">${fmt(cftStats.qr)}</td><td style="text-align:right;font-family:'Courier New',monospace">${fmt(cftStats.cash)}</td><td style="text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmt(cftStats.rev)}</td></tr>` : ''}
+${!bizFilter || bizFilter==='K19' ? `<tr><td>KEDAI 19 (Grocery)</td><td style="text-align:right;font-family:'Courier New',monospace">${fmt(k19Stats.qr)}</td><td style="text-align:right;font-family:'Courier New',monospace">${fmt(k19Stats.cash)}</td><td style="text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmt(k19Stats.rev)}</td></tr>` : ''}
+${!bizFilter ? `<tr class="total-row"><td>TOTAL</td><td style="text-align:right;font-family:'Courier New',monospace">${fmt(allStats.qr)}</td><td style="text-align:right;font-family:'Courier New',monospace">${fmt(allStats.cash)}</td><td style="text-align:right;font-family:'Courier New',monospace">${fmt(allStats.rev)}</td></tr>` : ''}
+${totalDelivFee>0 ? `<tr><td style="color:#8b2318">Delivery / Rider Fees (Cost)</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− ${fmt(totalDelivFee)}</td></tr>` : ''}
+</tbody></table>
+
+<!-- Top Products per Business -->
+${!bizFilter || bizFilter==='A' ? topTable(cftStats, 'CFT Global Enterprise (Vape)') : ''}
+${!bizFilter || bizFilter==='K19' ? topTable(k19Stats, 'KEDAI 19 (Grocery Store)') : ''}
+
+<div class="footer">
+  <div>Computer-generated report &middot; CFT Global Enterprise &middot; Confidential</div>
+  <div>Period: ${periodLabel} &middot; Generated: ${today}</div>
+</div>
+</div>
+<scr`+'ipt>window.onload=function(){window.print();}</scr'+'ipt>
+</body></html>';
+
+  const blob = new Blob([html], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if(!win) showPosToast('❌ Please allow popups');
+  else { showPosToast('✅ Generating report...'); setTimeout(()=>URL.revokeObjectURL(url), 10000); }
 }
 
 // ── LOGOUT ───────────────────────────────────────────
