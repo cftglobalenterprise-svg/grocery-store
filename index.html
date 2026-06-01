@@ -11004,15 +11004,18 @@ async function openAttendanceModal(empId) {
   let autoClockDays = 0;
   try {
     const monthStart = _prCurrentMonth + '-01';
-    const monthEnd = _prCurrentMonth + '-31';
-    // Select only columns that definitely exist; late_mins/late_deduction may not exist yet
-    const { data: clockLogs, error: clockErr } = await sb.from('attendance_logs')
+    // Get actual last day of month
+    const [py, pm] = _prCurrentMonth.split('-').map(Number);
+    const lastDay = new Date(py, pm, 0).getDate();
+    const monthEnd = _prCurrentMonth + '-' + String(lastDay).padStart(2,'0');
+    // Select only columns that definitely exist; filter clock_in in JS
+    const { data: clockLogsRaw, error: clockErr } = await sb.from('attendance_logs')
       .select('date, clock_in, clock_out, ot_hours, is_ph, status')
       .eq('emp_id', empId)
       .gte('date', monthStart)
-      .lte('date', monthEnd)
-      .not('clock_in', 'is', null);
+      .lte('date', monthEnd);
     if(clockErr) console.error('clockLogs error:', clockErr);
+    const clockLogs = (clockLogsRaw || []).filter(l => l.clock_in);
     autoClockDays = (clockLogs || []).filter(l => l.clock_in).length;
     // Try to fetch late deduction separately
     try {
