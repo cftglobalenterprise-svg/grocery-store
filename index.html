@@ -8944,7 +8944,10 @@ async function renderHqDashboard() {
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
     if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
     if(o.is_delivery_fee) return false;
-    const d = new Date(o.paid_at || o.created_at);
+    // For instore orders, use created_at as primary (K19 g_orders may not have paid_at)
+    const dateStr = o.created_at || o.paid_at;
+    if(!dateStr) return false;
+    const d = new Date(dateStr);
     const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
     return o.status === 'instore' && d >= startDate && d <= endDate && bizMatch;
   });
