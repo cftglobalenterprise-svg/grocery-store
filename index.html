@@ -11006,7 +11006,7 @@ async function generatePayslip(empId) {
   const logs = (await prFetchOtLogs(empId, _prCurrentMonth)).slice().sort(function(x,y){ return x.date.localeCompare(y.date); });
   const totalOtHours = prCalcOtHours(logs);
   if (!a.workDays && !logs.length && !a.bonus) { alert('请先录入月度记录'); return; }
-  const c = calcSalary(emp.salary, Number(a.workDays||0), Number(a.leaveDays||0), totalOtHours);
+  const c = calcSalary(emp.salary, Number(a.workDays||0), Number(a.leaveDays||0), totalOtHours, 0); // late deduction added below after fetching clock logs
   const allowance = Number(a.allowance||0), extraDeduct = Number(a.extraDeduct||0), bonus = Number(a.bonus||0);
   const gross = c.netPay + allowance - extraDeduct + bonus;
   const stat = calcStatutory(gross, a.epfOn, a.socsoOn, a.eisOn);
@@ -11020,102 +11020,223 @@ async function generatePayslip(empId) {
   const lb = prCalcLeaveBalance(emp, allAttEmp);
 
   const otRowsHtml = logs.map(e=>`
-    <tr><td style="font-size:11px;color:#6b6560;padding-left:20px">OT — ${formatDateShort(e.date)} &nbsp;${e.start}–${e.end}</td><td style="text-align:center">${Number(e.hours).toFixed(2)} hrs</td><td style="text-align:right;font-family:'Courier New',monospace">RM ${c.otRate.toFixed(2)}/hr</td><td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">RM ${(e.hours*c.otRate).toFixed(2)}</td></tr>`).join('');
+    <tr><td style="font-size:12px;color:#6b6560;padding-left:20px">OT — ${formatDateShort(e.date)} &nbsp;${e.start}–${e.end}</td><td style="text-align:center">${Number(e.hours).toFixed(2)} hrs</td><td style="text-align:right;font-family:'Courier New',monospace">RM ${c.otRate.toFixed(2)}/hr</td><td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">RM ${(e.hours*c.otRate).toFixed(2)}</td></tr>`).join('');
+
+  // Fetch attendance clock logs for page 2
+  const monthStart2 = _prCurrentMonth + '-01';
+  const monthEnd2 = _prCurrentMonth + '-31';
+  const { data: clockLogs2 } = await sb.from('attendance_logs')
+    .select('date,clock_in,clock_out,ot_hours,is_ph,late_mins,late_deduction,status')
+    .eq('emp_id', empId).gte('date', monthStart2).lte('date', monthEnd2)
+    .not('clock_in','is',null).order('date');
+  const clogs = clockLogs2 || [];
+  const totalLateMins = clogs.reduce((s,l)=>s+Number(l.late_mins||0),0);
+  const totalLateDeduct = clogs.reduce((s,l)=>s+Number(l.late_deduction||0),0);
+  // Recalculate with late deduction included
+  const cFinal = calcSalary(emp.salary, Number(a.workDays||0), Number(a.leaveDays||0), totalOtHours, totalLateDeduct);
+  const grossFinal = cFinal.netPay + allowance - extraDeduct + bonus;
+  const statFinal = calcStatutory(grossFinal, a.epfOn, a.socsoOn, a.eisOn);
+  const netPay = grossFinal - statFinal.totalEmpDeduct;
+  const erCost = grossFinal + statFinal.totalErContrib;
+  // Override c, stat, gross for template
+  Object.assign(c, cFinal);
+  Object.assign(stat, statFinal);
+
+  // Late deduction rows for page 1
+  const lateRowsHtml = clogs.filter(l=>Number(l.late_mins||0)>0).map(l=>{
+    const mins = Number(l.late_mins||0);
+    const ded = Number(l.late_deduction||0);
+    const perMin = ded/mins;
+    return `<tr><td style="font-size:12px;color:#6b6560;padding-left:20px">Late — ${l.date.slice(5).replace('-','/')} &nbsp;(${mins} mins)</td><td style="text-align:center">${mins} mins</td><td style="text-align:right;font-family:'Courier New',monospace">RM ${perMin.toFixed(3)}/min</td><td style="text-align:right;font-family:'Courier New',monospace;color:#dc2626">− RM ${ded.toFixed(2)}</td></tr>`;
+  }).join('');
+
+  // Attendance table for page 2
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const clockLogsHtml = clogs.length ? `
+  <table>
+  <thead><tr><th>Date</th><th>Day</th><th style="text-align:center">Clock In</th><th style="text-align:center">Clock Out</th><th style="text-align:center">Status</th><th style="text-align:right">OT Hours</th><th style="text-align:right">Late Deduct</th></tr></thead>
+  <tbody>
+  ${clogs.map(l=>{
+    const d = new Date(l.date+'T00:00:00');
+    const dayName = dayNames[d.getDay()];
+    const isSun = d.getDay()===0, isSat = d.getDay()===6;
+    const dayColor = isSun?'color:#ef4444':isSat?'color:#3b82f6':'color:#9e9890';
+    const inT = l.clock_in ? new Date(l.clock_in).toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
+    const outT = l.clock_out ? new Date(l.clock_out).toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
+    const ot = Number(l.ot_hours||0);
+    const late = Number(l.late_mins||0);
+    const lateDed = Number(l.late_deduction||0);
+    const rowBg = late>0?'background:#fff8f8':l.is_ph?'background:#fffbeb':'';
+    let badge = '';
+    if(l.is_ph) badge='<span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;background:#fef3c7;color:#92400e">Public Holiday</span>';
+    else if(late>0 && ot>0) badge='<span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;background:#fee2e2;color:#dc2626">Late + OT</span>';
+    else if(late>0) badge=`<span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;background:#fee2e2;color:#dc2626">Late ${late} min</span>`;
+    else if(ot>0) badge='<span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;background:#dbeafe;color:#1e40af">OT</span>';
+    else badge='<span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;background:#d1fae5;color:#065f46">Normal</span>';
+    return `<tr style="${rowBg}">
+      <td style="font-weight:600">${l.date.slice(5).replace('-','/')}</td>
+      <td style="${dayColor}">${dayName}</td>
+      <td style="text-align:center;font-family:'Courier New',monospace;${late>0?'color:#dc2626;font-weight:700':''}">${inT}</td>
+      <td style="text-align:center;font-family:'Courier New',monospace;${!l.clock_out?'color:#9e9890':''}">${outT}</td>
+      <td style="text-align:center">${badge}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;${ot>0?'color:#1a4d7a;font-weight:700':'color:#9e9890'}">${ot>0?ot.toFixed(2)+'h':'—'}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;${lateDed>0?'color:#dc2626;font-weight:700':'color:#9e9890'}">${lateDed>0?'−RM '+lateDed.toFixed(2):'—'}</td>
+    </tr>`;
+  }).join('')}
+  <tr style="font-weight:700;border-top:2px solid #ddd8d0;background:#f5f2ee">
+    <td colspan="5">Monthly Total</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;color:#1a4d7a">${totalOtHours.toFixed(2)}h OT</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;color:#dc2626">${totalLateDeduct>0?'−RM '+totalLateDeduct.toFixed(2):'—'}</td>
+  </tr>
+  </tbody></table>` : '<div style="font-size:13px;color:#9e9890;text-align:center;padding:20px;background:#f5f2ee;border-radius:7px">No attendance records found for this period.</div>';
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Payslip ${emp.name} ${monthLabel}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1a1814;font-size:13px}
-.page{width:210mm;margin:0 auto;padding:22px 26px}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1a1814;font-size:14px}
+.page{width:210mm;margin:0 auto;padding:22px 26px;page-break-after:always}
+.page:last-child{page-break-after:auto}
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:3px solid #1a1814;margin-bottom:16px}
-.co{font-size:17px;font-weight:800;letter-spacing:-.3px}.co-sub{font-size:10px;color:#6b6560;margin-top:2px}
-.ps-label{text-align:right}.ps-label h2{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
-.ps-label .month{font-size:20px;font-weight:800;color:#1e6641}
+.co{font-size:18px;font-weight:800;letter-spacing:-.3px}.co-sub{font-size:11px;color:#6b6560;margin-top:2px}
+.ps-label{text-align:right}.ps-label h2{font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.ps-label .month{font-size:21px;font-weight:800;color:#1e6641}
 .info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:14px}
 .info-box{background:#f5f2ee;border-radius:7px;padding:8px 12px}
-.info-label{font-size:8px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px}
-.info-value{font-size:13px;font-weight:700}
-table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px}
-th{font-size:8px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.7px;padding:5px 8px;text-align:left;border-bottom:1px solid #ddd8d0}
-td{padding:6px 8px;border-bottom:1px solid #f0ede8}
-.sec-hdr td{background:#f0f5f0;font-size:10px;font-weight:700;color:#1e6641;letter-spacing:.5px;padding:5px 8px}
-.ded-hdr td{background:#fff5f5;font-size:10px;font-weight:700;color:#8b2318;letter-spacing:.5px;padding:5px 8px}
+.info-label{font-size:9px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px}
+.info-value{font-size:14px;font-weight:700}
+table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:13px}
+th{font-size:9px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.7px;padding:5px 8px;text-align:left;border-bottom:1px solid #ddd8d0}
+td{padding:7px 8px;border-bottom:1px solid #f0ede8}
+.sec-hdr td{background:#f0f5f0;font-size:11px;font-weight:700;color:#1e6641;letter-spacing:.5px;padding:5px 8px}
+.ot-hdr td{background:#eef3ff;font-size:11px;font-weight:700;color:#1a4d7a;letter-spacing:.5px;padding:5px 8px}
+.ded-hdr td{background:#fff5f5;font-size:11px;font-weight:700;color:#8b2318;letter-spacing:.5px;padding:5px 8px}
+.late-hdr td{background:#fff0f0;font-size:11px;font-weight:700;color:#dc2626;letter-spacing:.5px;padding:5px 8px}
 .net-row{background:#1a1814;color:#fff}
-.net-row td{font-size:14px;font-weight:800;padding:11px 8px;border:none}
+.net-row td{font-size:15px;font-weight:800;padding:11px 8px;border:none}
 .leave-box{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px}
 .lb{border:1px solid #ddd8d0;border-radius:6px;padding:7px 10px;text-align:center}
-.lb-label{font-size:8px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px}
-.lb-val{font-size:14px;font-weight:700;font-family:'Courier New',monospace}
-.lb-rem{font-size:10px;color:#6b6560;margin-top:1px}
-.stat-box{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#f5f2ee;border-radius:7px;padding:10px;margin-bottom:12px;font-size:11px}
+.lb-label{font-size:9px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px}
+.lb-val{font-size:15px;font-weight:700;font-family:'Courier New',monospace}
+.lb-rem{font-size:11px;color:#6b6560;margin-top:1px}
+.stat-box{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#f5f2ee;border-radius:7px;padding:10px;margin-bottom:12px;font-size:12px}
 .perf-box{background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:10px 12px;margin-bottom:12px}
 .footer{display:flex;justify-content:space-between;align-items:flex-end;padding-top:10px;border-top:1px solid #ddd8d0;margin-top:10px}
-.footer-note{font-size:9px;color:#9e9890}
-.sig-line{border-top:1px solid #9e9890;width:130px;padding-top:4px;font-size:8px;color:#9e9890;text-align:center}
+.footer-note{font-size:10px;color:#9e9890}
+.sig-line{border-top:1px solid #9e9890;width:140px;padding-top:4px;font-size:9px;color:#9e9890;text-align:center}
+.att-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.att-card{background:#f5f2ee;border-radius:7px;padding:10px;text-align:center}
+.att-card-label{font-size:9px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
+.att-card-val{font-size:19px;font-weight:800;font-family:'Courier New',monospace}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px}
+.badge-late{background:#fee2e2;color:#dc2626}
+.badge-ot{background:#dbeafe;color:#1e40af}
+.badge-ph{background:#fef3c7;color:#92400e}
+.badge-ok{background:#d1fae5;color:#065f46}
 @media print{body{padding:0}.page{padding:16px 20px}}
-</style></head><body><div class="page">
+</style></head><body>
 
+<!-- PAGE 1: PAYSLIP -->
+<div class="page">
 <div class="hdr">
-  <div><div class="co">CFT GLOBAL ENTERPRISE</div><div class="co-sub">Employer Payroll Record · Confidential</div></div>
-  <div class="ps-label"><h2>Pay Slip</h2><div class="month">${monthLabel}</div></div>
+  <div><div class="co">CFT GLOBAL ENTERPRISE</div><div class="co-sub">Employer Payroll Record &middot; Confidential</div></div>
+  <div class="ps-label"><h2>Pay Slip</h2><div class="month">\${monthLabel}</div></div>
 </div>
 
 <div class="info-grid">
-  <div class="info-box"><div class="info-label">Employee</div><div class="info-value">${emp.name}</div></div>
-  <div class="info-box"><div class="info-label">Position</div><div class="info-value">${emp.position||'—'}</div></div>
-  <div class="info-box"><div class="info-label">IC / Employee No.</div><div class="info-value">${emp.ic||'—'}</div></div>
-  <div class="info-box"><div class="info-label">Join Date</div><div class="info-value">${emp.joinDate||'—'}</div></div>
-  <div class="info-box"><div class="info-label">Basic Monthly Salary</div><div class="info-value">RM ${Number(emp.salary).toFixed(2)}</div></div>
-  <div class="info-box"><div class="info-label">Date Issued</div><div class="info-value">${today}</div></div>
+  <div class="info-box"><div class="info-label">Employee</div><div class="info-value">\${emp.name}</div></div>
+  <div class="info-box"><div class="info-label">Position</div><div class="info-value">\${emp.position||'—'}</div></div>
+  <div class="info-box"><div class="info-label">IC / Employee No.</div><div class="info-value">\${emp.ic||'—'}</div></div>
+  <div class="info-box"><div class="info-label">Join Date</div><div class="info-value">\${emp.joinDate||'—'}</div></div>
+  <div class="info-box"><div class="info-label">Basic Monthly Salary</div><div class="info-value">RM \${Number(emp.salary).toFixed(2)}</div></div>
+  <div class="info-box"><div class="info-label">Date Issued</div><div class="info-value">\${today}</div></div>
 </div>
 
 <div class="leave-box">
-  <div class="lb"><div class="lb-label">Annual Leave</div><div class="lb-val" style="color:#1e6641">${lb.alLeft}/${lb.alTotal}</div><div class="lb-rem">Remaining days</div></div>
-  <div class="lb"><div class="lb-label">Medical Leave</div><div class="lb-val" style="color:#1a4d7a">${lb.mcLeft}/${lb.mcTotal}</div><div class="lb-rem">Remaining days</div></div>
-  <div class="lb"><div class="lb-label">Emergency Leave</div><div class="lb-val" style="color:#7a4800">${lb.elLeft}/${lb.elTotal}</div><div class="lb-rem">Remaining days</div></div>
+  <div class="lb"><div class="lb-label">Annual Leave</div><div class="lb-val" style="color:#1e6641">\${lb.alLeft}/\${lb.alTotal}</div><div class="lb-rem">Days remaining</div></div>
+  <div class="lb"><div class="lb-label">Medical Leave</div><div class="lb-val" style="color:#1a4d7a">\${lb.mcLeft}/\${lb.mcTotal}</div><div class="lb-rem">Days remaining</div></div>
+  <div class="lb"><div class="lb-label">Emergency Leave</div><div class="lb-val" style="color:#7a4800">\${lb.elLeft}/\${lb.elTotal}</div><div class="lb-rem">Days remaining</div></div>
 </div>
 
 <table>
 <thead><tr><th>Description</th><th style="text-align:center">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
 <tbody>
 <tr class="sec-hdr"><td colspan="4">EARNINGS</td></tr>
-<tr><td>Basic Pay (${a.workDays||0} days worked)</td><td style="text-align:center">${a.workDays||0} days</td><td style="text-align:right;font-family:'Courier New',monospace">RM ${c.dailyRate.toFixed(2)}/day</td><td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">RM ${c.basicPay.toFixed(2)}</td></tr>
-${logs.length?`<tr class="sec-hdr"><td colspan="4" style="background:#eef3ff;color:#1a4d7a">OVERTIME</td></tr>${otRowsHtml}<tr style="background:#eef3ff"><td><strong>OT Total (${totalOtHours.toFixed(2)} hrs)</strong></td><td style="text-align:center"><strong>${totalOtHours.toFixed(2)} hrs</strong></td><td style="text-align:right;font-family:'Courier New',monospace">RM ${c.otRate.toFixed(2)}/hr</td><td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#1e6641">RM ${c.otPay.toFixed(2)}</td></tr>`:''}
-${allowance>0?`<tr><td>Allowance</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">RM ${allowance.toFixed(2)}</td></tr>`:''}
-${bonus>0?`<tr><td>Bonus${a.bonusNote?' — '+a.bonusNote:''}</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#5b21b6">RM ${bonus.toFixed(2)}</td></tr>`:''}
-<tr style="font-weight:700;border-top:2px solid #ddd8d0"><td>Gross Earnings</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace">RM ${(c.basicPay+c.otPay+allowance+bonus).toFixed(2)}</td></tr>
-${(c.leaveDeduct>0||extraDeduct>0||stat.totalEmpDeduct>0)?`
+<tr><td>Basic Pay (\${a.workDays||0} days worked)</td><td style="text-align:center">\${a.workDays||0} days</td><td style="text-align:right;font-family:'Courier New',monospace">RM \${c.dailyRate.toFixed(2)}/day</td><td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">RM \${c.basicPay.toFixed(2)}</td></tr>
+\${logs.length?`<tr class="ot-hdr"><td colspan="4">OVERTIME (&times;1.5)</td></tr>\${otRowsHtml}<tr style="background:#eef3ff"><td><strong>OT Total (\${totalOtHours.toFixed(2)} hrs)</strong></td><td style="text-align:center"><strong>\${totalOtHours.toFixed(2)} hrs</strong></td><td style="text-align:right;font-family:'Courier New',monospace">RM \${c.otRate.toFixed(2)}/hr</td><td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#1e6641">RM \${c.otPay.toFixed(2)}</td></tr>`:''}
+\${allowance>0?`<tr><td>Allowance</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#1e6641">RM \${allowance.toFixed(2)}</td></tr>`:''}
+\${bonus>0?`<tr><td>Bonus\${a.bonusNote?' — '+a.bonusNote:''}</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#5b21b6">RM \${bonus.toFixed(2)}</td></tr>`:''}
+<tr style="font-weight:700;border-top:2px solid #ddd8d0"><td>Gross Earnings</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace">RM \${(c.basicPay+c.otPay+allowance+bonus).toFixed(2)}</td></tr>
+\${(c.leaveDeduct>0||c.lateDeduct>0||extraDeduct>0||stat.totalEmpDeduct>0)?`
 <tr class="ded-hdr"><td colspan="4">DEDUCTIONS</td></tr>
-${c.leaveDeduct>0?`<tr><td>Unpaid Leave (${a.leaveDays||0} days)</td><td style="text-align:center">${a.leaveDays||0} days</td><td style="text-align:right;font-family:'Courier New',monospace">RM ${c.dailyRate.toFixed(2)}/day</td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${c.leaveDeduct.toFixed(2)}</td></tr>`:''}
-${extraDeduct>0?`<tr><td>Other Deduction</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${extraDeduct.toFixed(2)}</td></tr>`:''}
-${stat.empEpf>0?`<tr><td>EPF Employee (11%)</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${stat.empEpf.toFixed(2)}</td></tr>`:''}
-${stat.empSocso>0?`<tr><td>SOCSO Employee (0.5%)</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${stat.empSocso.toFixed(2)}</td></tr>`:''}
-${stat.empEis>0?`<tr><td>EIS Employee (0.2%)</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${stat.empEis.toFixed(2)}</td></tr>`:''}
-<tr style="font-weight:700"><td>Total Deductions</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM ${(c.leaveDeduct+extraDeduct+stat.totalEmpDeduct).toFixed(2)}</td></tr>`:''}
-<tr class="net-row"><td colspan="3"><strong>NET PAY (Take-Home)</strong></td><td style="text-align:right;font-family:'Courier New',monospace;font-size:18px">RM ${netPay.toFixed(2)}</td></tr>
+\${c.leaveDeduct>0?`<tr><td>Unpaid Leave (\${a.leaveDays||0} days)</td><td style="text-align:center">\${a.leaveDays||0} days</td><td style="text-align:right;font-family:'Courier New',monospace">RM \${c.dailyRate.toFixed(2)}/day</td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM \${c.leaveDeduct.toFixed(2)}</td></tr>`:''}
+\${c.lateDeduct>0?`<tr class="late-hdr"><td colspan="4">LATE DEDUCTIONS</td></tr>\${lateRowsHtml}<tr style="background:#fff5f5"><td><strong>Total Late Deduction</strong></td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#dc2626">− RM \${c.lateDeduct.toFixed(2)}</td></tr>`:''}
+\${extraDeduct>0?`<tr><td>Other Deduction</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM \${extraDeduct.toFixed(2)}</td></tr>`:''}
+\${stat.empEpf>0?`<tr><td>EPF — Employee Contribution (11%)</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM \${stat.empEpf.toFixed(2)}</td></tr>`:''}
+\${stat.empSocso>0?`<tr><td>SOCSO — Employee Contribution (0.5%)</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM \${stat.empSocso.toFixed(2)}</td></tr>`:''}
+\${stat.empEis>0?`<tr><td>EIS — Employee Contribution (0.2%)</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM \${stat.empEis.toFixed(2)}</td></tr>`:''}
+<tr style="font-weight:700"><td>Total Deductions</td><td></td><td></td><td style="text-align:right;font-family:'Courier New',monospace;color:#8b2318">− RM \${(c.leaveDeduct+c.lateDeduct+extraDeduct+stat.totalEmpDeduct).toFixed(2)}</td></tr>`:''}
+<tr class="net-row"><td colspan="3"><strong>NET PAY (Take-Home)</strong></td><td style="text-align:right;font-family:'Courier New',monospace;font-size:19px">RM \${netPay.toFixed(2)}</td></tr>
 </tbody></table>
 
-${stat.totalErContrib>0?`
+\${stat.totalErContrib>0?`
 <div class="stat-box">
-  <div><div style="font-size:9px;font-weight:700;color:#6b6560;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">Employer Contributions</div><div>EPF (13%): RM ${stat.erEpf.toFixed(2)}</div><div>SOCSO (1.75%): RM ${stat.erSocso.toFixed(2)}</div><div>EIS (0.2%): RM ${stat.erEis.toFixed(2)}</div><div style="font-weight:700;margin-top:4px">Total: RM ${stat.totalErContrib.toFixed(2)}</div></div>
-  <div><div style="font-size:9px;font-weight:700;color:#6b6560;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">Total Employer Cost</div><div style="font-size:17px;font-weight:800;font-family:'Courier New',monospace;color:#1a1814">RM ${erCost.toFixed(2)}</div><div style="font-size:10px;color:#9e9890;margin-top:4px">Gross + Employer Contributions</div></div>
+  <div><div style="font-size:10px;font-weight:700;color:#6b6560;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">Employer Contributions</div><div>EPF (13%): RM \${stat.erEpf.toFixed(2)}</div><div>SOCSO (1.75%): RM \${stat.erSocso.toFixed(2)}</div><div>EIS (0.2%): RM \${stat.erEis.toFixed(2)}</div><div style="font-weight:700;margin-top:4px">Total: RM \${stat.totalErContrib.toFixed(2)}</div></div>
+  <div><div style="font-size:10px;font-weight:700;color:#6b6560;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">Total Employer Cost</div><div style="font-size:18px;font-weight:800;font-family:'Courier New',monospace;color:#1a1814">RM \${erCost.toFixed(2)}</div><div style="font-size:11px;color:#9e9890;margin-top:4px">Gross Pay + Employer Contributions</div></div>
 </div>`:''}
 
-${a.perfRating?`
+\${a.perfRating?`
 <div class="perf-box">
   <div style="display:flex;justify-content:space-between;align-items:center">
-    <div><div style="font-size:9px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px">Performance Rating — ${monthLabel}</div>
-    <div style="font-size:18px;color:#f59e0b">${stars} <span style="font-size:12px;font-weight:700;color:#92400e">${perfLabels[a.perfRating]||''}</span></div>
-    ${a.perfNote?`<div style="font-size:11px;color:#92400e;margin-top:4px;font-style:italic">${a.perfNote}</div>`:''}</div>
+    <div><div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px">Performance Rating — \${monthLabel}</div>
+    <div style="font-size:19px;color:#f59e0b">\${stars} <span style="font-size:13px;font-weight:700;color:#92400e">\${perfLabels[a.perfRating]||''}</span></div>
+    \${a.perfNote?`<div style="font-size:12px;color:#92400e;margin-top:4px;font-style:italic">\${a.perfNote}</div>`:''}</div>
   </div>
 </div>`:''}
 
 <div class="footer">
-  <div class="footer-note">Computer-generated payslip · CFT Global Enterprise · Confidential</div>
+  <div class="footer-note">Computer-generated payslip &middot; CFT Global Enterprise &middot; Confidential &middot; Page 1 of 2</div>
   <div class="sig-line">Authorised Signature / Stamp</div>
 </div>
 </div>
-<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>
+
+<!-- PAGE 2: ATTENDANCE RECORD -->
+<div class="page">
+<div class="hdr">
+  <div><div class="co">CFT GLOBAL ENTERPRISE</div><div class="co-sub">Attendance &amp; Overtime Record &middot; Confidential</div></div>
+  <div class="ps-label"><h2>Attendance Detail</h2><div class="month">\${monthLabel}</div></div>
+</div>
+
+<div style="margin-bottom:12px">
+  <div style="font-size:14px;font-weight:700">\${emp.name} &nbsp;<span style="font-size:12px;font-weight:400;color:#6b6560">\${emp.position||''} &middot; RM \${Number(emp.salary).toFixed(2)}/month</span></div>
+  <div style="font-size:11px;color:#9e9890;margin-top:2px">Working Hours: 09:30 – 18:00 &nbsp;&middot;&nbsp; OT Rate: &times;1.5 &nbsp;&middot;&nbsp; OT counted after 18:30 (min. 30 mins over)</div>
+</div>
+
+<div class="att-summary">
+  <div class="att-card"><div class="att-card-label">Days Worked</div><div class="att-card-val" style="color:#1e6641">\${a.workDays||0}</div></div>
+  <div class="att-card"><div class="att-card-label">OT Hours</div><div class="att-card-val" style="color:#1a4d7a">\${totalOtHours.toFixed(2)}</div></div>
+  <div class="att-card"><div class="att-card-label">Late (mins)</div><div class="att-card-val" style="color:#dc2626">\${totalLateMins}</div></div>
+  <div class="att-card"><div class="att-card-label">Late Deduction</div><div class="att-card-val" style="color:#dc2626;font-size:15px">RM \${c.lateDeduct.toFixed(2)}</div></div>
+</div>
+
+\${clockLogsHtml}
+
+<div style="margin-top:16px;padding:10px 14px;background:#f0f5f0;border-radius:7px;border-left:3px solid #1e6641;font-size:12px">
+  <div style="font-weight:700;margin-bottom:4px">Notes</div>
+  <div style="color:#6b6560">&bull; Official start time is 09:30. Any clock-in after 09:30 will be recorded as late.</div>
+  <div style="color:#6b6560">&bull; OT is only counted if employee clocks out after 18:30 (minimum 30 minutes over). OT is calculated from 18:00 onwards.</div>
+  <div style="color:#6b6560">&bull; Employees working on Public Holidays are entitled to double pay (&times;2).</div>
+</div>
+
+<div class="footer" style="margin-top:16px">
+  <div class="footer-note">Attendance Record &middot; CFT Global Enterprise &middot; Confidential &middot; Page 2 of 2</div>
+  <div style="display:flex;gap:50px">
+    <div class="sig-line">Employee Signature</div>
+    <div class="sig-line">Authorised Signature</div>
+  </div>
+</div>
+</div>
+
+<scr`+'ipt>window.onload=function(){window.print();}</scr'+'ipt>
 </body></html>`;
 
   const blob = new Blob([html], {type:'text/html'});
