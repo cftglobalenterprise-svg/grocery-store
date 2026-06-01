@@ -11233,8 +11233,8 @@ async function generatePayslip(empId) {
   const allowance = Number(a.allowance||0), extraDeduct = Number(a.extraDeduct||0), bonus = Number(a.bonus||0);
   const gross = c.netPay + allowance - extraDeduct + bonus;
   const stat = calcStatutory(gross, a.epfOn, a.socsoOn, a.eisOn);
-  const netPay = gross - stat.totalEmpDeduct;
-  const erCost = gross + stat.totalErContrib;
+  let netPay = gross - stat.totalEmpDeduct;
+  let erCost = gross + stat.totalErContrib;
   const monthLabel = formatPayrollMonth(_prCurrentMonth);
   const today = new Date().toLocaleDateString('en-MY',{day:'2-digit',month:'short',year:'numeric'});
   const stars = '★'.repeat(a.perfRating||0)+'☆'.repeat(5-(a.perfRating||0));
@@ -11259,8 +11259,8 @@ async function generatePayslip(empId) {
   const cFinal = calcSalary(emp.salary, Number(a.workDays||0), Number(a.leaveDays||0), totalOtHours, totalLateDeduct);
   const grossFinal = cFinal.netPay + allowance - extraDeduct + bonus;
   const statFinal = calcStatutory(grossFinal, a.epfOn, a.socsoOn, a.eisOn);
-  const netPay = grossFinal - statFinal.totalEmpDeduct;
-  const erCost = grossFinal + statFinal.totalErContrib;
+  netPay = grossFinal - statFinal.totalEmpDeduct;
+  erCost = grossFinal + statFinal.totalErContrib;
   // Override c, stat, gross for template
   Object.assign(c, cFinal);
   Object.assign(stat, statFinal);
