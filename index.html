@@ -2183,6 +2183,15 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </div>
     </div>
 
+    <!-- Late deduction from clock logs -->
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#fff5f5;border:1px solid #fecaca;border-radius:var(--radius-xs);padding:8px 12px;margin-bottom:14px">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#dc2626">⚠️ 迟到扣款（本月）</div>
+        <div style="font-size:11px;color:var(--text3)">从打卡记录自动计算</div>
+      </div>
+      <div id="att-late-deduction-display" data-amount="0" style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:#dc2626">RM 0.00</div>
+    </div>
+
     <!-- SECTION: Leave Used This Month -->
     <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📅 本月假期使用（追踪用）</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
@@ -10273,15 +10282,16 @@ function calcStatutory(grossSalary, useEpf, useSocso, useEis) {
 }
 
 // ── Salary calculation ────────────────────────────────────
-function calcSalary(salary, workDays, leaveDays, otHours) {
+function calcSalary(salary, workDays, leaveDays, otHours, lateDeductAmt) {
   const dailyRate = salary / 26;
   const hourlyRate = dailyRate / 8;
   const otRate = hourlyRate * 1.5;
   const otPay = otRate * otHours;
   const basicPay = dailyRate * workDays;
   const leaveDeduct = dailyRate * leaveDays;
-  const netPay = basicPay - leaveDeduct + otPay;
-  return { dailyRate, hourlyRate, otRate, otPay, basicPay, leaveDeduct, netPay };
+  const lateDeduct = Number(lateDeductAmt || 0);
+  const netPay = basicPay - leaveDeduct + otPay - lateDeduct;
+  return { dailyRate, hourlyRate, otRate, otPay, basicPay, leaveDeduct, lateDeduct, netPay };
 }
 
 // ── Supabase Payroll Helpers ──────────────────────────────
@@ -10628,12 +10638,15 @@ async function openAttendanceModal(empId) {
     const monthStart = _prCurrentMonth + '-01';
     const monthEnd = _prCurrentMonth + '-31';
     const { data: clockLogs } = await sb.from('attendance_logs')
-      .select('date, clock_in, clock_out, ot_hours, is_ph')
+      .select('date, clock_in, clock_out, ot_hours, is_ph, late_mins, late_deduction, status')
       .eq('emp_id', empId)
       .gte('date', monthStart)
       .lte('date', monthEnd)
       .not('clock_in', 'is', null);
     autoClockDays = (clockLogs || []).filter(l => l.clock_in).length;
+    // Sum up late deductions for the month
+    const totalLateDeduction = (clockLogs || []).reduce((s, l) => s + Number(l.late_deduction || 0), 0);
+    document.getElementById('att-late-deduction-display')?.setAttribute('data-amount', totalLateDeduction.toFixed(2));
     renderAttClockLogList(clockLogs || []);
   } catch(e) { renderAttClockLogList([]); }
 
@@ -10730,7 +10743,11 @@ function updateAttCalcPreview() {
     if (erCostEl) erCostEl.textContent = 'RM 0.00';
     return;
   }
-  const c = calcSalary(emp.salary, days, leave, ot);
+  // Get late deduction from display element
+  const lateDeductEl = document.getElementById('att-late-deduction-display');
+  const lateDeductAmt = lateDeductEl ? parseFloat(lateDeductEl.getAttribute('data-amount') || 0) : 0;
+  if(lateDeductEl) lateDeductEl.textContent = 'RM ' + lateDeductAmt.toFixed(2);
+  const c = calcSalary(emp.salary, days, leave, ot, lateDeductAmt);
   const gross = c.netPay + allowance - extraDeduct + bonus;
   const stat = calcStatutory(gross, epfOn, socsoOn, eisOn);
   const netEmployee = gross - stat.totalEmpDeduct;
@@ -10738,6 +10755,7 @@ function updateAttCalcPreview() {
   const lines = [];
   if (days > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>基本薪资 (${days}d × RM ${c.dailyRate.toFixed(2)})</span><span style="font-family:'DM Mono',monospace;color:var(--green)">+ RM ${c.basicPay.toFixed(2)}</span></div>`);
   if (leave > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>无薪假扣 (${leave}d)</span><span style="font-family:'DM Mono',monospace;color:var(--red)">− RM ${c.leaveDeduct.toFixed(2)}</span></div>`);
+  if (lateDeductAmt > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>⚠️ 迟到扣款</span><span style="font-family:'DM Mono',monospace;color:#dc2626">− RM ${c.lateDeduct.toFixed(2)}</span></div>`);
   if (ot > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>OT (${ot.toFixed(2)}h × RM ${c.otRate.toFixed(2)})</span><span style="font-family:'DM Mono',monospace;color:var(--blue)">+ RM ${c.otPay.toFixed(2)}</span></div>`);
   if (allowance > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>津贴 (Allowance)</span><span style="font-family:'DM Mono',monospace;color:var(--green)">+ RM ${allowance.toFixed(2)}</span></div>`);
   if (extraDeduct > 0) lines.push(`<div style="display:flex;justify-content:space-between"><span>额外扣款</span><span style="font-family:'DM Mono',monospace;color:var(--red)">− RM ${extraDeduct.toFixed(2)}</span></div>`);
@@ -10867,11 +10885,17 @@ function renderAttClockLogList(logs) {
         const ot = Number(l.ot_hours || 0);
         const otStr = ot > 0 ? `<span style="color:var(--blue);font-weight:700;font-family:'DM Mono',monospace">${ot.toFixed(2)}h</span>` : '<span style="color:var(--text3)">-</span>';
         const ph = l.is_ph ? ' <span style="font-size:9px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:8px">PH</span>' : '';
-        return `<div style="display:grid;grid-template-columns:80px 80px 80px 1fr;gap:0;padding:6px 10px;border-top:1px solid var(--border);font-size:12px;background:var(--surface)">
-          <span style="font-weight:600;color:var(--text2)">${dateStr}${ph}</span>
-          <span style="font-family:'DM Mono',monospace">${inT}</span>
-          <span style="font-family:'DM Mono',monospace;color:${l.clock_out?'var(--text)':'var(--text3)'}">${outT}</span>
-          <span style="text-align:right">${otStr}</span>
+        const late = Number(l.late_mins || 0);
+        const lateDed = Number(l.late_deduction || 0);
+        const lateStr = late > 0 ? `<span style="font-size:10px;color:#dc2626;font-weight:600">迟${late}分 −RM${lateDed.toFixed(2)}</span>` : '';
+        return `<div style="border-top:1px solid var(--border);padding:6px 10px;font-size:12px;background:var(--surface)">
+          <div style="display:grid;grid-template-columns:80px 80px 80px 1fr;gap:0">
+            <span style="font-weight:600;color:var(--text2)">${dateStr}${ph}</span>
+            <span style="font-family:'DM Mono',monospace">${inT}</span>
+            <span style="font-family:'DM Mono',monospace;color:${l.clock_out?'var(--text)':'var(--text3)'}">${outT}</span>
+            <span style="text-align:right">${otStr}</span>
+          </div>
+          ${lateStr ? `<div style="margin-top:2px;text-align:right">${lateStr}</div>` : ''}
         </div>`;
       }).join('')}
     </div>`;
@@ -11934,24 +11958,35 @@ async function performClock() {
 
   if(emp._action === 'in') {
     // Clock IN — if before 9:30, record as 9:30
-    const clockInTime = now;
     const [sh, sm] = WORK_START.split(':').map(Number);
     const officialStart = new Date(now); officialStart.setHours(sh, sm, 0, 0);
     const effectiveIn = now < officialStart ? officialStart : now;
+
+    // Calculate late minutes (only if after official start)
+    const lateMs = now > officialStart ? (now - officialStart) : 0;
+    const lateMins = Math.floor(lateMs / 60000);
+
+    // Late deduction: lateMins × (monthly salary / 26 days / 8 hours / 60 mins)
+    const empSalary = emp.salary || 0;
+    const perMin = empSalary / 26 / 8 / 60;
+    const lateDeduction = lateMins > 0 ? Math.round(lateMins * perMin * 100) / 100 : 0;
 
     const { error } = await sb.from('attendance_logs').insert({
       emp_id: emp.id, emp_name: emp.name, date: today,
       clock_in: effectiveIn.toISOString(),
       is_ph: !!ph, ph_name: ph?.name || null,
-      status: 'present'
+      status: lateMins > 0 ? 'late' : 'present',
+      late_mins: lateMins,
+      late_deduction: lateDeduction
     });
     if(error) { showPosToast('❌ 打卡失败：' + error.message); return; }
 
     clockShowStep('done');
-    document.getElementById('clock-done-emoji').textContent = '🐴';
-    document.getElementById('clock-done-msg').textContent = emp.name + ' 上班打卡成功！';
+    document.getElementById('clock-done-emoji').textContent = lateMins > 0 ? '⚠️' : '🐴';
+    document.getElementById('clock-done-msg').textContent = emp.name + (lateMins > 0 ? ` 迟到 ${lateMins} 分钟` : ' 上班打卡成功！');
     const timeStr = effectiveIn.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit', hour12:false});
-    document.getElementById('clock-done-detail').textContent = '上班时间：' + timeStr + (ph ? '  🎉 公假 ×2' : '');
+    const lateNote = lateMins > 0 ? `  ⚠️ 迟到扣款 RM ${lateDeduction.toFixed(2)}` : '';
+    document.getElementById('clock-done-detail').textContent = '上班时间：' + timeStr + lateNote + (ph ? '  🎉 公假 ×2' : '');
 
   } else {
     // Clock OUT — calculate hours
