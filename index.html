@@ -11005,18 +11005,32 @@ async function openAttendanceModal(empId) {
   try {
     const monthStart = _prCurrentMonth + '-01';
     const monthEnd = _prCurrentMonth + '-31';
-    const { data: clockLogs } = await sb.from('attendance_logs')
-      .select('date, clock_in, clock_out, ot_hours, is_ph, late_mins, late_deduction, status')
+    // Select only columns that definitely exist; late_mins/late_deduction may not exist yet
+    const { data: clockLogs, error: clockErr } = await sb.from('attendance_logs')
+      .select('date, clock_in, clock_out, ot_hours, is_ph, status')
       .eq('emp_id', empId)
       .gte('date', monthStart)
       .lte('date', monthEnd)
       .not('clock_in', 'is', null);
+    if(clockErr) console.error('clockLogs error:', clockErr);
     autoClockDays = (clockLogs || []).filter(l => l.clock_in).length;
-    // Sum up late deductions for the month
-    const totalLateDeduction = (clockLogs || []).reduce((s, l) => s + Number(l.late_deduction || 0), 0);
-    document.getElementById('att-late-deduction-display')?.setAttribute('data-amount', totalLateDeduction.toFixed(2));
+    // Try to fetch late deduction separately
+    try {
+      const { data: lateLogs } = await sb.from('attendance_logs')
+        .select('date, late_mins, late_deduction')
+        .eq('emp_id', empId)
+        .gte('date', monthStart)
+        .lte('date', monthEnd);
+      const totalLateDeduction = (lateLogs || []).reduce((s, l) => s + Number(l.late_deduction || 0), 0);
+      document.getElementById('att-late-deduction-display')?.setAttribute('data-amount', totalLateDeduction.toFixed(2));
+      // Merge late data into clockLogs
+      (clockLogs || []).forEach(l => {
+        const ll = (lateLogs || []).find(x => x.date === l.date);
+        if(ll) { l.late_mins = ll.late_mins; l.late_deduction = ll.late_deduction; }
+      });
+    } catch(le) {}
     renderAttClockLogList(clockLogs || []);
-  } catch(e) { renderAttClockLogList([]); }
+  } catch(e) { console.error('attendance fetch error:', e); renderAttClockLogList([]); }
 
   // If no manual record yet, pre-fill with auto clock days; otherwise keep manual value
   const manualDays = ex.workDays != null ? ex.workDays : null;
