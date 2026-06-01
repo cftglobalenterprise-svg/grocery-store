@@ -12519,11 +12519,12 @@ async function performClock() {
       const month = today.slice(0,7);
       const existing = await sb.from('payroll_ot_logs').select('id').eq('emp_id', emp.id).eq('ot_date', today);
       if(!existing.data?.length) {
-        const inTime = clockIn.toTimeString().slice(0,5);
+        // OT starts from WORK_END (18:00), not from clock-in
+        const otStartTime = WORK_END; // '18:00'
         const outTime = clockOut.toTimeString().slice(0,5);
         await sb.from('payroll_ot_logs').insert({
           emp_id: emp.id, month, ot_date: today,
-          start_time: inTime, end_time: outTime, hours: otHours
+          start_time: otStartTime, end_time: outTime, hours: otHours
         });
       }
     }
