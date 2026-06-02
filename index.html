@@ -4298,15 +4298,14 @@ function buildSelectedOrdersText() {
     const g = window._pendingGroups[chk.dataset.gkey];
     if(!g) return '';
     const total = g.orders.reduce((s,o)=>s+(+(o.total_price||o.total||0)),0);
-    const totalQty = g.orders.reduce((s,o)=>s+(+(o.qty||1)),0);
     const pay = g.payment_status || 'unpaid';
     const isPaid = pay === 'paid_qr' || pay === 'paid_cash';
     const payLabel = { unpaid: 'UNPAID', cod: 'COD', paid_qr: 'PAID QR', paid_cash: 'PAID CASH' }[pay];
-    const amtLabel = isPaid ? payLabel : `RM ${total.toFixed(2)} (${payLabel})`;
     const feeEl = document.getElementById('pg-fee-' + chk.dataset.gkey);
     const feeAmt = feeEl ? (parseFloat(feeEl.value) || 0) : 0;
-    const feeText = feeAmt > 0 ? `RM ${feeAmt.toFixed(2)}` : '-';
-    return `${i+1}. ${g.customer}\n   Items: ${amtLabel}\n   Rider Fee: ${feeText}\n   ${g.location}`;
+    const grandTotal = total + feeAmt;
+    const amtLabel = isPaid ? payLabel : `RM ${grandTotal.toFixed(2)} (${payLabel})`;
+    return `${i+1}. ${g.customer}\n   Items: ${amtLabel}\n   ${g.location}`;
   }).filter(Boolean).join('\n\n');
 
   return `${today} - DELIVERY\n\n${lines}`;
