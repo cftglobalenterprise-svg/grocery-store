@@ -9608,12 +9608,8 @@ function copyReorderList() {
 
   const today = new Date().toLocaleDateString('en-GB', {day:'2-digit', month:'2-digit', year:'numeric'});
   const catLabel = cat || '全部';
-  const header = `${today} - 补货订单
-Category: ${catLabel} | Threshold: ${threshold} (${locLabel})`;
-  const text = header + '
-
-' + lines.join('
-');
+  const header = today + ' - 补货订单\nCategory: ' + catLabel + ' | Threshold: ' + threshold + ' (' + locLabel + ')';
+  const text = header + '\n\n' + lines.join('\n');
 
   navigator.clipboard.writeText(text).then(() => {
     showPosToast('✅ 已复制！可粘贴到WhatsApp');
