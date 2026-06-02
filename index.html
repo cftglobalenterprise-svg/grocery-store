@@ -2784,6 +2784,7 @@ function renderItems() {
     </div>`;
   }).join('');
   updateBulkBar();
+  initReorderCategories();
 }
 
 function updateMetrics() {
@@ -9520,8 +9521,10 @@ ${!bizFilter || bizFilter==='K19' ? topTable(k19Stats, 'KEDAI 19 (Grocery Store)
 function initReorderCategories() {
   const sel = document.getElementById('reorder-category');
   if(!sel) return;
+  const current = sel.value;
   const cats = [...new Set(items.filter(i=>!i.bundle_components).map(i=>i.category).filter(Boolean))].sort();
   sel.innerHTML = '<option value="">-- 全部 --</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  if(current) sel.value = current;
 }
 
 function renderReorderList() {
@@ -9580,7 +9583,6 @@ function copyReorderList() {
   const cat = document.getElementById('reorder-category')?.value || '';
   const threshold = parseInt(document.getElementById('reorder-threshold')?.value || 10);
   const loc = document.getElementById('reorder-location')?.value || 'shop';
-  const locLabel = loc === 'shop' ? '店里' : loc === 'home' ? '家里' : '合计';
 
   const getQty = item => {
     if(loc === 'shop') return +(item.shop_qty||0);
@@ -9592,24 +9594,29 @@ function copyReorderList() {
     if(i.bundle_components || i.item_type === 'service') return false;
     if(cat && i.category !== cat) return false;
     return getQty(i) < threshold;
-  }).sort((a,b) => getQty(a) - getQty(b));
+  });
 
-  const lines = filtered.map(item => {
-    const qty = getQty(item);
+  // Group by category, only items with order qty > 0
+  const grouped = {};
+  filtered.forEach(item => {
     const orderQty = parseInt(document.getElementById('reorder-qty-'+item.id)?.value || 0);
-    if(orderQty <= 0) return null;
-    return `- ${item.name}: order ${orderQty} (current: ${qty})`;
-  }).filter(Boolean);
+    if(orderQty <= 0) return;
+    const c = item.category || 'Others';
+    if(!grouped[c]) grouped[c] = [];
+    grouped[c].push({ name: item.name, qty: orderQty });
+  });
 
-  if(!lines.length) {
+  if(!Object.keys(grouped).length) {
     alert('请先填写要订购的数量（至少一项 > 0）');
     return;
   }
 
-  const today = new Date().toLocaleDateString('en-GB', {day:'2-digit', month:'2-digit', year:'numeric'});
-  const catLabel = cat || '全部';
-  const header = today + ' - 补货订单\nCategory: ' + catLabel + ' | Threshold: ' + threshold + ' (' + locLabel + ')';
-  const text = header + '\n\n' + lines.join('\n');
+  const sections = Object.entries(grouped).sort((a,b) => a[0].localeCompare(b[0])).map(([catName, list]) => {
+    const lines = list.map((item, i) => (i+1) + '. ' + item.name + ' X ' + item.qty).join('\n');
+    return catName + '\n\n' + lines;
+  });
+
+  const text = sections.join('\n\n---\n\n');
 
   navigator.clipboard.writeText(text).then(() => {
     showPosToast('✅ 已复制！可粘贴到WhatsApp');
@@ -9620,6 +9627,7 @@ function copyReorderList() {
     showPosToast('✅ 已复制！');
   });
 }
+
 
 // ── LOGOUT ───────────────────────────────────────────
 function doLogout() {
