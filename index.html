@@ -9563,7 +9563,7 @@ function renderReorderList() {
         return `<div style="display:grid;grid-template-columns:1fr 70px 100px 110px;gap:0;padding:8px 10px;border-top:1px solid var(--border);background:var(--surface);align-items:center">
           <div>
             <div style="font-size:13px;font-weight:600">${item.name}</div>
-            ${item.category ? `<div style="font-size:10px;color:var(--text3)">${item.category}</div>` : ''}
+            ${item.category ? '<div style="font-size:10px;color:var(--text3)">'+item.category+'</div>' : ''}
           </div>
           <div style="text-align:center;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${qty===0?'var(--red)':'var(--orange)'}">${qty}</div>
           <div style="text-align:center">
