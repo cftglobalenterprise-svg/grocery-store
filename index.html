@@ -874,10 +874,13 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 
       <!-- ══ STOCK ════════════════════════════════════ -->
       <div id="page-stock" class="page">
-        <div class="metrics">
-          <div class="metric"><div class="metric-val" id="m-total">0</div><div class="metric-lbl">商品种类</div></div>
-          <div class="metric"><div class="metric-val" id="m-home">0</div><div class="metric-lbl">家里总数</div></div>
-          <div class="metric"><div class="metric-val" id="m-shop">0</div><div class="metric-lbl">店里总数</div></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div class="metrics" style="margin-bottom:0;flex:1">
+            <div class="metric"><div class="metric-val" id="m-total">0</div><div class="metric-lbl">商品种类</div></div>
+            <div class="metric"><div class="metric-val" id="m-home">0</div><div class="metric-lbl">家里总数</div></div>
+            <div class="metric"><div class="metric-val" id="m-shop">0</div><div class="metric-lbl">店里总数</div></div>
+          </div>
+          <button onclick="generateInventoryPdf()" style="padding:8px 16px;border:1px solid var(--green);border-radius:var(--radius-xs);background:var(--green);color:#fff;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">📄 Export Inventory PDF</button>
         </div>
         <!-- Reorder Tool -->
         <div class="collapse-card" id="panel-reorder" style="margin-bottom:12px">
@@ -9515,6 +9518,132 @@ ${!bizFilter || bizFilter==='K19' ? topTable(k19Stats, 'KEDAI 19 (Grocery Store)
   else { showPosToast('✅ Generating report...'); setTimeout(()=>URL.revokeObjectURL(url), 10000); }
 }
 
+
+
+// ── INVENTORY PDF ─────────────────────────────────────────────────
+function generateInventoryPdf() {
+  const today = new Date().toLocaleDateString('en-MY', {day:'2-digit', month:'short', year:'numeric'});
+  const now = new Date().toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit', hour12:false});
+  const fmt = v => 'RM ' + Number(v||0).toFixed(2);
+
+  // Group items by category, exclude bundles
+  const allItems = items.filter(i => !i.bundle_components).sort((a,b) => {
+    const ca = (a.category||'zzz').toLowerCase();
+    const cb = (b.category||'zzz').toLowerCase();
+    if(ca !== cb) return ca.localeCompare(cb);
+    return (a.name||'').localeCompare(b.name||'');
+  });
+
+  const grouped = {};
+  allItems.forEach(i => {
+    const cat = i.category || 'Uncategorised';
+    if(!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(i);
+  });
+
+  const totalItems = allItems.length;
+  const totalShop = allItems.reduce((s,i)=>s+(+(i.shop_qty||0)),0);
+  const totalHome = allItems.reduce((s,i)=>s+(+(i.home_qty||0)),0);
+  const totalVal = allItems.reduce((s,i)=>s+(+(i.cost_price||0))*(+(i.shop_qty||0)++(i.home_qty||0)),0);
+
+  const tableRows = Object.entries(grouped).map(([cat, catItems]) => {
+    const header = `<tr style="background:#1a1814;color:#fff"><td colspan="8" style="padding:7px 10px;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase">${cat}</td></tr>`;
+    const rows = catItems.map((it, idx) => {
+      const total = (+(it.shop_qty||0)) + (+(it.home_qty||0));
+      const costVal = (+(it.cost_price||0)) * total;
+      const lowStock = total <= 3;
+      const outStock = total === 0;
+      const rowBg = outStock ? 'background:#fff5f5' : lowStock ? 'background:#fffbeb' : '';
+      return `<tr style="${rowBg}">
+        <td style="color:#9e9890;font-size:11px">${idx+1}</td>
+        <td style="font-weight:600;font-size:12px">${it.name || ''}</td>
+        <td style="font-family:'Courier New',monospace;font-size:11px;color:#6b6560">${it.barcode || '—'}</td>
+        <td style="text-align:right;font-family:'Courier New',monospace;font-size:12px;color:#1e6641">${fmt(it.price)}</td>
+        <td style="text-align:right;font-family:'Courier New',monospace;font-size:12px;color:#8b2318">${fmt(it.cost_price)}</td>
+        <td style="text-align:right;font-family:'Courier New',monospace;font-size:12px;font-weight:700;color:${outStock?'#dc2626':lowStock?'#d97706':'#1a1814'}">${+(it.shop_qty||0)}</td>
+        <td style="text-align:right;font-family:'Courier New',monospace;font-size:12px;font-weight:700;color:${outStock?'#dc2626':lowStock?'#d97706':'#1a1814'}">${+(it.home_qty||0)}</td>
+        <td style="text-align:right;font-family:'Courier New',monospace;font-size:12px;font-weight:700;color:${outStock?'#dc2626':lowStock?'#d97706':'#1a1814'}">${total}</td>
+      </tr>`;
+    }).join('');
+    return header + rows;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Inventory Report — ${today}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1a1814;font-size:12px}
+.page{width:210mm;margin:0 auto;padding:20px 24px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:3px solid #1a1814;margin-bottom:16px}
+.co{font-size:17px;font-weight:800}.co-sub{font-size:10px;color:#6b6560;margin-top:2px}
+.rpt-title{text-align:right}.rpt-title h2{font-size:11px;font-weight:700;color:#6b6560;text-transform:uppercase;letter-spacing:1px}
+.rpt-title .date{font-size:16px;font-weight:800;color:#1a1814}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.kpi{background:#f5f2ee;border-radius:7px;padding:10px 12px;text-align:center}
+.kpi-label{font-size:8px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.kpi-val{font-size:18px;font-weight:800;font-family:'Courier New',monospace}
+table{width:100%;border-collapse:collapse;margin-bottom:4px;font-size:12px}
+th{font-size:9px;font-weight:700;color:#9e9890;text-transform:uppercase;letter-spacing:.5px;padding:5px 8px;text-align:left;border-bottom:2px solid #ddd8d0;background:#f5f2ee}
+th.r{text-align:right}
+td{padding:5px 8px;border-bottom:1px solid #f0ede8;vertical-align:middle}
+.legend{display:flex;gap:16px;font-size:10px;color:#6b6560;margin-bottom:12px}
+.legend-item{display:flex;align-items:center;gap:4px}
+.dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.footer{display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid #ddd8d0;margin-top:12px;font-size:10px;color:#9e9890}
+@media print{body{padding:0}.page{padding:14px 18px}}
+</style></head><body><div class="page">
+
+<div class="hdr">
+  <div><div class="co">CFT GLOBAL ENTERPRISE</div><div class="co-sub">Inventory Stock Report &middot; Confidential</div></div>
+  <div class="rpt-title"><h2>Inventory Report</h2><div class="date">${today}</div><div style="font-size:10px;color:#9e9890">${now}</div></div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi"><div class="kpi-label">Total SKUs</div><div class="kpi-val">${totalItems}</div></div>
+  <div class="kpi"><div class="kpi-label">Shop Stock</div><div class="kpi-val">${totalShop}</div></div>
+  <div class="kpi"><div class="kpi-label">Home Stock</div><div class="kpi-val">${totalHome}</div></div>
+  <div class="kpi"><div class="kpi-label">Total Cost Value</div><div class="kpi-val" style="font-size:13px">${fmt(totalVal)}</div></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="dot" style="background:#fee2e2"></div> Out of stock</div>
+  <div class="legend-item"><div class="dot" style="background:#fef3c7"></div> Low stock (≤ 3)</div>
+</div>
+
+<table>
+<thead><tr>
+  <th>#</th>
+  <th>Product Name</th>
+  <th>Barcode</th>
+  <th class="r">Selling Price</th>
+  <th class="r">Cost Price</th>
+  <th class="r">Shop Qty</th>
+  <th class="r">Home Qty</th>
+  <th class="r">Total</th>
+</tr></thead>
+<tbody>
+${tableRows}
+<tr style="background:#f5f2ee;font-weight:700;border-top:2px solid #1a1814">
+  <td colspan="5">TOTAL</td>
+  <td style="text-align:right;font-family:'Courier New',monospace">${totalShop}</td>
+  <td style="text-align:right;font-family:'Courier New',monospace">${totalHome}</td>
+  <td style="text-align:right;font-family:'Courier New',monospace">${totalShop+totalHome}</td>
+</tr>
+</tbody></table>
+
+<div class="footer">
+  <div>CFT Global Enterprise &middot; Inventory Report &middot; Confidential</div>
+  <div>Generated: ${today} ${now} &middot; Total Cost Value: ${fmt(totalVal)}</div>
+</div>
+</div>
+<scr`+'ipt>window.onload=function(){window.print();}</scr'+'ipt>
+</body></html>`;
+
+  const blob = new Blob([html], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if(!win) showPosToast('❌ Please allow popups');
+  else { showPosToast('✅ Generating inventory PDF...'); setTimeout(()=>URL.revokeObjectURL(url), 10000); }
+}
 
 // ── REORDER TOOL ──────────────────────────────────────────────────
 function initReorderCategories() {
