@@ -9544,7 +9544,7 @@ function generateInventoryPdf() {
   const totalItems = allItems.length;
   const totalShop = allItems.reduce((s,i)=>s+(+(i.shop_qty||0)),0);
   const totalHome = allItems.reduce((s,i)=>s+(+(i.home_qty||0)),0);
-  const totalVal = allItems.reduce((s,i)=>s+(+(i.cost_price||0))*(+(i.shop_qty||0)++(i.home_qty||0)),0);
+  const totalVal = allItems.reduce((s,i)=>s+(+(i.cost_price||0))*((+(i.shop_qty||0))+(+(i.home_qty||0))),0);
 
   const tableRows = Object.entries(grouped).map(([cat, catItems]) => {
     const header = `<tr style="background:#1a1814;color:#fff"><td colspan="8" style="padding:7px 10px;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase">${cat}</td></tr>`;
