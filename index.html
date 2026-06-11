@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 /* ── RESET & BASE ─────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -880,7 +881,10 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <div class="metric"><div class="metric-val" id="m-home">0</div><div class="metric-lbl">家里总数</div></div>
             <div class="metric"><div class="metric-val" id="m-shop">0</div><div class="metric-lbl">店里总数</div></div>
           </div>
-          <button onclick="generateInventoryPdf()" style="padding:8px 16px;border:1px solid var(--green);border-radius:var(--radius-xs);background:var(--green);color:#fff;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">📄 Export Inventory PDF</button>
+          <div style="display:flex;gap:8px">
+            <button onclick="generateInventoryPdf()" style="padding:8px 16px;border:1px solid var(--green);border-radius:var(--radius-xs);background:var(--green);color:#fff;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">📄 Export PDF</button>
+            <button onclick="generateInventoryExcel()" style="padding:8px 16px;border:1px solid #1a6640;border-radius:var(--radius-xs);background:#fff;color:#1a6640;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">📊 Export Excel</button>
+          </div>
         </div>
         <!-- Reorder Tool -->
         <div class="collapse-card" id="panel-reorder" style="margin-bottom:12px">
@@ -9643,6 +9647,92 @@ ${tableRows}
   const win = window.open(url, '_blank');
   if(!win) showPosToast('❌ Please allow popups');
   else { showPosToast('✅ Generating inventory PDF...'); setTimeout(()=>URL.revokeObjectURL(url), 10000); }
+}
+
+
+// ── INVENTORY EXCEL EXPORT ────────────────────────────────────────
+function generateInventoryExcel() {
+  if(typeof XLSX === 'undefined') { showPosToast('❌ XLSX library not loaded'); return; }
+
+  const today = new Date().toLocaleDateString('en-MY', {day:'2-digit', month:'short', year:'numeric'});
+  const allItems = items.filter(i => !i.bundle_components).sort((a,b) => {
+    const ca = (a.category||'zzz').toLowerCase();
+    const cb = (b.category||'zzz').toLowerCase();
+    if(ca !== cb) return ca.localeCompare(cb);
+    return (a.name||'').localeCompare(b.name||'');
+  });
+
+  const wb = XLSX.utils.book_new();
+
+  // === Sheet 1: All Items ===
+  const headers = ['#', 'Category', 'Product Name', 'Barcode', 'Selling Price (RM)', 'Cost Price (RM)', 'Shop Qty', 'Home Qty', 'Total Qty', 'Cost Value (RM)', 'Item Type'];
+  const rows = allItems.map((it, idx) => {
+    const total = (+(it.shop_qty||0)) + (+(it.home_qty||0));
+    const costVal = (+(it.cost_price||0)) * total;
+    return [
+      idx+1,
+      it.category || '',
+      it.name || '',
+      it.barcode || '',
+      +(it.price||0),
+      +(it.cost_price||0),
+      +(it.shop_qty||0),
+      +(it.home_qty||0),
+      total,
+      costVal,
+      it.item_type || 'product'
+    ];
+  });
+
+  const wsData = [headers, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Column widths
+  ws['!cols'] = [
+    {wch:5}, {wch:15}, {wch:35}, {wch:18}, {wch:18}, {wch:16}, {wch:10}, {wch:10}, {wch:10}, {wch:16}, {wch:12}
+  ];
+
+  // Style header row (bold)
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for(let C = range.s.c; C <= range.e.c; C++) {
+    const addr = XLSX.utils.encode_cell({r:0, c:C});
+    if(!ws[addr]) continue;
+    ws[addr].s = { font: { bold: true }, fill: { fgColor: { rgb: '1A6640' } }, font: { bold: true, color: { rgb: 'FFFFFF' } } };
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
+
+  // === Sheet 2: Summary by Category ===
+  const catMap = {};
+  allItems.forEach(it => {
+    const c = it.category || 'Uncategorised';
+    if(!catMap[c]) catMap[c] = { items:0, shopQty:0, homeQty:0, costVal:0 };
+    catMap[c].items++;
+    catMap[c].shopQty += +(it.shop_qty||0);
+    catMap[c].homeQty += +(it.home_qty||0);
+    catMap[c].costVal += (+(it.cost_price||0)) * ((+(it.shop_qty||0))+(+(it.home_qty||0)));
+  });
+
+  const sumHeaders = ['Category', 'SKUs', 'Shop Qty', 'Home Qty', 'Total Qty', 'Cost Value (RM)'];
+  const sumRows = Object.entries(catMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([cat,d]) => [
+    cat, d.items, d.shopQty, d.homeQty, d.shopQty+d.homeQty, d.costVal
+  ]);
+  const totalRow = ['TOTAL',
+    allItems.length,
+    allItems.reduce((s,i)=>s+(+(i.shop_qty||0)),0),
+    allItems.reduce((s,i)=>s+(+(i.home_qty||0)),0),
+    allItems.reduce((s,i)=>s+(+(i.shop_qty||0))+(+(i.home_qty||0)),0),
+    allItems.reduce((s,i)=>s+(+(i.cost_price||0))*((+(i.shop_qty||0))+(+(i.home_qty||0))),0)
+  ];
+
+  const ws2 = XLSX.utils.aoa_to_sheet([sumHeaders, ...sumRows, totalRow]);
+  ws2['!cols'] = [{wch:20},{wch:8},{wch:10},{wch:10},{wch:10},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Summary by Category');
+
+  // Download
+  const filename = 'Inventory_' + new Date().toISOString().slice(0,10) + '.xlsx';
+  XLSX.writeFile(wb, filename);
+  showPosToast('✅ Excel downloaded: ' + filename);
 }
 
 // ── REORDER TOOL ──────────────────────────────────────────────────
