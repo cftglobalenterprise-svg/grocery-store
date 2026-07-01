@@ -4867,7 +4867,7 @@ function applyBundleRulesToCart(cartArr) {
     // Get eligible items from remaining
     const eligible = [...remaining.values()].filter(r => {
       if(r.qtyLeft <= 0) return false;
-      if(itemIds && itemIds.length > 0 && !itemIds.includes(r.item.id)) return false;
+      if(itemIds && itemIds.length > 0 && !itemIds.map(String).includes(String(r.item.id))) return false;
       return true;
     });
 
