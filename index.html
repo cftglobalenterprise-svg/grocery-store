@@ -3513,12 +3513,14 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
       }
     }
     const isK19 = (oTbl === 'g_orders');
+    const itemDiscountAmt = +(rawItemTotal - itemTotal).toFixed(4);
     const insertPayload = isK19 ? {
       customer: '门市现场', item_id: item.id, item_name: item.name,
       qty: c.qty, unit_price: getInstoreItemPricing(c).unitPrice || +(item.price||0),
       cost_price: +(item.cost_price||0),
       location: '门市', deduct_from: 'shop', status: 'instore',
       total: itemTotal,
+      discount_amount: itemDiscountAmt,
       pay_method: payMethod || 'paid_cash',
       payment_method: payMethod || 'paid_cash',
       source: 'instore',
@@ -3526,8 +3528,10 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
       business: item.business || 'A'
     } : {
       customer: '门市现场', item_id: item.id, item_name: item.name,
-      qty: c.qty, location: '门市', deduct_from: 'shop', status: 'instore',
+      qty: c.qty, unit_price: getInstoreItemPricing(c).unitPrice || +(item.price||0),
+      location: '门市', deduct_from: 'shop', status: 'instore',
       total_price: itemTotal,
+      discount_amount: itemDiscountAmt,
       payment_status: payMethod || 'paid_cash',
       paid_at: new Date().toISOString(),
       business: item.business || 'A'
@@ -3586,26 +3590,23 @@ function printReceipt(ordersData) {
   const payM = o.pay_method || o.payment_method || o.payment_status || '';
   const payLabel = payM.includes('qr') ? 'QR PAY' : payM.includes('cash') ? 'CASH' : payM.includes('credit') ? 'CREDIT' : payM.toUpperCase();
   const total = orders.reduce((s,x)=>s+(+(x.total_price||x.total||0)),0);
-  // Calculate original price (before discount) using unit_price field
-  const originalTotal = orders.reduce((s,x)=>{
-    const unitP = +(x.unit_price||0);
-    const qty = +(x.qty||1);
-    return s + (unitP > 0 ? unitP * qty : +(x.total_price||x.total||0));
-  }, 0);
-  const discountAmt = Math.max(0, originalTotal - total);
+  // unit_price in orders is already the discounted unit price
+  // We need to find original price from a different source
+  // Best approach: check if any order has discount_amount field, otherwise use total as-is
+  const savedAmt = orders.reduce((s,x)=>s+(+(x.discount_amount||0)),0);
+  const originalTotal = savedAmt > 0 ? total + savedAmt : total;
+  const discountAmt = savedAmt;
   const dateStr = now.toLocaleString('en-MY',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
   const customer = o.customer && o.customer !== '\u95E8\u5E02\u73B0\u573A' ? o.customer : 'Walk-in Customer';
-  // discountRatio: how much was paid vs original
-  const discountRatio = (originalTotal > 0 && total < originalTotal) ? (total / originalTotal) : 1;
   const rows = orders.map(x => {
     const qty = +(x.qty||1);
-    const discountedPrice = +(x.total_price||x.total||0);
-    // Back-calculate original subtotal before discount
-    const origSubtotal = discountRatio > 0 && discountRatio < 1 ? discountedPrice / discountRatio : discountedPrice;
-    const unitOrig = qty > 0 ? origSubtotal / qty : origSubtotal;
+    const itemTotal = +(x.total_price||x.total||0);
+    const itemDisc = +(x.discount_amount||0);
+    const origSubtotal = itemTotal + itemDisc;
+    const unitPrice = qty > 0 ? origSubtotal / qty : origSubtotal;
     return '<tr><td style="padding:9px 0;border-bottom:1px solid #e5e7eb;font-size:13px;font-weight:500">' + (x.item_name||'-') + '</td>'
       + '<td style="padding:9px 4px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:13px">' + qty + '</td>'
-      + '<td style="padding:9px 4px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px">RM ' + unitOrig.toFixed(2) + '</td>'
+      + '<td style="padding:9px 4px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px">RM ' + unitPrice.toFixed(2) + '</td>'
       + '<td style="padding:9px 0;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;font-weight:700">RM ' + origSubtotal.toFixed(2) + '</td></tr>';
   }).join('');
 
