@@ -3595,16 +3595,17 @@ function printReceipt(ordersData) {
   const discountAmt = Math.max(0, originalTotal - total);
   const dateStr = now.toLocaleString('en-MY',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
   const customer = o.customer && o.customer !== '\u95E8\u5E02\u73B0\u573A' ? o.customer : 'Walk-in Customer';
+  // discountRatio: how much was paid vs original
+  const discountRatio = (originalTotal > 0 && total < originalTotal) ? (total / originalTotal) : 1;
   const rows = orders.map(x => {
     const qty = +(x.qty||1);
-    const unitP = +(x.unit_price||0);
     const discountedPrice = +(x.total_price||x.total||0);
-    // Use original price (unit_price × qty) for display if available
-    const origSubtotal = unitP > 0 ? unitP * qty : discountedPrice;
-    const unit = (unitP > 0 ? unitP : (qty > 0 ? discountedPrice/qty : discountedPrice)).toFixed(2);
+    // Back-calculate original subtotal before discount
+    const origSubtotal = discountRatio > 0 && discountRatio < 1 ? discountedPrice / discountRatio : discountedPrice;
+    const unitOrig = qty > 0 ? origSubtotal / qty : origSubtotal;
     return '<tr><td style="padding:9px 0;border-bottom:1px solid #e5e7eb;font-size:13px;font-weight:500">' + (x.item_name||'-') + '</td>'
       + '<td style="padding:9px 4px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:13px">' + qty + '</td>'
-      + '<td style="padding:9px 4px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px">RM ' + unit + '</td>'
+      + '<td style="padding:9px 4px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px">RM ' + unitOrig.toFixed(2) + '</td>'
       + '<td style="padding:9px 0;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;font-weight:700">RM ' + origSubtotal.toFixed(2) + '</td></tr>';
   }).join('');
 
