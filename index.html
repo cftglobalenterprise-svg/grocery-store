@@ -759,6 +759,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn" id="navbtn-finance" onclick="posSidebarFinanceUnlock()">
         <span class="nav-icon">📒</span> 记账
       </button>
+      <button class="nav-btn" id="navbtn-ledger" onclick="posSwitchTab('ledger')">
+        <span class="nav-icon">📅</span> 每日记账
+      </button>
       <button class="nav-btn" id="navbtn-hq" onclick="posSwitchTab('hq')" style="display:none">
         <span class="nav-icon">🏢</span> 总部报表
       </button>
@@ -1519,6 +1522,77 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <button onclick="calCloseModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">取消</button>
                 <button onclick="calSaveEvent()" style="padding:8px 16px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:600">保存</button>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ DAILY LEDGER CALENDAR PAGE ══════════════════════════════════ -->
+      <div id="page-ledger" class="page">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:20px;font-weight:700">📅 每日记账</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">每日进账 · 出账 · 独立记录，不影响其他数据</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="ledgerPrevMonth()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface);cursor:pointer;font-size:16px">‹</button>
+            <span id="ledger-month-label" style="font-size:15px;font-weight:700;min-width:120px;text-align:center"></span>
+            <button onclick="ledgerNextMonth()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface);cursor:pointer;font-size:16px">›</button>
+          </div>
+        </div>
+
+        <!-- Monthly summary cards -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px" id="ledger-summary-cards"></div>
+
+        <!-- Calendar grid -->
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--red);padding:4px">日</div>
+          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">一</div>
+          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">二</div>
+          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">三</div>
+          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">四</div>
+          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">五</div>
+          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--blue);padding:4px">六</div>
+        </div>
+        <div id="ledger-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+
+        <!-- Category breakdown -->
+        <div style="margin-top:20px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📊 本月出账分类</div>
+          <div id="ledger-cat-breakdown" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px"></div>
+        </div>
+
+        <!-- Day Edit Modal -->
+        <div id="ledger-day-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;align-items:center;justify-content:center">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:420px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px" id="ledger-modal-title">日期</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:16px">当天的记录</div>
+            <div id="ledger-day-entries" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
+
+            <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
+              <div style="font-size:12px;font-weight:700;margin-bottom:10px">➕ 新增记录</div>
+              <input type="hidden" id="ledger-entry-date">
+              <div style="display:flex;gap:8px;margin-bottom:10px">
+                <button id="ledger-type-in" onclick="ledgerSetType('in')" style="flex:1;padding:8px;border:1px solid var(--green);border-radius:var(--radius-xs);background:var(--green);color:#fff;cursor:pointer;font-size:13px;font-weight:600">💰 进账</button>
+                <button id="ledger-type-out" onclick="ledgerSetType('out')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface);color:var(--text2);cursor:pointer;font-size:13px;font-weight:600">💸 出账</button>
+              </div>
+              <div style="margin-bottom:10px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">类别</div>
+                <select id="ledger-entry-cat" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)"></select>
+              </div>
+              <div style="margin-bottom:10px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">金额 (RM)</div>
+                <input type="number" id="ledger-entry-amount" step="0.01" placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <div style="margin-bottom:14px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">备注（可选）</div>
+                <input type="text" id="ledger-entry-note" placeholder="例：Supplier XX进货、7月水电单..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <button onclick="ledgerSaveEntry()" style="width:100%;padding:10px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:700">保存</button>
+            </div>
+
+            <div style="text-align:right;margin-top:14px">
+              <button onclick="ledgerCloseModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">关闭</button>
             </div>
           </div>
         </div>
@@ -8711,6 +8785,7 @@ function posSwitchTab(t) {
   else if(t === 'payroll') { renderPayrollPage(); }
   else if(t === 'lhdn') { renderLhdnPage(); }
   else if(t === 'holidays') { renderCalPage(); }
+  else if(t === 'ledger') { renderLedgerPage(); }
 }
 
 function posSidebarFinanceUnlock() {
@@ -13195,6 +13270,236 @@ async function postLoginClockCheck() {
   if(closeBtn) { closeBtn.style.display = ''; closeBtn.textContent = '稍后再打卡'; }
 
   await openClockModal(true);
+}
+
+// ══════════════════════════════════════════════════════════════
+// DAILY LEDGER CALENDAR — independent module, own Supabase table
+// (daily_ledger), does not read/write any other table.
+// ══════════════════════════════════════════════════════════════
+const LEDGER_CAT_META = {
+  sales:    { label:'营业收入', color:'#1e6641', bg:'#d4f0dc', type:'in'  },
+  other_in: { label:'其他收入', color:'#1a4d7a', bg:'#d6eaf8', type:'in'  },
+  purchase: { label:'进货',     color:'#8b2318', bg:'#fad8d6', type:'out' },
+  rent:     { label:'房租',     color:'#7c3aed', bg:'#ede9fe', type:'out' },
+  utility:  { label:'水电',     color:'#b45309', bg:'#fef3c7', type:'out' },
+  misc:     { label:'杂项',     color:'#475569', bg:'#f1f5f9', type:'out' },
+};
+
+let _ledgerYear = new Date().getFullYear();
+let _ledgerMonth = new Date().getMonth();
+let _ledgerEntries = [];
+let _ledgerCurType = 'in';
+let _ledgerCurDate = '';
+
+async function loadLedgerEntries() {
+  const { data, error } = await sb.from('daily_ledger').select('*').order('entry_date');
+  if(error) { console.error('daily_ledger load error:', error); _ledgerEntries = []; return; }
+  _ledgerEntries = data || [];
+}
+
+async function renderLedgerPage() {
+  await loadLedgerEntries();
+  renderLedgerGrid();
+  renderLedgerSummary();
+}
+
+function ledgerPrevMonth() {
+  _ledgerMonth--;
+  if(_ledgerMonth < 0) { _ledgerMonth = 11; _ledgerYear--; }
+  renderLedgerGrid(); renderLedgerSummary();
+}
+function ledgerNextMonth() {
+  _ledgerMonth++;
+  if(_ledgerMonth > 11) { _ledgerMonth = 0; _ledgerYear++; }
+  renderLedgerGrid(); renderLedgerSummary();
+}
+
+function ledgerMonthEntries() {
+  const monthStr = _ledgerYear + '-' + String(_ledgerMonth+1).padStart(2,'0');
+  return _ledgerEntries.filter(e => e.entry_date && e.entry_date.startsWith(monthStr));
+}
+
+function renderLedgerGrid() {
+  const monthNames = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+  const label = document.getElementById('ledger-month-label');
+  if(label) label.textContent = _ledgerYear + '年 ' + monthNames[_ledgerMonth];
+
+  const grid = document.getElementById('ledger-grid');
+  if(!grid) return;
+
+  const today = new Date().toISOString().slice(0,10);
+  const firstDay = new Date(_ledgerYear, _ledgerMonth, 1).getDay();
+  const daysInMonth = new Date(_ledgerYear, _ledgerMonth+1, 0).getDate();
+  const monthStr = _ledgerYear + '-' + String(_ledgerMonth+1).padStart(2,'0');
+  const monthEntries = ledgerMonthEntries();
+
+  let cells = '';
+  for(let i = 0; i < firstDay; i++) cells += '<div style="min-height:78px"></div>';
+
+  for(let d = 1; d <= daysInMonth; d++) {
+    const dateStr = monthStr + '-' + String(d).padStart(2,'0');
+    const dayEntries = monthEntries.filter(e => e.entry_date === dateStr);
+    const dayIn = dayEntries.filter(e=>e.entry_type==='in').reduce((s,e)=>s+Number(e.amount||0),0);
+    const dayOut = dayEntries.filter(e=>e.entry_type==='out').reduce((s,e)=>s+Number(e.amount||0),0);
+    const isToday = dateStr === today;
+    const isSun = new Date(_ledgerYear, _ledgerMonth, d).getDay() === 0;
+    const isSat = new Date(_ledgerYear, _ledgerMonth, d).getDay() === 6;
+    const dayColor = isSun ? '#ef4444' : isSat ? '#3b82f6' : 'var(--text)';
+    const todayStyle = isToday ? 'border:2px solid var(--blue);' : 'border:1px solid var(--border);';
+
+    cells += `<div style="${todayStyle}background:var(--surface);border-radius:6px;padding:5px;min-height:78px;cursor:pointer" onclick="ledgerOpenDay('${dateStr}')">
+      <div style="font-size:12px;font-weight:700;color:${dayColor};margin-bottom:3px">${d}</div>
+      ${dayIn > 0 ? `<div style="font-size:10px;color:var(--green);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">进 RM${dayIn.toFixed(0)}</div>` : ''}
+      ${dayOut > 0 ? `<div style="font-size:10px;color:var(--red);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">出 RM${dayOut.toFixed(0)}</div>` : ''}
+    </div>`;
+  }
+  grid.innerHTML = cells;
+}
+
+function renderLedgerSummary() {
+  const monthEntries = ledgerMonthEntries();
+  const totalIn = monthEntries.filter(e=>e.entry_type==='in').reduce((s,e)=>s+Number(e.amount||0),0);
+  const totalOut = monthEntries.filter(e=>e.entry_type==='out').reduce((s,e)=>s+Number(e.amount||0),0);
+  const net = totalIn - totalOut;
+  const netColor = net >= 0 ? 'var(--green)' : 'var(--red)';
+
+  const cards = document.getElementById('ledger-summary-cards');
+  if(cards) {
+    cards.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600">本月进账</div>
+        <div style="font-size:20px;font-weight:800;color:var(--green);margin-top:4px">RM ${totalIn.toFixed(2)}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600">本月出账</div>
+        <div style="font-size:20px;font-weight:800;color:var(--red);margin-top:4px">RM ${totalOut.toFixed(2)}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600">净利</div>
+        <div style="font-size:20px;font-weight:800;color:${netColor};margin-top:4px">RM ${net.toFixed(2)}</div>
+      </div>`;
+  }
+
+  // Category breakdown (out only)
+  const catTotals = {};
+  monthEntries.filter(e=>e.entry_type==='out').forEach(e => {
+    const cat = e.category || 'misc';
+    catTotals[cat] = (catTotals[cat]||0) + Number(e.amount||0);
+  });
+  const catEl = document.getElementById('ledger-cat-breakdown');
+  if(catEl) {
+    const keys = Object.keys(catTotals);
+    if(!keys.length) {
+      catEl.innerHTML = '<div style="font-size:12px;color:var(--text3)">本月暂无出账记录</div>';
+    } else {
+      catEl.innerHTML = keys.map(k => {
+        const meta = LEDGER_CAT_META[k] || LEDGER_CAT_META.misc;
+        return `<div style="background:${meta.bg};border-radius:var(--radius-xs);padding:10px">
+          <div style="font-size:10px;font-weight:700;color:${meta.color}">${meta.label}</div>
+          <div style="font-size:15px;font-weight:800;color:${meta.color};margin-top:2px">RM ${catTotals[k].toFixed(2)}</div>
+        </div>`;
+      }).join('');
+    }
+  }
+}
+
+function ledgerSetType(type) {
+  _ledgerCurType = type;
+  const inBtn = document.getElementById('ledger-type-in');
+  const outBtn = document.getElementById('ledger-type-out');
+  if(inBtn && outBtn) {
+    if(type === 'in') {
+      inBtn.style.background = 'var(--green)'; inBtn.style.color = '#fff'; inBtn.style.borderColor = 'var(--green)';
+      outBtn.style.background = 'var(--surface)'; outBtn.style.color = 'var(--text2)'; outBtn.style.borderColor = 'var(--border)';
+    } else {
+      outBtn.style.background = 'var(--red)'; outBtn.style.color = '#fff'; outBtn.style.borderColor = 'var(--red)';
+      inBtn.style.background = 'var(--surface)'; inBtn.style.color = 'var(--text2)'; inBtn.style.borderColor = 'var(--border)';
+    }
+  }
+  ledgerRefreshCatOptions();
+}
+
+function ledgerRefreshCatOptions() {
+  const sel = document.getElementById('ledger-entry-cat');
+  if(!sel) return;
+  const opts = Object.entries(LEDGER_CAT_META).filter(([k,v]) => v.type === _ledgerCurType);
+  sel.innerHTML = opts.map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('');
+}
+
+function ledgerOpenDay(dateStr) {
+  _ledgerCurDate = dateStr;
+  document.getElementById('ledger-entry-date').value = dateStr;
+  const d = new Date(dateStr + 'T00:00:00');
+  document.getElementById('ledger-modal-title').textContent = (d.getMonth()+1) + '月' + d.getDate() + '日';
+  document.getElementById('ledger-entry-amount').value = '';
+  document.getElementById('ledger-entry-note').value = '';
+  ledgerSetType('in');
+  renderLedgerDayEntries();
+  document.getElementById('ledger-day-modal').style.display = 'flex';
+}
+
+function renderLedgerDayEntries() {
+  const list = document.getElementById('ledger-day-entries');
+  if(!list) return;
+  const entries = _ledgerEntries.filter(e => e.entry_date === _ledgerCurDate)
+    .sort((a,b) => (a.created_at||'').localeCompare(b.created_at||''));
+  if(!entries.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:10px">当天暂无记录</div>';
+    return;
+  }
+  list.innerHTML = entries.map(e => {
+    const meta = LEDGER_CAT_META[e.category] || (e.entry_type === 'in' ? LEDGER_CAT_META.sales : LEDGER_CAT_META.misc);
+    const sign = e.entry_type === 'in' ? '+' : '-';
+    const color = e.entry_type === 'in' ? 'var(--green)' : 'var(--red)';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 10px">
+      <div>
+        <span style="font-size:10px;font-weight:700;color:${meta.color};background:${meta.bg};padding:1px 6px;border-radius:8px">${meta.label}</span>
+        ${e.note ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${e.note}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;font-weight:700;color:${color}">${sign}RM ${Number(e.amount).toFixed(2)}</span>
+        <button onclick="ledgerDeleteEntry('${e.id}')" style="border:none;background:none;color:var(--text3);cursor:pointer;font-size:13px">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function ledgerSaveEntry() {
+  const date = document.getElementById('ledger-entry-date').value;
+  const amount = parseFloat(document.getElementById('ledger-entry-amount').value);
+  const cat = document.getElementById('ledger-entry-cat').value;
+  const note = document.getElementById('ledger-entry-note').value.trim();
+  if(!date || !amount || amount <= 0) { alert('请输入日期和有效金额'); return; }
+
+  const { error } = await sb.from('daily_ledger').insert({
+    entry_date: date,
+    entry_type: _ledgerCurType,
+    category: cat,
+    amount: amount,
+    note: note || null
+  });
+  if(error) { alert('保存失败：' + error.message); return; }
+
+  document.getElementById('ledger-entry-amount').value = '';
+  document.getElementById('ledger-entry-note').value = '';
+  await loadLedgerEntries();
+  renderLedgerDayEntries();
+  renderLedgerGrid();
+  renderLedgerSummary();
+}
+
+async function ledgerDeleteEntry(id) {
+  if(!confirm('删除这笔记录？')) return;
+  const { error } = await sb.from('daily_ledger').delete().eq('id', id);
+  if(error) { alert('删除失败：' + error.message); return; }
+  await loadLedgerEntries();
+  renderLedgerDayEntries();
+  renderLedgerGrid();
+  renderLedgerSummary();
+}
+
+function ledgerCloseModal() {
+  document.getElementById('ledger-day-modal').style.display = 'none';
 }
 
 </script>
