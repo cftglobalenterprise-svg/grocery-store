@@ -70,7 +70,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 #page-instore { padding: 0 !important; overflow: clip !important; display: none !important; height: 100%; }
 #page-instore.active { display: flex !important; }
 /* Ensure scroll events bubble through all content children */
-#page-orders *, #page-overview *, #page-profit *, #page-finance * {
+#page-orders *, #page-overview *, #page-profit * {
   overscroll-behavior: auto;
 }
 /* Stock page scroll containers need contain, not auto */
@@ -356,7 +356,6 @@ body.modal-open { overflow: hidden; }
 
 /* ── MISC ────────────────────────────────────────── */
 .empty { text-align: center; color: var(--text3); font-size: 13px; padding: 2rem 0; }
-#page-finance { max-width: 860px; margin: 0 auto; }
 #page-profit { max-width: 900px; }
 .tabs { display: none !important; }
 /* HQ-only elements: hidden by default, shown via JS for HQ role */
@@ -535,8 +534,8 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
   .stock-layout { flex-direction: column !important; }
   .stock-left { width: 100% !important; flex: none !important; }
 
-  /* Finance / profit pages */
-  #page-finance, #page-profit { max-width: 100% !important; }
+  /* Profit page */
+  #page-profit { max-width: 100% !important; }
 
   /* Form rows on mobile */
   .form-row { flex-wrap: wrap; gap: 6px; }
@@ -755,9 +754,6 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </button>
       <button class="nav-btn" id="navbtn-overview" onclick="posSwitchTab('overview')">
         <span class="nav-icon">📊</span> 总览
-      </button>
-      <button class="nav-btn" id="navbtn-finance" onclick="posSidebarFinanceUnlock()">
-        <span class="nav-icon">📒</span> 记账
       </button>
       <button class="nav-btn" id="navbtn-ledger" onclick="posSwitchTab('ledger')">
         <span class="nav-icon">📅</span> 每日记账
@@ -1284,99 +1280,6 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         <div class="empty" id="payroll-empty" style="display:none">暂无员工，请点击「新增员工」添加</div>
       </div>
 
-      <!-- ══ FINANCE PAGE ══════════════════════════════ -->
-      <!-- FINANCE PAGE ═══════════════════════════════════════════════════ -->
-<div id="page-finance" class="page" style="max-width:900px;margin:0 auto">
-
-  <!-- Top bar: ledger switcher + month -->
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-    <div style="display:flex;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;flex-shrink:0">
-      <button id="fl-biz-btn" onclick="setFinanceLedger('biz')" style="padding:8px 16px;font-size:12px;font-weight:700;border:none;background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">🏢 生意</button>
-      <button id="fl-per-btn" onclick="setFinanceLedger('personal')" style="padding:8px 16px;font-size:12px;font-weight:700;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">👤 个人</button>
-    </div>
-    <input type="month" id="fl-month" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderFinancePage()">
-    <div style="flex:1"></div>
-    <button class="btn btn-success" onclick="openAddTxnModal()">+ 记录收支</button>
-    <button onclick="lockFinance()" style="padding:7px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif">🔒</button>
-  </div>
-
-  <!-- Sub-tabs -->
-  <div style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:14px">
-    <button class="fl-tab active" id="fltab-overview" onclick="setFlTab('overview')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:'DM Sans',sans-serif">📊 总览</button>
-    <button class="fl-tab" id="fltab-wallets" onclick="setFlTab('wallets')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:'DM Sans',sans-serif">💳 账户</button>
-    <button class="fl-tab" id="fltab-txns" onclick="setFlTab('txns')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:'DM Sans',sans-serif">📋 收支</button>
-    <button class="fl-tab" id="fltab-invest" onclick="setFlTab('invest')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:'DM Sans',sans-serif">📈 投资</button>
-    <button class="fl-tab" id="fltab-report" onclick="setFlTab('report')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:'DM Sans',sans-serif">📄 报表</button>
-  </div>
-
-  <!-- ── 总览 ── -->
-  <div id="flpage-overview">
-    <!-- Net summary row -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px" id="fl-summary-cards"></div>
-    <!-- Wallet balances -->
-    <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">💳 账户余额</div>
-    <div id="fl-wallet-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:16px"></div>
-    <!-- Recent transactions -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px">最近收支</div>
-      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="setFlTab('txns')">查看全部 →</button>
-    </div>
-    <div id="fl-recent-txns"></div>
-  </div>
-
-  <!-- ── 账户 ── -->
-  <div id="flpage-wallets" style="display:none">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-      <button class="btn btn-success" onclick="openWalletModal()">+ 新增账户</button>
-    </div>
-    <div id="fl-wallets-list"></div>
-  </div>
-
-  <!-- ── 收支 ── -->
-  <div id="flpage-txns" style="display:none">
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-      <select id="fl-txn-filter-type" onchange="renderFlTxns()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:13px">
-        <option value="">全部类型</option>
-        <option value="income">收入</option>
-        <option value="expense">支出</option>
-        <option value="transfer">转账</option>
-      </select>
-      <select id="fl-txn-filter-wallet" onchange="renderFlTxns()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:13px">
-        <option value="">全部账户</option>
-      </select>
-      <select id="fl-txn-filter-cat" onchange="renderFlTxns()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:13px">
-        <option value="">全部类别</option>
-      </select>
-      <div style="flex:1"></div>
-      <button class="btn btn-success" onclick="openAddTxnModal()">+ 新增</button>
-    </div>
-    <div id="fl-txns-list"></div>
-  </div>
-
-  <!-- ── 投资 ── -->
-  <div id="flpage-invest" style="display:none">
-    <div id="flpage-invest-biz">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px">🏢 公司投资 / FD</div>
-        <button class="btn btn-success" style="font-size:12px" onclick="openBizInvestModal()">+ 新增投资</button>
-      </div>
-      <div id="fl-biz-invest-list"></div>
-    </div>
-    <div id="flpage-invest-personal" style="display:none">
-      <!-- Stock portfolio header -->
-      <div id="fl-stock-summary"></div>
-      <div id="fl-price-updated-at"></div>
-      <div id="fl-stock-list"></div>
-    </div>
-  </div>
-
-  <!-- ── 报表 ── -->
-  <div id="flpage-report" style="display:none">
-    <div id="fl-report-content"></div>
-  </div>
-
-</div>
-
 
             <!-- ══ LHDN PAGE ══════════════════════════════════ -->
       <div id="page-lhdn" class="page">
@@ -1387,6 +1290,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <select id="lhdn-year" onchange="renderLhdnPage()" style="padding:7px 12px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:700"></select>
+            <button class="btn" style="font-size:12px" onclick="lhdnMigrateLocalData()" title="把本机浏览器旧版资料（资产/支出/期初库存）搬到云端同步">🔄 导入本机旧资料</button>
             <button class="btn btn-success" onclick="lhdnGeneratePdf()">📄 生成报告 PDF</button>
           </div>
         </div>
@@ -1434,8 +1338,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 
         <!-- Expenses tab -->
         <div id="lpage-expenses" style="display:none">
-          <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-            <button class="btn btn-success" onclick="openLhdnExpModal()">+ 新增支出</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap">
+            <div style="font-size:11px;color:var(--text3)">支出记录直接来自「每日记账」，这里只显示汇总（进货成本已算入 COGS，不在此重复显示）</div>
+            <button class="btn btn-success" style="flex-shrink:0" onclick="posSwitchTab('ledger')">📅 前往每日记账</button>
           </div>
           <div id="lhdn-exp-list"></div>
           <div id="lhdn-exp-summary" style="margin-top:12px"></div>
@@ -2138,37 +2043,6 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 </div>
 
 <!-- ══ LHDN MODALS ═════════════════════════════════════ -->
-<div class="modal-overlay" id="lhdn-exp-modal">
-  <div class="modal" style="max-width:460px">
-    <h3 id="lhdn-exp-modal-title">新增 Claimable 支出</h3>
-    <div class="form-row"><label>日期</label><input type="date" id="le-date" style="flex:1"></div>
-    <div class="form-row"><label>类别</label>
-      <select id="le-cat" style="flex:1">
-        <option value="车油/Toll">🚗 车油 / Toll</option>
-        <option value="租金">🏠 租金</option>
-        <option value="水电费">💡 水电费</option>
-        <option value="电话/网络">📱 电话 / 网络</option>
-        <option value="员工薪资">👥 员工薪资</option>
-        <option value="EPF雇主">🏦 EPF（雇主部分）</option>
-        <option value="SOCSO雇主">🏦 SOCSO（雇主部分）</option>
-        <option value="进货成本">📦 进货成本</option>
-        <option value="维修保养">🔧 维修 / 保养</option>
-        <option value="保险">🛡️ 保险</option>
-        <option value="广告宣传">📢 广告 / 宣传</option>
-        <option value="杂费">📂 杂费</option>
-        <option value="其他">📌 其他</option>
-      </select>
-    </div>
-    <div class="form-row"><label>金额 (RM)</label><input type="number" id="le-amount" step="0.01" placeholder="0.00" style="flex:1"></div>
-    <div class="form-row"><label>单据号 / 备注</label><input type="text" id="le-note" placeholder="Invoice no. / 备注" style="flex:1"></div>
-    <div class="form-row"><label>供应商</label><input type="text" id="le-vendor" placeholder="可选" style="flex:1"></div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeLhdnExpModal()">取消</button>
-      <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" onclick="saveLhdnExp()">保存</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="lhdn-asset-modal">
   <div class="modal" style="max-width:460px">
     <h3 id="lhdn-asset-modal-title">新增固定资产</h3>
@@ -2578,46 +2452,6 @@ function subscribeRealtime() {
 
 function timeNow() { return new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
 
-function switchTab(t, el) {
-  if(t==='profit' && !_profitUnlocked) return;
-  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('page-'+t).classList.add('active');
-  if(t==='orders') { loadOrders(); setTimeout(() => setPayStatus(_payStatus), 100); }
-  if(t==='instore') { renderInstoreHistory(); renderDashboard(); }
-  if(t==='overview') renderOverview();
-  if(t==='profit') {
-    renderProfitReport();
-    renderCostEditor();
-    // Auto-set P&L month to current month
-    const picker = document.getElementById('pnl-month-picker');
-    if(picker && !picker.value) {
-      const now = new Date();
-      picker.value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-      renderPnL();
-    }
-  }
-  if(t==='finance') { initFinanceTab(); }
-}
-
-// ── FINANCE LOCK ───────────────────────────────────────────────────
-const FINANCE_PASSWORD = '960108';
-let _financeUnlocked = false;
-
-function promptFinanceUnlock(el) {
-  _financeUnlocked = true;
-  switchTab('finance', el);
-}
-
-function lockFinance() {
-  _financeUnlocked = false;
-  // Switch back to stock tab
-  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelector('.tab').classList.add('active');
-  document.getElementById('page-stock').classList.add('active');
-}
 function toggleServiceFields() {
   const isService = document.getElementById('new-item-type')?.value === 'service';
   ['new-home','new-shop','new-threshold'].forEach(id => {
@@ -7181,1013 +7015,6 @@ async function confirmTransfer() {
   };
 })();
 
-// ══ FINANCE MODULE ═══════════════════════════════════════════════
-// Dual Ledger: Business (biz_wallets/biz_transactions/biz_investments)
-//              Personal (personal_wallets/personal_transactions/personal_stocks)
-
-// ── State ──────────────────────────────────────────────────────
-let _flLedger = 'biz';       // 'biz' | 'personal'
-let _flTab = 'overview';
-let _flBizWallets = [], _flBizTxns = [], _flBizInvests = [];
-let _flPerWallets = [], _flPerTxns = [], _flPerStocks = [], _flPerStockTxns = [];
-let _flEditTxnId = null, _flEditWalletId = null, _flEditInvestId = null, _flEditStockId = null;
-let _flTxnType = 'income';
-let _flStockTxnAction = 'buy';
-let _flCurrentMonth = '';
-
-const flFmt = v => 'RM ' + Math.abs(+(v||0)).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
-const flSign = (v,t) => t==='income'?'+':t==='expense'?'-':'';
-
-// ── Business categories ─────────────────────────────────────────
-const FL_BIZ_INC_CATS = ['POS销售','Top-up手机','Top-up账单','佣金','投资回报','FD利息','老板注资','其他收入'];
-const FL_BIZ_EXP_CATS = ['进货','员工薪资','租金','水电','Top-up充值','营销费用','交通','维修','税务','老板提款','FD投入','投资支出','杂费'];
-const FL_PER_INC_CATS  = ['老板提款','股票股息','股票卖出','定存利息','工资/薪金','租金收入','副业收入','其他收入'];
-const FL_PER_EXP_CATS  = ['饮食','交通/油费','购物','水电网络','保险','医疗','娱乐','家庭','股票买入','投资','其他'];
-
-const FL_BIZ_COLORS  = {bank:'#1e40af',cash:'#065f46',topup:'#7c3aed'};
-const FL_PER_COLORS  = {bank:'#1e40af',ewallet:'#dc2626',cash:'#065f46'};
-const FL_WALLET_ICONS = {bank:'🏦',cash:'💵',topup:'📲',ewallet:'📱'};
-const FL_INVEST_ICONS = {fd:'🏛',unit_trust:'📊',bond:'📜',other:'📂'};
-
-// ── FX: Market currency & rates ───────────────────────────
-// Rates are manually updatable by user; stored in localStorage
-const FL_MARKET_CCY = { KLSE:'MYR', US:'USD', SG:'SGD', HK:'HKD' };
-const FL_CCY_SYMBOL = { MYR:'RM', USD:'US$', SGD:'S$', HKD:'HK$' };
-const FL_DEFAULT_FX = { MYR:1, USD:4.70, SGD:3.50, HKD:0.60 }; // approx MYR per 1 foreign unit
-
-function fxGetRates() {
-  try { return JSON.parse(localStorage.getItem('fl_fx_rates')||'null') || {...FL_DEFAULT_FX}; } catch { return {...FL_DEFAULT_FX}; }
-}
-function fxSetRates(r) { localStorage.setItem('fl_fx_rates', JSON.stringify(r)); }
-// Convert amount in foreign currency to MYR
-function fxToMYR(amount, market) {
-  const ccy = FL_MARKET_CCY[market] || 'MYR';
-  if (ccy === 'MYR') return Number(amount);
-  const rates = fxGetRates();
-  return Number(amount) * (rates[ccy] || FL_DEFAULT_FX[ccy] || 1);
-}
-function fxSymbol(market) { return FL_CCY_SYMBOL[FL_MARKET_CCY[market]||'MYR'] || 'RM'; }
-function fxRate(market) {
-  const ccy = FL_MARKET_CCY[market]||'MYR';
-  if (ccy==='MYR') return 1;
-  return fxGetRates()[ccy] || FL_DEFAULT_FX[ccy] || 1;
-}
-const FL_TYPE_COLORS  = {income:'var(--green)',expense:'var(--red)',transfer:'var(--blue)'};
-
-function flThisMonth() { const n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
-
-// ── Data loading ────────────────────────────────────────────────
-async function flLoadBiz() {
-  const [w,t,inv] = await Promise.all([
-    sb.from('biz_wallets').select('*').eq('is_active',true).order('created_at'),
-    sb.from('biz_transactions').select('*').order('date',{ascending:false}),
-    sb.from('biz_investments').select('*').order('start_date',{ascending:false}),
-  ]);
-  _flBizWallets = w.data||[];
-  _flBizTxns    = t.data||[];
-  _flBizInvests = inv.data||[];
-}
-async function flLoadPersonal() {
-  const [w,t,s,st] = await Promise.all([
-    sb.from('personal_wallets').select('*').eq('is_active',true).order('created_at'),
-    sb.from('personal_transactions').select('*').order('date',{ascending:false}),
-    sb.from('personal_stocks').select('*').order('created_at',{ascending:false}),
-    sb.from('personal_stock_txns').select('*').order('date',{ascending:false}),
-  ]);
-  _flPerWallets    = w.data||[];
-  _flPerTxns       = t.data||[];
-  _flPerStocks     = s.data||[];
-  _flPerStockTxns  = st.data||[];
-}
-
-// ── Ledger switch & tab ─────────────────────────────────────────
-function setFinanceLedger(l) {
-  _flLedger = l;
-  document.getElementById('fl-biz-btn').style.background = l==='biz' ? 'var(--text)' : 'var(--surface)';
-  document.getElementById('fl-biz-btn').style.color = l==='biz' ? '#fff' : 'var(--text2)';
-  document.getElementById('fl-per-btn').style.background = l==='personal' ? 'var(--text)' : 'var(--surface)';
-  document.getElementById('fl-per-btn').style.color = l==='personal' ? '#fff' : 'var(--text2)';
-  // Show/hide invest sub-panels
-  document.getElementById('flpage-invest-biz').style.display = l==='biz'?'block':'none';
-  document.getElementById('flpage-invest-personal').style.display = l==='personal'?'block':'none';
-  // Refresh wallet filter
-  flPopulateWalletFilter();
-  flPopulateCatFilter();
-  renderFinancePage();
-}
-function setFlTab(t) {
-  _flTab = t;
-  ['overview','wallets','txns','invest','report'].forEach(tab => {
-    const p = document.getElementById('flpage-'+tab);
-    const b = document.getElementById('fltab-'+tab);
-    if(p) p.style.display = tab===t ? 'block' : 'none';
-    if(b) { b.style.background = tab===t ? 'var(--text)' : 'var(--surface)'; b.style.color = tab===t ? '#fff' : 'var(--text2)'; }
-  });
-  renderFinancePage();
-}
-function initFinanceTab() {
-  const el = document.getElementById('fl-month');
-  if (el && !el.value) el.value = flThisMonth();
-  _flCurrentMonth = el ? el.value : flThisMonth();
-  setFinanceLedger('biz');
-  setFlTab('overview');
-}
-async function renderFinancePage() {
-  const el = document.getElementById('fl-month');
-  if (el) _flCurrentMonth = el.value || flThisMonth();
-  if (_flLedger==='biz') await flLoadBiz(); else await flLoadPersonal();
-  if (_flTab==='overview') renderFlOverview();
-  else if (_flTab==='wallets') renderFlWallets();
-  else if (_flTab==='txns') { flPopulateWalletFilter(); flPopulateCatFilter(); renderFlTxns(); }
-  else if (_flTab==='invest') { if(_flLedger==='biz') renderFlBizInvest(); else renderFlStocks(); }
-  else if (_flTab==='report') renderFlReport();
-}
-
-// ── Helpers ─────────────────────────────────────────────────────
-function flWallets() { return _flLedger==='biz' ? _flBizWallets : _flPerWallets; }
-function flTxns()    { return _flLedger==='biz' ? _flBizTxns    : _flPerTxns; }
-function flWalletName(id) { const w=flWallets().find(x=>x.id===id); return w?w.name:'—'; }
-function flMonthTxns(month) {
-  return flTxns().filter(t => (t.date||'').startsWith(month));
-}
-function flCalcMonthPL(month) {
-  const txns = flMonthTxns(month);
-  const income  = txns.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount||0),0);
-  const expense = txns.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount||0),0);
-  return { income, expense, net: income-expense };
-}
-
-// ── Overview ────────────────────────────────────────────────────
-function renderFlOverview() {
-  const wallets = flWallets();
-  const month = _flCurrentMonth;
-  const pl = flCalcMonthPL(month);
-  const totalBal = wallets.reduce((s,w)=>s+Number(w.balance||0),0);
-
-  // Summary cards
-  const cards = document.getElementById('fl-summary-cards');
-  if (cards) cards.innerHTML = [
-    {label:'账户总余额', val:'RM '+totalBal.toFixed(2), color:'var(--text)', light:false},
-    {label:`本月收入 (${month})`, val:'RM '+pl.income.toFixed(2), color:'var(--green)', light:true},
-    {label:`本月支出 (${month})`, val:'RM '+pl.expense.toFixed(2), color:'var(--red)', light:true},
-  ].map(c=>`
-    <div class="card" style="padding:14px;${c.light?'background:var(--surface2)':'background:var(--text)'}">
-      <div style="font-size:10px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;${c.light?'color:var(--text3)':'color:rgba(255,255,255,.6)'};margin-bottom:6px">${c.label}</div>
-      <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace;color:${c.light?c.color:'#fff'}">${c.val}</div>
-    </div>`).join('');
-
-  // Wallet cards
-  const wCards = document.getElementById('fl-wallet-cards');
-  if (wCards) wCards.innerHTML = wallets.length ? wallets.map(w=>{
-    // Auto pick white or dark text based on bg luminance
-    function hexLuma(hex) {
-      const h = hex.replace('#','');
-      const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
-      return 0.299*r + 0.587*g + 0.114*b;
-    }
-    const luma = hexLuma(w.color||'#1e40af');
-    const textColor = luma > 160 ? '#1a1814' : '#ffffff';
-    const subColor  = luma > 160 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)';
-    return `<div style="background:${w.color||'#1e40af'};border-radius:var(--radius);padding:14px;color:${textColor}">
-      <div style="font-size:11px;color:${subColor};margin-bottom:4px;font-weight:600">${FL_WALLET_ICONS[w.type]||'💳'} ${w.name}</div>
-      <div style="font-size:18px;font-weight:800;font-family:'DM Mono',monospace;color:${textColor}">RM ${Number(w.balance||0).toFixed(2)}</div>
-    </div>`;
-  }).join('') : '<div style="color:var(--text3);font-size:13px">暂无账户，请先在「账户」tab 设置</div>';
-
-  // Recent txns (last 8)
-  const recent = flTxns().slice(0,8);
-  const recEl = document.getElementById('fl-recent-txns');
-  if (recEl) recEl.innerHTML = recent.length ? recent.map(t=>flTxnRow(t)).join('') : '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">暂无记录</div>';
-}
-
-// ── Wallets ─────────────────────────────────────────────────────
-function renderFlWallets() {
-  const wallets = flWallets();
-  const el = document.getElementById('fl-wallets-list');
-  if (!el) return;
-  el.innerHTML = wallets.length ? wallets.map(w=>`
-    <div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;padding:12px 16px">
-      <div style="width:40px;height:40px;border-radius:10px;background:${w.color||'#1e40af'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${FL_WALLET_ICONS[w.type]||'💳'}</div>
-      <div style="flex:1">
-        <div style="font-size:14px;font-weight:700">${w.name}</div>
-        <div style="font-size:11px;color:var(--text3)">${w.type}</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:18px;font-weight:800;font-family:'DM Mono',monospace;color:var(--green)">RM ${Number(w.balance||0).toFixed(2)}</div>
-      </div>
-      <div style="display:flex;gap:5px">
-        <button class="btn" style="font-size:11px;padding:5px 8px" onclick="openWalletModal('${w.id}')">✏️</button>
-        <button class="btn btn-danger" style="font-size:11px;padding:5px 8px" onclick="deleteWallet('${w.id}')">🗑</button>
-      </div>
-    </div>`).join('') : '<div style="text-align:center;padding:30px;color:var(--text3)">暂无账户</div>';
-}
-
-// ── Transactions ─────────────────────────────────────────────────
-function flTxnRow(t) {
-  const sign = t.type==='income'?'+':t.type==='expense'?'-':'⇄';
-  const color = FL_TYPE_COLORS[t.type]||'var(--text)';
-  const wName = flWalletName(t.wallet_id || t.wallet_id);
-  return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius-xs);margin-bottom:5px;border:1px solid var(--border)">
-    <div style="flex:0 0 60px;font-size:11px;color:var(--text3)">${(t.date||'').slice(5)}</div>
-    <div style="flex:1;min-width:0">
-      <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.category||'—'}</div>
-      <div style="font-size:11px;color:var(--text3)">${wName}${t.description?' · '+t.description:''}</div>
-    </div>
-    <div style="font-size:14px;font-weight:800;font-family:'DM Mono',monospace;color:${color};flex-shrink:0">${sign} RM ${Number(t.amount||0).toFixed(2)}</div>
-    <div style="display:flex;gap:4px;flex-shrink:0">
-      <button class="btn" style="font-size:11px;padding:4px 7px" onclick="openEditTxnModal('${t.id}')">✏️</button>
-      <button class="btn btn-danger" style="font-size:11px;padding:4px 7px" onclick="deleteTxn('${t.id}')">🗑</button>
-    </div>
-  </div>`;
-}
-function flPopulateWalletFilter() {
-  const sel = document.getElementById('fl-txn-filter-wallet');
-  if (!sel) return;
-  const wallets = flWallets();
-  sel.innerHTML = '<option value="">全部账户</option>' + wallets.map(w=>`<option value="${w.id}">${w.name}</option>`).join('');
-}
-function flPopulateCatFilter() {
-  const sel = document.getElementById('fl-txn-filter-cat');
-  if (!sel) return;
-  const cats = _flLedger==='biz' ? [...FL_BIZ_INC_CATS,...FL_BIZ_EXP_CATS] : [...FL_PER_INC_CATS,...FL_PER_EXP_CATS];
-  sel.innerHTML = '<option value="">全部类别</option>' + [...new Set(cats)].map(c=>`<option value="${c}">${c}</option>`).join('');
-}
-function renderFlTxns() {
-  const el = document.getElementById('fl-txns-list');
-  if (!el) return;
-  const month = _flCurrentMonth;
-  const typeF   = document.getElementById('fl-txn-filter-type')?.value||'';
-  const walletF = document.getElementById('fl-txn-filter-wallet')?.value||'';
-  const catF    = document.getElementById('fl-txn-filter-cat')?.value||'';
-  let txns = flMonthTxns(month);
-  if (typeF)   txns = txns.filter(t=>t.type===typeF);
-  if (walletF) txns = txns.filter(t=>t.wallet_id===walletF||t.to_wallet_id===walletF);
-  if (catF)    txns = txns.filter(t=>t.category===catF);
-  const pl = txns.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount||0),0);
-  const ex = txns.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount||0),0);
-  el.innerHTML = `
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <div style="flex:1;background:var(--green-bg);border:1px solid var(--green-border);border-radius:var(--radius-xs);padding:8px 12px;text-align:center">
-        <div style="font-size:10px;color:var(--green);font-weight:700;letter-spacing:.5px">收入</div>
-        <div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace;color:var(--green)">RM ${pl.toFixed(2)}</div>
-      </div>
-      <div style="flex:1;background:var(--red-bg);border:1px solid var(--red-border);border-radius:var(--radius-xs);padding:8px 12px;text-align:center">
-        <div style="font-size:10px;color:var(--red);font-weight:700;letter-spacing:.5px">支出</div>
-        <div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace;color:var(--red)">RM ${ex.toFixed(2)}</div>
-      </div>
-      <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 12px;text-align:center">
-        <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.5px">净盈亏</div>
-        <div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace;color:${pl-ex>=0?'var(--green)':'var(--red)'}">RM ${(pl-ex).toFixed(2)}</div>
-      </div>
-    </div>
-    ${txns.length ? txns.map(t=>flTxnRow(t)).join('') : '<div style="text-align:center;padding:30px;color:var(--text3)">本月暂无记录</div>'}`;
-}
-
-// ── Business Investments ─────────────────────────────────────────
-function renderFlBizInvest() {
-  const el = document.getElementById('fl-biz-invest-list');
-  if (!el) return;
-  const invs = _flBizInvests;
-  if (!invs.length) { el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text3)">暂无投资记录</div>'; return; }
-  const totalPrincipal = invs.filter(x=>x.status==='active').reduce((s,x)=>s+Number(x.principal||0),0);
-  el.innerHTML = `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between">
-      <span style="font-size:12px;color:var(--text2)">活跃投资总额</span>
-      <span style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace">RM ${totalPrincipal.toFixed(2)}</span>
-    </div>` + invs.map(inv=>{
-    const walletName = _flBizWallets.find(w=>w.id===inv.source_wallet)?.name||'—';
-    const daysLeft = inv.maturity_date ? Math.ceil((new Date(inv.maturity_date)-new Date())/(1000*60*60*24)) : null;
-    const maturityInterest = inv.interest_rate && inv.maturity_date
-      ? (Number(inv.principal)*Number(inv.interest_rate)/100 * (daysLeft!=null?(365-daysLeft)/365:1)).toFixed(2)
-      : null;
-    const statusColor = {active:'var(--green)',matured:'var(--blue)',withdrawn:'var(--text3)'}[inv.status]||'var(--text3)';
-    return `<div class="card" style="margin-bottom:8px;padding:14px">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
-        <div>
-          <div style="font-size:14px;font-weight:700">${FL_INVEST_ICONS[inv.type]||'📂'} ${inv.name}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">${inv.type} · 来自 ${walletName}</div>
-        </div>
-        <div style="display:flex;gap:5px;align-items:center">
-          <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--surface2);color:${statusColor};font-weight:700">${inv.status}</span>
-          <button class="btn" style="font-size:11px;padding:4px 7px" onclick="openBizInvestModal('${inv.id}')">✏️</button>
-          <button class="btn btn-danger" style="font-size:11px;padding:4px 7px" onclick="deleteBizInvest('${inv.id}')">🗑</button>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center">
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">本金</div><div style="font-size:14px;font-weight:700;font-family:'DM Mono',monospace">RM ${Number(inv.principal).toFixed(2)}</div></div>
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">利率</div><div style="font-size:14px;font-weight:700;font-family:'DM Mono',monospace">${inv.interest_rate||'—'}%</div></div>
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">开始</div><div style="font-size:12px;font-weight:600">${inv.start_date||'—'}</div></div>
-        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">${daysLeft!=null&&daysLeft>0?'剩余'+daysLeft+'天':'到期日'}</div><div style="font-size:12px;font-weight:600;color:${daysLeft!=null&&daysLeft<=30?'var(--amber)':'var(--text)'}">${inv.maturity_date||'—'}</div></div>
-      </div>
-      ${inv.notes?`<div style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic">📝 ${inv.notes}</div>`:''}
-    </div>`;
-  }).join('');
-}
-
-// ── Personal Stocks ──────────────────────────────────────────────
-function renderFlStocks() {
-  const el = document.getElementById('fl-stock-list');
-  const sumEl = document.getElementById('fl-stock-summary');
-  const updEl = document.getElementById('fl-price-updated-at');
-  if (!el) return;
-  const stocks = _flPerStocks.filter(s=>s.status==='holding');
-  if (!stocks.length) {
-    el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text3)">暂无持仓，请点击「新增持仓」</div>';
-    if(sumEl) sumEl.innerHTML='';
-    if(updEl) updEl.textContent='';
-    return;
-  }
-  // Total cost in MYR (FX-converted)
-  const totalCostMYR = stocks.reduce((s,x)=>s + fxToMYR(Number(x.shares||0)*Number(x.avg_cost||0), x.market||'KLSE'), 0);
-
-  // PL only for stocks with current_price, converted to MYR
-  const priced   = stocks.filter(s=>s.current_price);
-  const unpriced = stocks.length - priced.length;
-  const partialPL_MYR = priced.reduce((s,x)=>{
-    const plLocal = (Number(x.current_price)-Number(x.avg_cost))*Number(x.shares||0);
-    return s + fxToMYR(plLocal, x.market||'KLSE');
-  }, 0);
-  const partialCostMYR = priced.reduce((s,x)=>s + fxToMYR(Number(x.shares||0)*Number(x.avg_cost||0), x.market||'KLSE'), 0);
-  const hasPriced = priced.length > 0;
-  const plPctSum  = hasPriced && partialCostMYR > 0 ? (partialPL_MYR/partialCostMYR*100).toFixed(1) : null;
-  const plLabel   = hasPriced
-    ? (partialPL_MYR>=0?'+':'')+' RM '+partialPL_MYR.toFixed(2)+(plPctSum?' ('+plPctSum+'%)':'')+(unpriced>0?' *':'')
-    : '请填入现价';
-  const plColor = !hasPriced ? 'var(--text3)' : partialPL_MYR>=0 ? 'var(--green)' : 'var(--red)';
-
-  // FX rate badges for non-MYR markets
-  const rates = fxGetRates();
-  const nonMyrMarkets = [...new Set(stocks.filter(s=>FL_MARKET_CCY[s.market||'KLSE']!=='MYR').map(s=>s.market||'KLSE'))];
-  const fxBadges = nonMyrMarkets.map(m=>{
-    const ccy = FL_MARKET_CCY[m]||'MYR';
-    const r   = rates[ccy]||FL_DEFAULT_FX[ccy]||1;
-    return `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--blue-bg);color:var(--blue);font-weight:600">${FL_CCY_SYMBOL[ccy]||ccy} 1 = RM ${r.toFixed(4)}</span>`;
-  }).join(' ');
-
-  if(sumEl) sumEl.innerHTML = `
-    <!-- Hero summary card -->
-    <div style="background:var(--text);color:#fff;border-radius:var(--radius);padding:16px 18px;margin-bottom:12px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div style="font-size:13px;font-weight:700;opacity:.7;letter-spacing:.3px">📈 个人股票持仓</div>
-        <div style="display:flex;gap:6px">
-          <button onclick="openBulkPriceModal()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:5px 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif">💹 更新现价</button>
-          <button onclick="openStockModal()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif">+ 新增持仓</button>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-        <div>
-          <div style="font-size:10px;opacity:.55;font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">持仓数量</div>
-          <div style="font-size:24px;font-weight:800;font-family:'DM Mono',monospace">${stocks.length} <span style="font-size:14px;font-weight:400;opacity:.7">只</span></div>
-        </div>
-        <div>
-          <div style="font-size:10px;opacity:.55;font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">总成本</div>
-          <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace">RM ${totalCostMYR.toFixed(2)}</div>
-        </div>
-        <div>
-          <div style="font-size:10px;opacity:.55;font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">未实现盈亏${unpriced>0&&hasPriced?' ('+priced.length+'/'+stocks.length+')':''}</div>
-          <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace;color:${!hasPriced?'rgba(255,255,255,.4)':partialPL_MYR>=0?'#86efac':'#fca5a5'}">${hasPriced?(partialPL_MYR>=0?'+':'')+' RM '+partialPL_MYR.toFixed(2):'请填入现价'}</div>
-          ${plPctSum&&hasPriced?`<div style="font-size:11px;font-weight:600;color:${partialPL_MYR>=0?'#86efac':'#fca5a5'};opacity:.85">${partialPL_MYR>=0?'↑':'↓'} ${Math.abs(plPctSum)}%</div>`:''}
-        </div>
-      </div>
-      ${nonMyrMarkets.length ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.12);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:10px;opacity:.5">汇率</span>
-        ${fxBadges.replace(/background:var\(--blue-bg\)/g,"background:rgba(255,255,255,.12)").replace(/color:var\(--blue\)/g,"color:#fff").replace(/border-color:var\(--border\)/g,"border-color:rgba(255,255,255,.2)").replace(/border:[^;]+solid var\(--blue-border\)/g,"border:1px solid rgba(255,255,255,.2)")}
-        <button onclick="openFxRateModal()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:3px 8px;font-size:10px;font-weight:600;border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-left:auto">✏️ 更新汇率</button>
-      </div>` : ''}
-    </div>
-  `;
-
-  const latestUpdate = stocks.filter(s=>s.price_updated_at).map(s=>s.price_updated_at).sort().pop();
-  if(updEl) { updEl.style.cssText='font-size:11px;color:var(--text3);margin-bottom:10px;text-align:right'; updEl.textContent = latestUpdate ? '现价更新于：' + new Date(latestUpdate).toLocaleString('zh-MY',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : ''; }
-
-  el.innerHTML = stocks.map(s=>{
-    const mkt      = s.market || 'KLSE';
-    const ccy      = FL_MARKET_CCY[mkt] || 'MYR';
-    const sym      = fxSymbol(mkt);
-    const rate     = fxRate(mkt);
-    const isForeign= ccy !== 'MYR';
-    const costLocal= Number(s.shares||0)*Number(s.avg_cost||0);
-    const costMYR  = fxToMYR(costLocal, mkt);
-    const plLocal  = s.current_price!=null ? (Number(s.current_price)-Number(s.avg_cost))*Number(s.shares) : null;
-    const plMYR    = plLocal !== null ? fxToMYR(plLocal, mkt) : null;
-    const plPct    = plMYR !== null && costMYR > 0 ? (plMYR/costMYR*100).toFixed(1) : null;
-    const mktValMYR= s.current_price!=null ? fxToMYR(Number(s.current_price)*Number(s.shares), mkt) : null;
-    const updTime  = s.price_updated_at
-      ? new Date(s.price_updated_at).toLocaleString('zh-MY',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
-      : null;
-    return `<div class="card" style="margin-bottom:8px;padding:14px">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
-        <div>
-          <div style="font-size:15px;font-weight:800">${s.ticker}
-            <span style="font-size:11px;color:var(--text3);font-weight:400">${mkt}</span>
-            ${isForeign?`<span style="font-size:10px;padding:2px 6px;border-radius:8px;background:var(--blue-bg);color:var(--blue);font-weight:700;margin-left:4px">${sym}</span>`:''}
-          </div>
-          <div style="font-size:11px;color:var(--text3)">${s.name||''}${isForeign?` · 1 ${sym} = RM ${rate.toFixed(4)}`:''}</div>
-        </div>
-        <div style="display:flex;gap:5px">
-          <button class="btn" style="font-size:11px;padding:4px 7px" onclick="openStockModal('${s.id}')">✏️</button>
-          <button class="btn btn-danger" style="font-size:11px;padding:4px 7px" onclick="deleteStock('${s.id}')">🗑</button>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center;margin-bottom:8px">
-        <div>
-          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">持股数</div>
-          <div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${Number(s.shares).toLocaleString()}</div>
-        </div>
-        <div>
-          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">均价 (${sym})</div>
-          <div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${sym}${Number(s.avg_cost).toFixed(3)}</div>
-          ${isForeign?`<div style="font-size:9px;color:var(--text3)">≈ RM ${fxToMYR(s.avg_cost,mkt).toFixed(3)}</div>`:''}
-        </div>
-        <div>
-          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">现价 (${sym})</div>
-          <div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)">${s.current_price!=null?sym+Number(s.current_price).toFixed(3):'—'}</div>
-          ${isForeign&&s.current_price!=null?`<div style="font-size:9px;color:var(--text3)">≈ RM ${fxToMYR(s.current_price,mkt).toFixed(3)}</div>`:''}
-        </div>
-        <div>
-          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">市值 (MYR)</div>
-          <div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${mktValMYR!=null?'RM '+mktValMYR.toFixed(2):'—'}</div>
-          ${isForeign&&mktValMYR!=null?`<div style="font-size:9px;color:var(--text3)">${sym}${(Number(s.current_price)*Number(s.shares)).toFixed(2)}</div>`:''}
-        </div>
-        <div>
-          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">盈亏 (MYR)</div>
-          <div style="font-size:13px;font-weight:700;color:${plMYR===null?'var(--text3)':plMYR>=0?'var(--green)':'var(--red)'}">
-            ${plMYR!==null?(plMYR>=0?'+':'')+'RM '+plMYR.toFixed(2):'—'}
-          </div>
-          ${plPct!==null?`<div style="font-size:10px;color:${Number(plPct)>=0?'var(--green)':'var(--red)'}">(${plPct}%)</div>`:''}
-        </div>
-      </div>
-      ${updTime ? `<div style="font-size:10px;color:var(--text3);text-align:right">现价更新：${updTime}</div>` : ''}
-      ${s.notes?`<div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic">📝 ${s.notes}</div>`:''}
-    </div>`;
-  }).join('');
-}
-
-// ── Bulk Price Update Modal ───────────────────────────────────────
-function openBulkPriceModal() {
-  const stocks = _flPerStocks.filter(s=>s.status==='holding');
-  if (!stocks.length) { alert('暂无持仓'); return; }
-  const rows = stocks.map(s=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-      <div style="min-width:0;flex:1">
-        <div style="font-size:13px;font-weight:700">${s.ticker} <span style="font-size:11px;color:var(--text3)">${s.market||'KLSE'}</span></div>
-        <div style="font-size:11px;color:var(--text3)">均价 ${Number(s.avg_cost).toFixed(3)}</div>
-      </div>
-      <div style="flex-shrink:0;text-align:right">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:3px">现价</div>
-        <input type="number" id="bp-${s.id}" step="0.001" value="${s.current_price||''}" placeholder="${Number(s.avg_cost).toFixed(3)}"
-          style="width:90px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace;font-weight:700;background:var(--bg);color:var(--text);text-align:right"
-          oninput="flUpdateBulkPricePreview('${s.id}','${s.avg_cost}','${s.shares}',this.value)">
-      </div>
-      <div style="flex-shrink:0;min-width:80px;text-align:right" id="bpp-${s.id}">
-        ${s.current_price ? `<div style="font-size:12px;font-weight:700;color:${((Number(s.current_price)-Number(s.avg_cost))*Number(s.shares))>=0?'var(--green)':'var(--red)'}">${((Number(s.current_price)-Number(s.avg_cost))*Number(s.shares))>=0?'+':''}RM ${((Number(s.current_price)-Number(s.avg_cost))*Number(s.shares)).toFixed(2)}</div>` : '<div style="font-size:11px;color:var(--text3)">填入现价</div>'}
-      </div>
-    </div>`).join('');
-
-  showFlModal('💹 批量更新现价', `
-    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">填入各股票的最新现价，留空表示不更新</div>
-    <div style="max-height:400px;overflow-y:auto;-webkit-overflow-scrolling:touch">${rows}</div>
-    <div style="background:var(--surface2);border-radius:var(--radius-xs);padding:10px 12px;margin-top:12px">
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">总未实现盈亏</div>
-      <div style="font-size:18px;font-weight:800;font-family:'DM Mono',monospace" id="bp-total-pl">—</div>
-    </div>
-  `, async () => {
-    const now = new Date().toISOString();
-    let anyUpdated = false;
-    for (const s of stocks) {
-      const inp = document.getElementById('bp-'+s.id);
-      if (!inp) continue;
-      const val = parseFloat(inp.value);
-      if (!isNaN(val) && val > 0) {
-        const {error} = await sb.from('personal_stocks').update({current_price: val, price_updated_at: now}).eq('id', s.id);
-        if (error) { alert('更新 '+s.ticker+' 失败: '+error.message); return false; }
-        anyUpdated = true;
-      }
-    }
-    if (!anyUpdated) { alert('没有填入任何现价'); return false; }
-    return true;
-  });
-  // Init total PL
-  setTimeout(flRecalcBulkTotal, 100);
-}
-
-function flUpdateBulkPricePreview(id, avgCost, shares, priceVal) {
-  const price = parseFloat(priceVal);
-  const el = document.getElementById('bpp-'+id);
-  if (!el) return;
-  if (isNaN(price)||price<=0) { el.innerHTML='<div style="font-size:11px;color:var(--text3)">填入现价</div>'; flRecalcBulkTotal(); return; }
-  const pl = (price - Number(avgCost)) * Number(shares);
-  el.innerHTML = `<div style="font-size:12px;font-weight:700;color:${pl>=0?'var(--green)':'var(--red)'}">${pl>=0?'+':''}RM ${pl.toFixed(2)}</div><div style="font-size:10px;color:${pl>=0?'var(--green)':'var(--red)'};">(${((price-Number(avgCost))/Number(avgCost)*100).toFixed(1)}%)</div>`;
-  flRecalcBulkTotal();
-}
-
-function flRecalcBulkTotal() {
-  const stocks = _flPerStocks.filter(s=>s.status==='holding');
-  let total = 0, allFilled = true;
-  for (const s of stocks) {
-    const inp = document.getElementById('bp-'+s.id);
-    const price = inp ? parseFloat(inp.value) : NaN;
-    if (!isNaN(price) && price > 0) {
-      total += (price - Number(s.avg_cost)) * Number(s.shares);
-    } else {
-      allFilled = false;
-    }
-  }
-  const el = document.getElementById('bp-total-pl');
-  if (el) {
-    el.textContent = (allFilled?'':'≈ ') + (total>=0?'+':'') + 'RM ' + total.toFixed(2);
-    el.style.color = total>=0 ? 'var(--green)' : 'var(--red)';
-  }
-}
-
-// ── Report ───────────────────────────────────────────────────────
-function renderFlReport() {
-  const el = document.getElementById('fl-report-content');
-  if (!el) return;
-  const month = _flCurrentMonth;
-  const txns = flMonthTxns(month);
-  const income  = txns.filter(t=>t.type==='income');
-  const expense = txns.filter(t=>t.type==='expense');
-  const totalIn  = income.reduce((s,t)=>s+Number(t.amount||0),0);
-  const totalExp = expense.reduce((s,t)=>s+Number(t.amount||0),0);
-  const net = totalIn - totalExp;
-
-  // Group by category
-  const byCat = {};
-  expense.forEach(t=>{ byCat[t.category]=(byCat[t.category]||0)+Number(t.amount||0); });
-  const expCats = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
-  const byCatIn = {};
-  income.forEach(t=>{ byCatIn[t.category]=(byCatIn[t.category]||0)+Number(t.amount||0); });
-  const incCats = Object.entries(byCatIn).sort((a,b)=>b[1]-a[1]);
-
-  el.innerHTML = `
-    <div style="background:var(--text);color:#fff;border-radius:var(--radius);padding:16px;margin-bottom:14px;text-align:center">
-      <div style="font-size:11px;opacity:.6;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">${_flLedger==='biz'?'生意':'个人'} 月度报表 · ${month}</div>
-      <div style="font-size:32px;font-weight:800;font-family:'DM Mono',monospace;color:${net>=0?'#86efac':'#fca5a5'}">RM ${net.toFixed(2)}</div>
-      <div style="font-size:12px;opacity:.6;margin-top:4px">${net>=0?'盈利 ✅':'亏损 ⚠️'}</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <div style="background:var(--green-bg);border:1px solid var(--green-border);border-radius:var(--radius-xs);padding:12px">
-        <div style="font-size:10px;color:var(--green);font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">收入明细</div>
-        ${incCats.length?incCats.map(([cat,amt])=>`
-          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
-            <span style="color:var(--text2)">${cat}</span>
-            <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--green)">RM ${amt.toFixed(2)}</span>
-          </div>`).join(''):'<div style="font-size:12px;color:var(--text3)">暂无收入</div>'}
-        <div style="border-top:1px solid var(--green-border);margin-top:8px;padding-top:6px;display:flex;justify-content:space-between;font-weight:700;font-size:13px">
-          <span>合计</span><span style="font-family:'DM Mono',monospace;color:var(--green)">RM ${totalIn.toFixed(2)}</span>
-        </div>
-      </div>
-      <div style="background:var(--red-bg);border:1px solid var(--red-border);border-radius:var(--radius-xs);padding:12px">
-        <div style="font-size:10px;color:var(--red);font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">支出明细</div>
-        ${expCats.length?expCats.map(([cat,amt])=>`
-          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
-            <span style="color:var(--text2)">${cat}</span>
-            <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--red)">RM ${amt.toFixed(2)}</span>
-          </div>`).join(''):'<div style="font-size:12px;color:var(--text3)">暂无支出</div>'}
-        <div style="border-top:1px solid var(--red-border);margin-top:8px;padding-top:6px;display:flex;justify-content:space-between;font-weight:700;font-size:13px">
-          <span>合计</span><span style="font-family:'DM Mono',monospace;color:var(--red)">RM ${totalExp.toFixed(2)}</span>
-        </div>
-      </div>
-    </div>
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px;margin-bottom:14px">
-      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">账户余额快照</div>
-      ${flWallets().map(w=>`<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
-        <span>${FL_WALLET_ICONS[w.type]||'💳'} ${w.name}</span>
-        <span style="font-family:'DM Mono',monospace;font-weight:700">RM ${Number(w.balance||0).toFixed(2)}</span>
-      </div>`).join('')}
-    </div>`;
-}
-
-// ── Wallet CRUD ──────────────────────────────────────────────────
-function openWalletModal(id) {
-  const tbl = _flLedger==='biz' ? 'biz_wallets' : 'personal_wallets';
-  const wallets = flWallets();
-  const w = id ? wallets.find(x=>x.id===id) : null;
-  _flEditWalletId = id||null;
-  const typeOpts = _flLedger==='biz'
-    ? ['bank','cash','topup'].map(t=>`<option value="${t}"${w?.type===t?' selected':''}>${t}</option>`).join('')
-    : ['bank','ewallet','cash'].map(t=>`<option value="${t}"${w?.type===t?' selected':''}>${t}</option>`).join('');
-  showFlModal('账户设定', `
-    <div class="form-row"><label>账户名称</label><input id="flw-name" value="${w?.name||''}" style="flex:1"></div>
-    <div class="form-row"><label>类型</label><select id="flw-type" style="flex:1">${typeOpts}</select></div>
-    <div class="form-row"><label>当前余额 (RM)</label><input id="flw-bal" type="number" step="0.01" value="${w?.balance||0}" style="flex:1"></div>
-    <div class="form-row"><label>颜色</label><input id="flw-color" type="color" value="${w?.color||'#1e40af'}" style="width:50px;height:36px;border:none;cursor:pointer"></div>
-  `, async () => {
-    const name  = document.getElementById('flw-name').value.trim();
-    const type  = document.getElementById('flw-type').value;
-    const bal   = parseFloat(document.getElementById('flw-bal').value)||0;
-    const color = document.getElementById('flw-color').value;
-    if (!name) { alert('请输入账户名称'); return false; }
-    if (_flEditWalletId) {
-      const {error} = await sb.from(tbl).update({name,type,balance:bal,color}).eq('id',_flEditWalletId);
-      if(error){alert('保存失败: '+error.message);return false;}
-    } else {
-      const {error} = await sb.from(tbl).insert({name,type,balance:bal,color,is_active:true});
-      if(error){alert('保存失败: '+error.message);return false;}
-    }
-    return true;
-  });
-}
-async function deleteWallet(id) {
-  if (!confirm('确定删除此账户？')) return;
-  const tbl = _flLedger==='biz' ? 'biz_wallets' : 'personal_wallets';
-  await sb.from(tbl).delete().eq('id',id);
-  renderFinancePage();
-  showPosToast('✅ 账户已删除');
-}
-
-// ── Transaction CRUD ─────────────────────────────────────────────
-function openAddTxnModal() { openEditTxnModal(null); }
-function openEditTxnModal(id) {
-  const txns = flTxns();
-  const t = id ? txns.find(x=>x.id===id) : null;
-  _flEditTxnId = id||null;
-  const wallets = flWallets();
-  const type = t?.type||'expense';
-  const incCats = _flLedger==='biz' ? FL_BIZ_INC_CATS : FL_PER_INC_CATS;
-  const expCats = _flLedger==='biz' ? FL_BIZ_EXP_CATS : FL_PER_EXP_CATS;
-  const cats = type==='income' ? incCats : type==='expense' ? expCats : [];
-  const walletOpts = wallets.map(w=>`<option value="${w.id}"${t?.wallet_id===w.id?' selected':''}>${FL_WALLET_ICONS[w.type]} ${w.name}</option>`).join('');
-  const catOpts = cats.map(c=>`<option value="${c}"${t?.category===c?' selected':''}>${c}</option>`).join('');
-  const toWalletOpts = wallets.map(w=>`<option value="${w.id}"${t?.to_wallet_id===w.id?' selected':''}>${FL_WALLET_ICONS[w.type]} ${w.name}</option>`).join('');
-
-  showFlModal(id?'编辑记录':'新增收支', `
-    <div class="form-row"><label>类型</label>
-      <select id="flt-type" style="flex:1" onchange="refreshTxnModalCats(this.value)">
-        <option value="income"${type==='income'?' selected':''}>💚 收入</option>
-        <option value="expense"${type==='expense'?' selected':''}>🔴 支出</option>
-        <option value="transfer"${type==='transfer'?' selected':''}>🔵 账户转账</option>
-      </select>
-    </div>
-    <div class="form-row"><label>日期</label><input id="flt-date" type="date" value="${t?.date||new Date().toISOString().slice(0,10)}" style="flex:1"></div>
-    <div class="form-row" id="flt-cat-row"><label>类别</label><select id="flt-cat" style="flex:1">${catOpts}</select></div>
-    <div class="form-row"><label>金额 (RM)</label><input id="flt-amount" type="number" step="0.01" value="${t?.amount||''}" placeholder="0.00" style="flex:1"></div>
-    <div class="form-row"><label>账户</label><select id="flt-wallet" style="flex:1">${walletOpts}</select></div>
-    <div class="form-row" id="flt-towallet-row" style="${type!=='transfer'?'display:none':''}"><label>转到账户</label><select id="flt-towallet" style="flex:1">${toWalletOpts}</select></div>
-    <div class="form-row"><label>备注</label><input id="flt-desc" value="${t?.description||''}" placeholder="可选" style="flex:1"></div>
-    <div class="form-row"><label>单据号</label><input id="flt-ref" value="${t?.ref_no||''}" placeholder="可选" style="flex:1"></div>
-  `, async () => {
-    const txnType = document.getElementById('flt-type').value;
-    const date    = document.getElementById('flt-date').value;
-    const cat     = document.getElementById('flt-cat').value;
-    const amount  = parseFloat(document.getElementById('flt-amount').value);
-    const wallet  = document.getElementById('flt-wallet').value;
-    const toWallet= document.getElementById('flt-towallet').value;
-    const desc    = document.getElementById('flt-desc').value.trim();
-    const ref     = document.getElementById('flt-ref').value.trim();
-    if (!date||!amount||amount<=0) { alert('请填写日期和有效金额'); return false; }
-    const tbl = _flLedger==='biz' ? 'biz_transactions' : 'personal_transactions';
-    const payload = { date, type:txnType, category:cat||txnType, wallet_id:wallet||null, to_wallet_id:txnType==='transfer'?toWallet||null:null, amount, description:desc||null, ref_no:ref||null };
-    const walletTbl = _flLedger==='biz' ? 'biz_wallets' : 'personal_wallets';
-    if (_flEditTxnId) {
-      // Reverse old transaction effect on wallet, then apply new
-      const oldTxnRes = await sb.from(tbl).select('*').eq('id',_flEditTxnId).maybeSingle();
-      const oldTxn = oldTxnRes.data;
-      if (oldTxn) {
-        // Reverse old wallet effect
-        const oldW = flWallets().find(x=>x.id===oldTxn.wallet_id);
-        if (oldW) {
-          const reversal = oldTxn.type==='income' ? -Number(oldTxn.amount||0) : oldTxn.type==='expense' ? Number(oldTxn.amount||0) : Number(oldTxn.amount||0);
-          await sb.from(walletTbl).update({balance: Number(oldW.balance||0)+reversal}).eq('id',oldW.id);
-          oldW.balance = Number(oldW.balance||0)+reversal; // update local cache too
-        }
-        if (oldTxn.type==='transfer' && oldTxn.to_wallet_id) {
-          const oldWTo = flWallets().find(x=>x.id===oldTxn.to_wallet_id);
-          if (oldWTo) {
-            await sb.from(walletTbl).update({balance: Number(oldWTo.balance||0)-Number(oldTxn.amount||0)}).eq('id',oldWTo.id);
-            oldWTo.balance = Number(oldWTo.balance||0)-Number(oldTxn.amount||0);
-          }
-        }
-      }
-      const { error: updErr } = await sb.from(tbl).update(payload).eq('id',_flEditTxnId);
-      if (updErr) { alert('更新失败：' + updErr.message); return false; }
-      // Apply new wallet effect
-      const newW = flWallets().find(x=>x.id===wallet);
-      if (newW) {
-        const delta = txnType==='income' ? amount : txnType==='expense' ? -amount : -amount;
-        await sb.from(walletTbl).update({balance: Number(newW.balance||0)+delta}).eq('id',wallet);
-      }
-      if (txnType==='transfer' && toWallet) {
-        const newWTo = flWallets().find(x=>x.id===toWallet);
-        if (newWTo) await sb.from(walletTbl).update({balance: Number(newWTo.balance||0)+amount}).eq('id',toWallet);
-      }
-    } else {
-      const { error: insertErr } = await sb.from(tbl).insert(payload);
-      if (insertErr) { alert('保存失败：' + insertErr.message); return false; }
-      // Apply wallet balance effect for new transaction
-      if (wallet) {
-        const w = flWallets().find(x=>x.id===wallet);
-        if (w) {
-          const delta = txnType==='income' ? amount : txnType==='expense' ? -amount : -amount;
-          await sb.from(walletTbl).update({balance: Number(w.balance||0)+delta}).eq('id',wallet);
-        }
-      }
-      if (txnType==='transfer' && toWallet) {
-        const wTo = flWallets().find(x=>x.id===toWallet);
-        if (wTo) await sb.from(walletTbl).update({balance: Number(wTo.balance||0)+amount}).eq('id',toWallet);
-      }
-    }
-    return true;
-  });
-}
-function refreshTxnModalCats(type) {
-  const incCats = _flLedger==='biz' ? FL_BIZ_INC_CATS : FL_PER_INC_CATS;
-  const expCats = _flLedger==='biz' ? FL_BIZ_EXP_CATS : FL_PER_EXP_CATS;
-  const cats = type==='income' ? incCats : type==='expense' ? expCats : [];
-  const sel = document.getElementById('flt-cat');
-  if (sel) sel.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
-  const toRow = document.getElementById('flt-towallet-row');
-  if (toRow) toRow.style.display = type==='transfer' ? '' : 'none';
-}
-async function deleteTxn(id) {
-  if (!confirm('删除此记录？余额会自动还原。')) return;
-  const tbl = _flLedger==='biz' ? 'biz_transactions' : 'personal_transactions';
-  const walletTbl = _flLedger==='biz' ? 'biz_wallets' : 'personal_wallets';
-  // Fetch the transaction first to reverse its wallet effect
-  const res = await sb.from(tbl).select('*').eq('id',id).maybeSingle();
-  const txn = res.data;
-  if (txn) {
-    // Reload fresh wallet data to get accurate balance
-    if (_flLedger==='biz') await flLoadBiz(); else await flLoadPersonal();
-    const w = flWallets().find(x=>x.id===txn.wallet_id);
-    if (w) {
-      const reversal = txn.type==='income' ? -Number(txn.amount||0) : txn.type==='expense' ? Number(txn.amount||0) : Number(txn.amount||0);
-      await sb.from(walletTbl).update({balance: Number(w.balance||0)+reversal}).eq('id',w.id);
-    }
-    if (txn.type==='transfer' && txn.to_wallet_id) {
-      const wTo = flWallets().find(x=>x.id===txn.to_wallet_id);
-      if (wTo) await sb.from(walletTbl).update({balance: Number(wTo.balance||0)-Number(txn.amount||0)}).eq('id',wTo.id);
-    }
-  }
-  await sb.from(tbl).delete().eq('id',id);
-  renderFinancePage();
-  showPosToast('✅ 已删除，余额已还原');
-}
-
-// ── Business Investment CRUD ─────────────────────────────────────
-function openBizInvestModal(id) {
-  const inv = id ? _flBizInvests.find(x=>x.id===id) : null;
-  _flEditInvestId = id||null;
-  const walletOpts = _flBizWallets.map(w=>`<option value="${w.id}"${inv?.source_wallet===w.id?' selected':''}>${w.name}</option>`).join('');
-  const typeOpts = ['fd','unit_trust','bond','other'].map(t=>`<option value="${t}"${inv?.type===t?' selected':''}>${FL_INVEST_ICONS[t]} ${t}</option>`).join('');
-  const statusOpts = ['active','matured','withdrawn'].map(s=>`<option value="${s}"${inv?.status===s?' selected':''}>${s}</option>`).join('');
-  showFlModal(id?'编辑投资':'新增投资', `
-    <div class="form-row"><label>名称</label><input id="fli-name" value="${inv?.name||''}" placeholder="例：Maybank FD 3M" style="flex:1"></div>
-    <div class="form-row"><label>类型</label><select id="fli-type" style="flex:1">${typeOpts}</select></div>
-    <div class="form-row"><label>来源账户</label><select id="fli-wallet" style="flex:1"><option value="">不指定</option>${walletOpts}</select></div>
-    <div class="form-row"><label>本金 (RM)</label><input id="fli-principal" type="number" step="0.01" value="${inv?.principal||''}" style="flex:1"></div>
-    <div class="form-row"><label>年利率 %</label><input id="fli-rate" type="number" step="0.001" value="${inv?.interest_rate||''}" placeholder="例：3.75" style="flex:1"></div>
-    <div class="form-row"><label>开始日期</label><input id="fli-start" type="date" value="${inv?.start_date||''}" style="flex:1"></div>
-    <div class="form-row"><label>到期日</label><input id="fli-maturity" type="date" value="${inv?.maturity_date||''}" style="flex:1"></div>
-    <div class="form-row"><label>状态</label><select id="fli-status" style="flex:1">${statusOpts}</select></div>
-    <div class="form-row"><label>备注</label><input id="fli-notes" value="${inv?.notes||''}" style="flex:1"></div>
-  `, async () => {
-    const name      = document.getElementById('fli-name').value.trim();
-    const type      = document.getElementById('fli-type').value;
-    const wallet    = document.getElementById('fli-wallet').value;
-    const principal = parseFloat(document.getElementById('fli-principal').value);
-    const rate      = parseFloat(document.getElementById('fli-rate').value)||null;
-    const start     = document.getElementById('fli-start').value;
-    const maturity  = document.getElementById('fli-maturity').value||null;
-    const status    = document.getElementById('fli-status').value;
-    const notes     = document.getElementById('fli-notes').value.trim()||null;
-    if (!name||!principal||!start) { alert('请填写名称、本金和开始日期'); return false; }
-    const payload = {name,type,source_wallet:wallet||null,principal,interest_rate:rate,start_date:start,maturity_date:maturity,status,notes};
-    if (_flEditInvestId) {
-      const {error} = await sb.from('biz_investments').update(payload).eq('id',_flEditInvestId);
-      if(error){alert('保存失败: '+error.message);return false;}
-    } else {
-      const {error} = await sb.from('biz_investments').insert(payload);
-      if(error){alert('保存失败: '+error.message);return false;}
-    }
-    return true;
-  });
-}
-async function deleteBizInvest(id) {
-  if (!confirm('删除此投资记录？')) return;
-  await sb.from('biz_investments').delete().eq('id',id);
-  renderFinancePage(); showPosToast('✅ 已删除');
-}
-
-// ── Stock CRUD ───────────────────────────────────────────────────
-function openStockModal(id) {
-  const s = id ? _flPerStocks.find(x=>x.id===id) : null;
-  _flEditStockId = id||null;
-  const walletOpts = _flPerWallets.map(w=>`<option value="${w.id}"${s?.source_wallet===w.id?' selected':''}>${w.name}</option>`).join('');
-  const marketOpts = ['KLSE','US','HK','SG'].map(m=>`<option value="${m}"${(s?.market||'KLSE')===m?' selected':''}>${m}</option>`).join('');
-  showFlModal(id?'编辑持仓':'新增股票持仓', `
-    <div class="form-row"><label>股票代码</label><input id="fls-ticker" value="${s?.ticker||''}" placeholder="例：MAYBANK" style="flex:1;text-transform:uppercase"></div>
-    <div class="form-row"><label>公司名称</label><input id="fls-name" value="${s?.name||''}" placeholder="可选" style="flex:1"></div>
-    <div class="form-row"><label>市场</label><select id="fls-market" style="flex:1" onchange="updateStockModalCcy()">${marketOpts}</select></div>
-    <div class="form-row"><label>持股数量</label><input id="fls-shares" type="number" step="0.01" value="${s?.shares||''}" style="flex:1"></div>
-    <div class="form-row"><label>平均成本价 <span id="fls-ccy-label" style="color:var(--blue);font-size:11px"></span></label><input id="fls-cost" type="number" step="0.0001" value="${s?.avg_cost||''}" placeholder="每股原币" style="flex:1"></div>
-    <div class="form-row"><label>来源账户</label><select id="fls-wallet" style="flex:1"><option value="">不指定</option>${walletOpts}</select></div>
-    <div class="form-row"><label>现价 <span id="fls-ccy-label2" style="color:var(--blue);font-size:11px"></span> (可选)</label><input id="fls-price" type="number" step="0.0001" value="${s?.current_price||''}" placeholder="原币现价，留空可稍后填" style="flex:1"></div>
-    <div class="form-row"><label>备注</label><input id="fls-notes" value="${s?.notes||''}" style="flex:1"></div>
-  `, async () => {
-    const ticker  = document.getElementById('fls-ticker').value.trim().toUpperCase();
-    const name    = document.getElementById('fls-name').value.trim();
-    const market  = document.getElementById('fls-market').value;
-    const shares  = parseFloat(document.getElementById('fls-shares').value);
-    const cost    = parseFloat(document.getElementById('fls-cost').value);
-    const wallet  = document.getElementById('fls-wallet').value;
-    const price   = parseFloat(document.getElementById('fls-price').value)||null;
-    const notes   = document.getElementById('fls-notes').value.trim()||null;
-    if (!ticker||!shares||!cost) { alert('请填写股票代码、数量和成本价'); return false; }
-    const payload = {ticker,name:name||null,market,shares,avg_cost:cost,source_wallet:wallet||null,status:'holding',notes};
-    if (price !== null) payload.current_price = price;
-    if (_flEditStockId) {
-      const {error} = await sb.from('personal_stocks').update(payload).eq('id',_flEditStockId);
-      if(error){alert('保存失败: '+error.message);return false;}
-    } else {
-      const {error} = await sb.from('personal_stocks').insert(payload);
-      if(error){alert('保存失败: '+error.message);return false;}
-    }
-    return true;
-  });
-}
-async function updateStockPrice(id, price) {
-  const val = parseFloat(price);
-  const payload = {current_price: val||null};
-  if (val && val > 0) payload.price_updated_at = new Date().toISOString();
-  await sb.from('personal_stocks').update(payload).eq('id',id);
-  await flLoadPersonal();
-  renderFlStocks();
-}
-async function deleteStock(id) {
-  if (!confirm('删除此持仓？')) return;
-  await sb.from('personal_stocks').delete().eq('id',id);
-  renderFinancePage(); showPosToast('✅ 已删除');
-}
-
-// ── SERVICE TIER PRICING ──────────────────────────────────
-let _tierItemId = null;
-
-function openTierModal(itemId) {
-  _tierItemId = String(itemId);
-  const it = items.find(i => String(i.id) === _tierItemId);
-  if (!it) return;
-  document.getElementById('tier-item-name').textContent = it.name;
-  const tiers = it.service_tiers || (it.price ? [{min_qty:1, price:+(it.price)}] : [{min_qty:1, price:0}]);
-  renderTierRows(tiers);
-  document.getElementById('tier-modal').classList.add('open');
-  document.body.classList.add('modal-open');
-}
-
-function openTierModalFromAdj() {
-  const id = adjId;
-  closeAdj();
-  setTimeout(() => openTierModal(id), 100);
-}
-
-function closeTierModal() {
-  document.getElementById('tier-modal').classList.remove('open');
-  document.body.classList.remove('modal-open');
-  _tierItemId = null;
-}
-
-function renderTierRows(tiers) {
-  const el = document.getElementById('tier-rows');
-  if (!el) return;
-  el.innerHTML = tiers.map((t,i) => `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <div style="flex:1">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:3px">${i===0?'基础（最少张数）':'超过 N 张时'}</div>
-        <input type="number" min="1" value="${t.min_qty}" placeholder="最少张数"
-          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)"
-          oninput="updateTierRow(${i},'min_qty',this.value)">
-      </div>
-      <div style="flex:1">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:3px">每张价格 (RM)</div>
-        <input type="number" min="0" step="0.01" value="${t.price}" placeholder="0.00"
-          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)"
-          oninput="updateTierRow(${i},'price',this.value)">
-      </div>
-      ${tiers.length > 1 ? `<button onclick="removeTierRow(${i})" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:12px;margin-top:14px">✕</button>` : '<div style="width:34px"></div>'}
-    </div>`).join('');
-}
-
-function _getTierRowsData() {
-  const tiers = [];
-  document.querySelectorAll('#tier-rows > div').forEach((row, i) => {
-    const inputs = row.querySelectorAll('input');
-    const min_qty = parseInt(inputs[0]?.value) || 1;
-    const price   = parseFloat(inputs[1]?.value) || 0;
-    tiers.push({ min_qty, price });
-  });
-  return tiers;
-}
-
-function updateTierRow(i, field, val) { /* live update handled by reading DOM on save */ }
-
-function addTierRow() {
-  const tiers = _getTierRowsData();
-  const lastMin = tiers.length ? tiers[tiers.length-1].min_qty : 1;
-  tiers.push({ min_qty: lastMin + 10, price: 0 });
-  renderTierRows(tiers);
-}
-
-function removeTierRow(i) {
-  const tiers = _getTierRowsData();
-  tiers.splice(i, 1);
-  renderTierRows(tiers);
-}
-
-async function saveTiers() {
-  const tiers = _getTierRowsData();
-  if (!tiers.length || tiers.some(t => t.price <= 0)) {
-    alert('请填写所有阶梯的价格'); return;
-  }
-  // Sort by min_qty asc
-  tiers.sort((a,b) => a.min_qty - b.min_qty);
-  const it = items.find(i => String(i.id) === _tierItemId);
-  if (!it) return;
-  const tbl = itemTable(it);
-  // Save to Supabase and update base price to first tier price
-  const { error } = await sb.from(tbl).update({
-    service_tiers: tiers,
-    price: tiers[0].price  // base price = first tier
-  }).eq('id', it.id);
-  if (error) { alert('保存失败: ' + error.message); return; }
-  it.service_tiers = tiers;
-  it.price = tiers[0].price;
-  closeTierModal();
-  showPosToast('✅ 阶梯定价已保存');
-  await loadItems();
-}
-
-
-function openFxRateModal() {
-  const rates = fxGetRates();
-  showFlModal('✏️ 更新汇率 (对 MYR)', `
-    <div style="font-size:12px;color:var(--text3);margin-bottom:14px">填入 1 外币 = 多少 MYR。例如 USD 4.70 表示 1 美元 = RM 4.70</div>
-    <div class="form-row"><label>🇺🇸 USD (美元)</label><input id="fx-usd" type="number" step="0.0001" value="${(rates.USD||FL_DEFAULT_FX.USD).toFixed(4)}" style="flex:1"></div>
-    <div class="form-row"><label>🇸🇬 SGD (新币)</label><input id="fx-sgd" type="number" step="0.0001" value="${(rates.SGD||FL_DEFAULT_FX.SGD).toFixed(4)}" style="flex:1"></div>
-    <div class="form-row"><label>🇭🇰 HKD (港币)</label><input id="fx-hkd" type="number" step="0.0001" value="${(rates.HKD||FL_DEFAULT_FX.HKD).toFixed(4)}" style="flex:1"></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:8px">💡 汇率需手动更新，建议每次查看持仓时更新一下</div>
-  `, async () => {
-    const usd = parseFloat(document.getElementById('fx-usd').value);
-    const sgd = parseFloat(document.getElementById('fx-sgd').value);
-    const hkd = parseFloat(document.getElementById('fx-hkd').value);
-    if (!usd||!sgd||!hkd) { alert('请填写所有汇率'); return false; }
-    fxSetRates({ MYR:1, USD:usd, SGD:sgd, HKD:hkd });
-    return true;
-  });
-}
-
-// Update currency label in stock modal when market changes
-function updateStockModalCcy() {
-  const market = document.getElementById('fls-market')?.value || 'KLSE';
-  const sym = fxSymbol(market);
-  const rate = fxRate(market);
-  const isForeign = FL_MARKET_CCY[market] !== 'MYR';
-  const lbl1 = document.getElementById('fls-ccy-label');
-  const lbl2 = document.getElementById('fls-ccy-label2');
-  const hint = isForeign ? `(${sym}, 1${sym}=RM${rate.toFixed(4)})` : '(MYR)';
-  if (lbl1) lbl1.textContent = hint;
-  if (lbl2) lbl2.textContent = hint;
-}
-
-
-function showFlModal(title, bodyHtml, onSave) {
-  let m = document.getElementById('fl-generic-modal');
-  if (!m) {
-    m = document.createElement('div');
-    m.id = 'fl-generic-modal';
-    m.className = 'modal-overlay';
-    m.innerHTML = `<div class="modal" style="max-width:480px;max-height:90vh;overflow-y:auto">
-      <h3 id="fl-modal-title"></h3>
-      <div id="fl-modal-body"></div>
-      <div class="modal-footer">
-        <button class="btn" onclick="closeFlModal()">取消</button>
-        <button class="btn" style="background:var(--text);color:#fff;border-color:var(--text)" id="fl-modal-save">保存</button>
-      </div>
-    </div>`;
-    document.body.appendChild(m);
-  }
-  document.getElementById('fl-modal-title').textContent = title;
-  document.getElementById('fl-modal-body').innerHTML = bodyHtml;
-  document.getElementById('fl-modal-save').onclick = async () => {
-    const ok = await onSave();
-    if (ok !== false) { closeFlModal(); await renderFinancePage(); showPosToast('✅ 已保存'); }
-  };
-  m.classList.add('open');
-  document.body.classList.add('modal-open');
-}
-function closeFlModal() {
-  const m = document.getElementById('fl-generic-modal');
-  if (m) m.classList.remove('open');
-  document.body.classList.remove('modal-open');
-}
-
-// ── Keep old lockFinance ─────────────────────────────────────────
-function lockFinance() {
-  _financeUnlocked = false;
-  posSwitchTab('overview');
-  showPosToast('🔒 记账已锁定');
-}
-
-
 // ═══════════════════════════════════════════════════════════
 // POS GRID — iPad POS additions (non-destructive)
 // ═══════════════════════════════════════════════════════════
@@ -8778,7 +7605,6 @@ function posSwitchTab(t) {
     }
   }
   else if(t === 'overview') renderOverview();
-  else if(t === 'finance') { initFinanceTab(); }
   else if(t === 'hq') { renderHqDashboard(); }
   else if(t === 'debtors') { renderDebtors(); }
   else if(t === 'customers') { renderCustomerList(); }
@@ -8786,12 +7612,6 @@ function posSwitchTab(t) {
   else if(t === 'lhdn') { renderLhdnPage(); }
   else if(t === 'holidays') { renderCalPage(); }
   else if(t === 'ledger') { renderLedgerPage(); }
-}
-
-function posSidebarFinanceUnlock() {
-  // No password needed - already authenticated via system login
-  _financeUnlocked = true;
-  posSwitchTab('finance');
 }
 
 function posSidebarProfitUnlock() {
@@ -8950,7 +7770,7 @@ function applyRolePermissions(role) {
 
   // Reset all nav buttons visibility first
   ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-overview',
-   'navbtn-profit','navbtn-finance','navbtn-hq'].forEach(id => {
+   'navbtn-profit','navbtn-hq'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -8962,8 +7782,8 @@ function applyRolePermissions(role) {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
-    // 隐藏: 总览、利润、记账、总部报表、老板模式、套餐
-    ['navbtn-overview','navbtn-profit','navbtn-finance','navbtn-hq'].forEach(id => {
+    // 隐藏: 总览、利润、总部报表、老板模式、套餐
+    ['navbtn-overview','navbtn-profit','navbtn-hq'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = 'none';
     });
@@ -8984,7 +7804,7 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-debtors',
-     'navbtn-finance','navbtn-hq','navbtn-customers','navbtn-payroll','navbtn-lhdn','navbtn-holidays'].forEach(id => {
+     'navbtn-hq','navbtn-customers','navbtn-payroll','navbtn-lhdn','navbtn-holidays'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
@@ -12111,24 +10931,167 @@ const LHDN_CA = {
   renovation:      { ia: 0.00, aa: 0.10, label: 'Renovation' },
 };
 
-// ── Storage (localStorage — no sensitive LHDN data sent to server) ──
-function lhdnGet(key)     { try { return JSON.parse(localStorage.getItem('lhdn_'+key)||'null'); } catch { return null; } }
-function lhdnSet(key, val){ localStorage.setItem('lhdn_'+key, JSON.stringify(val)); }
-function lhdnGetExp(year) { return lhdnGet('exp_'+year) || []; }
-function lhdnSetExp(year, arr){ lhdnSet('exp_'+year, arr); }
-function lhdnGetAssets()  { return lhdnGet('assets') || []; }
-function lhdnSetAssets(arr){ lhdnSet('assets', arr); }
-function lhdnGetMeta(year){ return lhdnGet('meta_'+year) || {}; }
-function lhdnSetMeta(year,obj){ lhdnSet('meta_'+year, obj); }
+// ── Data layer — single source of truth ──────────────────────
+// Sales     : real POS orders/g_orders + debt repayments (same formula as HQ dashboard)
+// Expenses  : 每日记账 (daily_ledger, 'out' entries, excluding 'purchase' which is COGS)
+// Assets    : Supabase `lhdn_assets` table (synced across all devices)
+// Meta      : Supabase `lhdn_meta` table (opening stock / accountant-adjusted sales, per year)
+
+// Shared real-sales calculator — mirrors HQ dashboard revenue logic exactly
+function computeRealSalesInRange(startDate, endDate) {
+  const src = typeof orders !== 'undefined' ? orders : [];
+  const instoreOrders = src.filter(o => {
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
+    if(o.is_delivery_fee) return false;
+    const d = new Date(o.paid_at || o.created_at);
+    return o.status === 'instore' && d >= startDate && d <= endDate;
+  });
+  const collectedOrders = src.filter(o => {
+    if(!o.paid_at) return false;
+    if(o.is_delivery_fee) return false;
+    const d = new Date(o.paid_at);
+    return o.status === 'collected' && d >= startDate && d <= endDate;
+  });
+  const allSales = [...instoreOrders, ...collectedOrders];
+  const salesTotal = allSales.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
+
+  const debtPayments = (typeof _debtors !== 'undefined' ? _debtors : []).filter(d => {
+    if(d.status !== 'paid' || !d.paid_at) return false;
+    const pd = new Date(d.paid_at);
+    return pd >= startDate && pd <= endDate;
+  });
+  const debtRepaidTotal = debtPayments.reduce((s,d) => s + (+(d.amount||0)), 0);
+
+  return salesTotal + debtRepaidTotal;
+}
+
+let _lhdnAssets = [];
+let _lhdnMetaCache = {};
+
+async function loadLhdnData() {
+  await Promise.all([
+    (typeof loadOrders === 'function') ? loadOrders() : Promise.resolve(),
+    (typeof loadDebtors === 'function') ? loadDebtors() : Promise.resolve(),
+    (typeof loadLedgerEntries === 'function') ? loadLedgerEntries() : Promise.resolve(),
+  ]);
+  const [assetsRes, metaRes] = await Promise.all([
+    sb.from('lhdn_assets').select('*').order('purchase_date'),
+    sb.from('lhdn_meta').select('*'),
+  ]);
+  _lhdnAssets = assetsRes.data || [];
+  _lhdnMetaCache = {};
+  (metaRes.data || []).forEach(m => { _lhdnMetaCache[m.year] = m; });
+}
+
+// Expenses — read-only view onto 每日记账 (daily_ledger). 'purchase' category
+// is excluded here because it's already counted under COGS (Sales tab).
+function lhdnGetExp(year) {
+  return (typeof _ledgerEntries !== 'undefined' ? _ledgerEntries : [])
+    .filter(e => e.entry_type === 'out' && e.category !== 'purchase' && e.entry_date && e.entry_date.startsWith(String(year)))
+    .map(e => ({
+      id: e.id,
+      date: e.entry_date,
+      cat: (typeof LEDGER_CAT_META !== 'undefined' && LEDGER_CAT_META[e.category]) ? LEDGER_CAT_META[e.category].label : (e.category || '其他'),
+      amount: Number(e.amount||0),
+      note: e.note || '',
+      vendor: '',
+    }))
+    .sort((a,b) => a.date.localeCompare(b.date));
+}
+
+// Assets — Supabase-backed, mapped to the original {id,name,cat,date,cost,note} shape
+function lhdnGetAssets() {
+  return _lhdnAssets.map(a => ({
+    id: a.id, name: a.name, cat: a.category, date: a.purchase_date,
+    cost: Number(a.cost||0), note: a.note || '',
+  }));
+}
+async function lhdnSaveAssetRow({ id, name, cat, date, cost, note }) {
+  const payload = { name, category: cat, purchase_date: date, cost, note: note || null };
+  if (id) await sb.from('lhdn_assets').update(payload).eq('id', id);
+  else    await sb.from('lhdn_assets').insert(payload);
+  await loadLhdnData();
+}
+async function lhdnDeleteAssetRow(id) {
+  await sb.from('lhdn_assets').delete().eq('id', id);
+  await loadLhdnData();
+}
+
+// Meta (opening stock / accountant-adjusted sales) — Supabase-backed, per year
+function lhdnGetMeta(year) {
+  const m = _lhdnMetaCache[year];
+  if (!m) return {};
+  return {
+    openingStock: Number(m.opening_stock||0),
+    adjSales: (m.adj_sales === null || m.adj_sales === undefined) ? null : Number(m.adj_sales),
+    adjSalesNote: m.adj_sales_note || '',
+  };
+}
+async function lhdnSetMeta(year, obj) {
+  const payload = {
+    year,
+    opening_stock: obj.openingStock || 0,
+    adj_sales: (obj.adjSales === null || obj.adjSales === undefined) ? null : obj.adjSales,
+    adj_sales_note: obj.adjSalesNote || null,
+  };
+  await sb.from('lhdn_meta').upsert(payload, { onConflict: 'year' });
+  _lhdnMetaCache[year] = payload;
+}
+
+// ── One-time migration: old browser-only localStorage data → Supabase ──
+const LHDN_CAT_TO_LEDGER = {
+  '车油/Toll': 'fuel_toll', '租金': 'rent', '水电费': 'utility', '电话/网络': 'telco',
+  '员工薪资': 'payroll', 'EPF雇主': 'epf_employer', 'SOCSO雇主': 'socso_employer',
+  '进货成本': 'purchase', '维修保养': 'maintenance', '保险': 'insurance',
+  '广告宣传': 'marketing', '杂费': 'misc', '其他': 'other',
+};
+async function lhdnMigrateLocalData() {
+  if (!confirm('这会把本机浏览器旧版 LHDN 资料（固定资产、支出记录、期初库存/Sales 调整）搬到云端资料库，搬完所有装置都能看到同一份资料。确定要执行吗？')) return;
+
+  let migrated = 0;
+  const curYear = new Date().getFullYear();
+
+  const oldAssets = JSON.parse(localStorage.getItem('lhdn_assets') || '[]');
+  for (const a of oldAssets) {
+    await sb.from('lhdn_assets').insert({ name: a.name, category: a.cat, purchase_date: a.date, cost: Number(a.cost||0), note: a.note || null });
+    migrated++;
+  }
+
+  for (let y = curYear - 6; y <= curYear + 1; y++) {
+    const oldExp = JSON.parse(localStorage.getItem('lhdn_exp_'+y) || '[]');
+    for (const e of oldExp) {
+      const cat = LHDN_CAT_TO_LEDGER[e.cat] || 'other';
+      const noteParts = [e.note, e.vendor].filter(Boolean);
+      await sb.from('daily_ledger').insert({ entry_date: e.date, entry_type: 'out', category: cat, amount: Number(e.amount||0), note: noteParts.join(' · ') || null });
+      migrated++;
+    }
+    const oldMeta = JSON.parse(localStorage.getItem('lhdn_meta_'+y) || 'null');
+    if (oldMeta) {
+      await sb.from('lhdn_meta').upsert({ year: y, opening_stock: oldMeta.openingStock || 0, adj_sales: oldMeta.adjSales ?? null, adj_sales_note: oldMeta.adjSalesNote || null }, { onConflict: 'year' });
+      migrated++;
+    }
+  }
+
+  localStorage.removeItem('lhdn_assets');
+  for (let y = curYear - 6; y <= curYear + 1; y++) {
+    localStorage.removeItem('lhdn_exp_'+y);
+    localStorage.removeItem('lhdn_meta_'+y);
+  }
+
+  await loadLhdnData();
+  setLhdnTab(_lhdnTab);
+  showPosToast('✅ 已导入 ' + migrated + ' 笔旧资料');
+}
 
 // ── State ─────────────────────────────────────────────────
 let _lhdnYear = new Date().getFullYear();
 let _lhdnTab  = 'summary';
-let _lhdnEditExpId   = null;
 let _lhdnEditAssetId = null;
 
 // ── Init ──────────────────────────────────────────────────
-function renderLhdnPage() {
+async function renderLhdnPage() {
+  await loadLhdnData();
   // Populate year selector
   const sel = document.getElementById('lhdn-year');
   if (sel && !sel.options.length) {
@@ -12162,12 +11125,11 @@ function setLhdnTab(t) {
 // ── Helpers ───────────────────────────────────────────────
 const lFmt = v => 'RM ' + Number(v||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 
-// Get total annual sales from POS txns (biz_transactions type=income, category=POS销售)
+// Get total annual sales — real POS orders/g_orders + debt repayments
 function lhdnGetPosSales(year) {
-  if (typeof _flBizTxns === 'undefined' || !_flBizTxns.length) return 0;
-  return _flBizTxns
-    .filter(t => t.type==='income' && (t.date||'').startsWith(year+''))
-    .reduce((s,t) => s + Number(t.amount||0), 0);
+  const startDate = new Date(year, 0, 1);
+  const endDate = new Date(year, 11, 31, 23, 59, 59);
+  return computeRealSalesInRange(startDate, endDate);
 }
 
 // Get closing stock value from items (quantity × cost_price)
@@ -12216,9 +11178,9 @@ function renderLhdnSummary() {
   const sales       = adjSales !== null ? adjSales : posSales;
   const openStock   = Number(meta.openingStock || 0);
   const closeStock  = lhdnGetClosingStock().total;
-  const purchases   = (typeof _flBizTxns !== 'undefined')
-    ? _flBizTxns.filter(t=>t.type==='expense'&&t.category==='进货'&&(t.date||'').startsWith(year+'')).reduce((s,t)=>s+Number(t.amount||0),0)
-    : 0;
+  const purchases   = (typeof _ledgerEntries !== 'undefined' ? _ledgerEntries : [])
+    .filter(e => e.entry_type==='out' && e.category==='purchase' && e.entry_date && e.entry_date.startsWith(String(year)))
+    .reduce((s,e)=>s+Number(e.amount||0),0);
   const cogs        = openStock + purchases - closeStock;
   const grossProfit = sales - cogs;
   const expenses    = lhdnGetTotalExp(year);
@@ -12286,13 +11248,13 @@ function renderLhdnSales() {
   document.getElementById('lhdn-adj-sales').value = meta.adjSales || '';
   document.getElementById('lhdn-adj-sales-note').value = meta.adjSalesNote || '';
 
-  // Monthly breakdown from POS
-  const months = Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
+  // Monthly breakdown — real POS sales
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const txns = typeof _flBizTxns !== 'undefined' ? _flBizTxns : [];
-  const rows = months.map((m,i) => {
-    const amt = txns.filter(t=>t.type==='income'&&(t.date||'').startsWith(year+'-'+m)).reduce((s,t)=>s+Number(t.amount||0),0);
-    return { month: monthNames[i], amt };
+  const rows = monthNames.map((mn,i) => {
+    const start = new Date(year, i, 1);
+    const end = new Date(year, i+1, 0, 23,59,59);
+    const amt = computeRealSalesInRange(start, end);
+    return { month: mn, amt };
   });
   const total = rows.reduce((s,r)=>s+r.amt,0);
   const el = document.getElementById('lhdn-sales-table');
@@ -12313,12 +11275,12 @@ function renderLhdnSales() {
     </div>
     ${meta.adjSales ? `<div style="margin-top:8px;padding:10px 14px;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--radius-xs);font-size:12px;color:var(--amber)">⚠️ Accountant 核定 Sales：${lFmt(meta.adjSales)}${meta.adjSalesNote?' — '+meta.adjSalesNote:''}</div>` : ''}`;
 }
-function saveLhdnAdjSales() {
+async function saveLhdnAdjSales() {
   const meta = lhdnGetMeta(_lhdnYear);
   const val = parseFloat(document.getElementById('lhdn-adj-sales').value);
   meta.adjSales = isNaN(val) ? null : val;
   meta.adjSalesNote = document.getElementById('lhdn-adj-sales-note').value.trim();
-  lhdnSetMeta(_lhdnYear, meta);
+  await lhdnSetMeta(_lhdnYear, meta);
   showPosToast('✅ Sales 调整已保存');
   renderLhdnSales();
 }
@@ -12360,10 +11322,10 @@ function renderLhdnStock() {
       </div>
     </div>`;
 }
-function saveLhdnOpeningStock() {
+async function saveLhdnOpeningStock() {
   const meta = lhdnGetMeta(_lhdnYear);
   meta.openingStock = parseFloat(document.getElementById('lhdn-opening-stock').value) || 0;
-  lhdnSetMeta(_lhdnYear, meta);
+  await lhdnSetMeta(_lhdnYear, meta);
   showPosToast('✅ 期初库存已保存');
   renderLhdnStock();
 }
@@ -12384,25 +11346,21 @@ function renderLhdnExpenses() {
 
   el.innerHTML = exps.length ? `
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden">
-      <div style="display:grid;grid-template-columns:80px 1fr 1fr auto auto;gap:0;padding:8px 12px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid var(--border)">
-        <span>日期</span><span>类别</span><span>备注</span><span style="text-align:right">金额</span><span></span>
+      <div style="display:grid;grid-template-columns:80px 1fr 1fr auto;gap:0;padding:8px 12px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid var(--border)">
+        <span>日期</span><span>类别</span><span>备注</span><span style="text-align:right">金额</span>
       </div>
       ${exps.sort((a,b)=>a.date.localeCompare(b.date)).map(e=>`
-        <div style="display:grid;grid-template-columns:80px 1fr 1fr auto auto;gap:0;padding:9px 12px;border-bottom:1px solid var(--border);align-items:center;font-size:12px">
+        <div style="display:grid;grid-template-columns:80px 1fr 1fr auto;gap:0;padding:9px 12px;border-bottom:1px solid var(--border);align-items:center;font-size:12px">
           <span style="color:var(--text3)">${(e.date||'').slice(5)}</span>
           <span style="font-weight:600">${e.cat}</span>
-          <span style="color:var(--text3);font-size:11px">${e.note||''}${e.vendor?' · '+e.vendor:''}</span>
-          <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--red);padding-right:10px">RM ${Number(e.amount).toFixed(2)}</span>
-          <div style="display:flex;gap:4px">
-            <button class="btn" style="font-size:10px;padding:3px 6px" onclick="openLhdnExpModal('${e.id}')">✏️</button>
-            <button class="btn btn-danger" style="font-size:10px;padding:3px 6px" onclick="deleteLhdnExp('${e.id}')">🗑</button>
-          </div>
+          <span style="color:var(--text3);font-size:11px">${e.note||''}</span>
+          <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--red);padding-right:4px">RM ${Number(e.amount).toFixed(2)}</span>
         </div>`).join('')}
       <div style="padding:10px 12px;background:var(--surface);display:flex;justify-content:space-between;font-weight:700;font-size:13px">
         <span>合计 (${exps.length} 笔)</span>
         <span style="font-family:'DM Mono',monospace;color:var(--red)">${lFmt(total)}</span>
       </div>
-    </div>` : '<div style="text-align:center;padding:30px;color:var(--text3)">暂无支出记录</div>';
+    </div>` : '<div style="text-align:center;padding:30px;color:var(--text3)">暂无支出记录 — 请到「每日记账」新增</div>';
 
   if (sumEl) sumEl.innerHTML = catRows.length ? `
     <div style="margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:14px">
@@ -12413,50 +11371,6 @@ function renderLhdnExpenses() {
           <span style="font-family:'DM Mono',monospace;font-weight:700">${lFmt(amt)}</span>
         </div>`).join('')}
     </div>` : '';
-}
-
-function openLhdnExpModal(id) {
-  _lhdnEditExpId = id || null;
-  const exps = lhdnGetExp(_lhdnYear);
-  const e = id ? exps.find(x=>x.id===id) : null;
-  document.getElementById('lhdn-exp-modal-title').textContent = id ? '编辑支出' : '新增 Claimable 支出';
-  document.getElementById('le-date').value = e?.date || new Date().toISOString().slice(0,10);
-  document.getElementById('le-cat').value  = e?.cat  || '车油/Toll';
-  document.getElementById('le-amount').value = e?.amount || '';
-  document.getElementById('le-note').value   = e?.note   || '';
-  document.getElementById('le-vendor').value = e?.vendor || '';
-  document.getElementById('lhdn-exp-modal').classList.add('open');
-  document.body.classList.add('modal-open');
-}
-function closeLhdnExpModal() {
-  document.getElementById('lhdn-exp-modal').classList.remove('open');
-  document.body.classList.remove('modal-open');
-}
-function saveLhdnExp() {
-  const date   = document.getElementById('le-date').value;
-  const cat    = document.getElementById('le-cat').value;
-  const amount = parseFloat(document.getElementById('le-amount').value);
-  const note   = document.getElementById('le-note').value.trim();
-  const vendor = document.getElementById('le-vendor').value.trim();
-  if (!date || !amount || amount <= 0) { alert('请填写日期和金额'); return; }
-  const exps = lhdnGetExp(_lhdnYear);
-  if (_lhdnEditExpId) {
-    const idx = exps.findIndex(x=>x.id===_lhdnEditExpId);
-    if (idx>=0) exps[idx] = { ...exps[idx], date, cat, amount, note, vendor };
-  } else {
-    exps.push({ id: Date.now().toString(), date, cat, amount, note, vendor });
-  }
-  lhdnSetExp(_lhdnYear, exps);
-  closeLhdnExpModal();
-  renderLhdnExpenses();
-  showPosToast('✅ 支出已保存');
-}
-function deleteLhdnExp(id) {
-  if (!confirm('删除此支出记录？')) return;
-  const exps = lhdnGetExp(_lhdnYear).filter(x=>x.id!==id);
-  lhdnSetExp(_lhdnYear, exps);
-  renderLhdnExpenses();
-  showPosToast('✅ 已删除');
 }
 
 // ── Assets ────────────────────────────────────────────────
@@ -12573,9 +11487,9 @@ function lhdnGeneratePdf() {
   const sales      = meta.adjSales !== null && meta.adjSales !== undefined ? meta.adjSales : posSales;
   const openStock  = Number(meta.openingStock||0);
   const closeStock = lhdnGetClosingStock().total;
-  const purchases  = (typeof _flBizTxns !== 'undefined')
-    ? _flBizTxns.filter(t=>t.type==='expense'&&t.category==='进货'&&(t.date||'').startsWith(year+'')).reduce((s,t)=>s+Number(t.amount||0),0)
-    : 0;
+  const purchases  = (typeof _ledgerEntries !== 'undefined' ? _ledgerEntries : [])
+    .filter(e => e.entry_type==='out' && e.category==='purchase' && e.entry_date && e.entry_date.startsWith(String(year)))
+    .reduce((s,e)=>s+Number(e.amount||0),0);
   const cogs       = openStock + purchases - closeStock;
   const grossProfit= sales - cogs;
   const exps       = lhdnGetExp(year);
@@ -13277,12 +12191,23 @@ async function postLoginClockCheck() {
 // (daily_ledger), does not read/write any other table.
 // ══════════════════════════════════════════════════════════════
 const LEDGER_CAT_META = {
-  sales:    { label:'营业收入', color:'#1e6641', bg:'#d4f0dc', type:'in'  },
-  other_in: { label:'其他收入', color:'#1a4d7a', bg:'#d6eaf8', type:'in'  },
-  purchase: { label:'进货',     color:'#8b2318', bg:'#fad8d6', type:'out' },
-  rent:     { label:'房租',     color:'#7c3aed', bg:'#ede9fe', type:'out' },
-  utility:  { label:'水电',     color:'#b45309', bg:'#fef3c7', type:'out' },
-  misc:     { label:'杂项',     color:'#475569', bg:'#f1f5f9', type:'out' },
+  // 进账 — POS 销售是自动带入的，这里只保留「其他收入」给手动输入
+  sales:          { label:'营业收入', color:'#1e6641', bg:'#d4f0dc', type:'in', legacy:true }, // legacy, kept for old entries' display only
+  other_in:       { label:'其他收入', color:'#1a4d7a', bg:'#d6eaf8', type:'in'  },
+  // 出账 — 跟 LHDN 可扣税支出类别完全一致，两边共用同一批资料
+  fuel_toll:      { label:'车油/Toll',   color:'#8b5a00', bg:'#fef3c7', type:'out' },
+  rent:           { label:'租金',        color:'#7c3aed', bg:'#ede9fe', type:'out' },
+  utility:        { label:'水电费',      color:'#b45309', bg:'#fef3c7', type:'out' },
+  telco:          { label:'电话/网络',   color:'#0369a1', bg:'#e0f2fe', type:'out' },
+  payroll:        { label:'员工薪资',    color:'#8b2318', bg:'#fad8d6', type:'out' },
+  epf_employer:   { label:'EPF雇主',     color:'#8b2318', bg:'#fad8d6', type:'out' },
+  socso_employer: { label:'SOCSO雇主',   color:'#8b2318', bg:'#fad8d6', type:'out' },
+  purchase:       { label:'进货成本',    color:'#dc2626', bg:'#fee2e2', type:'out' },
+  maintenance:    { label:'维修保养',    color:'#0f766e', bg:'#ccfbf1', type:'out' },
+  insurance:      { label:'保险',        color:'#4338ca', bg:'#e0e7ff', type:'out' },
+  marketing:      { label:'广告宣传',    color:'#a21caf', bg:'#fae8ff', type:'out' },
+  misc:           { label:'杂费',        color:'#475569', bg:'#f1f5f9', type:'out' },
+  other:          { label:'其他',        color:'#475569', bg:'#f1f5f9', type:'out' },
 };
 
 let _ledgerYear = new Date().getFullYear();
@@ -13298,9 +12223,45 @@ async function loadLedgerEntries() {
 }
 
 async function renderLedgerPage() {
-  await loadLedgerEntries();
+  await Promise.all([
+    loadLedgerEntries(),
+    (typeof loadOrders === 'function') ? loadOrders() : Promise.resolve(),
+    (typeof loadDebtors === 'function') ? loadDebtors() : Promise.resolve(),
+  ]);
   renderLedgerGrid();
   renderLedgerSummary();
+}
+
+// Real POS sales, bucketed per day for the given month — same formula as HQ dashboard
+function computeDailyPosSalesMap(year, month) {
+  const map = {};
+  const src = typeof orders !== 'undefined' ? orders : [];
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month+1, 0, 23,59,59);
+  const dayKey = dt => dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+
+  src.forEach(o => {
+    const pm = o.pay_method || o.payment_method || o.payment_status || '';
+    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return;
+    if(o.is_delivery_fee) return;
+    const validInstore   = o.status === 'instore';
+    const validCollected  = o.status === 'collected' && !!o.paid_at;
+    if(!validInstore && !validCollected) return;
+    const dt = new Date(o.paid_at || o.created_at);
+    if(dt < monthStart || dt > monthEnd) return;
+    const key = dayKey(dt);
+    map[key] = (map[key]||0) + (+(o.total_price||o.total||0));
+  });
+
+  (typeof _debtors !== 'undefined' ? _debtors : []).forEach(d => {
+    if(d.status !== 'paid' || !d.paid_at) return;
+    const dt = new Date(d.paid_at);
+    if(dt < monthStart || dt > monthEnd) return;
+    const key = dayKey(dt);
+    map[key] = (map[key]||0) + (+(d.amount||0));
+  });
+
+  return map;
 }
 
 function ledgerPrevMonth() {
@@ -13332,6 +12293,7 @@ function renderLedgerGrid() {
   const daysInMonth = new Date(_ledgerYear, _ledgerMonth+1, 0).getDate();
   const monthStr = _ledgerYear + '-' + String(_ledgerMonth+1).padStart(2,'0');
   const monthEntries = ledgerMonthEntries();
+  const posSalesMap = computeDailyPosSalesMap(_ledgerYear, _ledgerMonth);
 
   let cells = '';
   for(let i = 0; i < firstDay; i++) cells += '<div style="min-height:78px"></div>';
@@ -13339,7 +12301,9 @@ function renderLedgerGrid() {
   for(let d = 1; d <= daysInMonth; d++) {
     const dateStr = monthStr + '-' + String(d).padStart(2,'0');
     const dayEntries = monthEntries.filter(e => e.entry_date === dateStr);
-    const dayIn = dayEntries.filter(e=>e.entry_type==='in').reduce((s,e)=>s+Number(e.amount||0),0);
+    const manualIn = dayEntries.filter(e=>e.entry_type==='in').reduce((s,e)=>s+Number(e.amount||0),0);
+    const posIn = posSalesMap[dateStr] || 0;
+    const dayIn = manualIn + posIn;
     const dayOut = dayEntries.filter(e=>e.entry_type==='out').reduce((s,e)=>s+Number(e.amount||0),0);
     const isToday = dateStr === today;
     const isSun = new Date(_ledgerYear, _ledgerMonth, d).getDay() === 0;
@@ -13358,7 +12322,10 @@ function renderLedgerGrid() {
 
 function renderLedgerSummary() {
   const monthEntries = ledgerMonthEntries();
-  const totalIn = monthEntries.filter(e=>e.entry_type==='in').reduce((s,e)=>s+Number(e.amount||0),0);
+  const posSalesMap = computeDailyPosSalesMap(_ledgerYear, _ledgerMonth);
+  const posTotal = Object.values(posSalesMap).reduce((s,v)=>s+v,0);
+  const manualIn = monthEntries.filter(e=>e.entry_type==='in').reduce((s,e)=>s+Number(e.amount||0),0);
+  const totalIn = manualIn + posTotal;
   const totalOut = monthEntries.filter(e=>e.entry_type==='out').reduce((s,e)=>s+Number(e.amount||0),0);
   const net = totalIn - totalOut;
   const netColor = net >= 0 ? 'var(--green)' : 'var(--red)';
@@ -13422,7 +12389,7 @@ function ledgerSetType(type) {
 function ledgerRefreshCatOptions() {
   const sel = document.getElementById('ledger-entry-cat');
   if(!sel) return;
-  const opts = Object.entries(LEDGER_CAT_META).filter(([k,v]) => v.type === _ledgerCurType);
+  const opts = Object.entries(LEDGER_CAT_META).filter(([k,v]) => v.type === _ledgerCurType && !v.legacy);
   sel.innerHTML = opts.map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('');
 }
 
@@ -13443,12 +12410,24 @@ function renderLedgerDayEntries() {
   if(!list) return;
   const entries = _ledgerEntries.filter(e => e.entry_date === _ledgerCurDate)
     .sort((a,b) => (a.created_at||'').localeCompare(b.created_at||''));
-  if(!entries.length) {
+  const d = new Date(_ledgerCurDate + 'T00:00:00');
+  const posSalesMap = computeDailyPosSalesMap(d.getFullYear(), d.getMonth());
+  const posSales = posSalesMap[_ledgerCurDate] || 0;
+
+  const posRow = posSales > 0 ? `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--green-bg);border:1px solid var(--green-border);border-radius:var(--radius-xs);padding:8px 10px">
+      <div>
+        <span style="font-size:10px;font-weight:700;color:var(--green);background:#fff;padding:1px 6px;border-radius:8px">🏪 POS 销售（自动）</span>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">来自门市收银，无需手动输入</div>
+      </div>
+      <span style="font-size:13px;font-weight:700;color:var(--green)">+RM ${posSales.toFixed(2)}</span>
+    </div>` : '';
+
+  if(!entries.length && !posRow) {
     list.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:10px">当天暂无记录</div>';
     return;
   }
-  list.innerHTML = entries.map(e => {
-    const meta = LEDGER_CAT_META[e.category] || (e.entry_type === 'in' ? LEDGER_CAT_META.sales : LEDGER_CAT_META.misc);
+  list.innerHTML = posRow + entries.map(e => {
+    const meta = LEDGER_CAT_META[e.category] || (e.entry_type === 'in' ? LEDGER_CAT_META.other_in : LEDGER_CAT_META.misc);
     const sign = e.entry_type === 'in' ? '+' : '-';
     const color = e.entry_type === 'in' ? 'var(--green)' : 'var(--red)';
     return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 10px">
