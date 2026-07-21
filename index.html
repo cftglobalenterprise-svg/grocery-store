@@ -1434,37 +1434,56 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 
       <!-- ══ DAILY LEDGER CALENDAR PAGE ══════════════════════════════════ -->
       <div id="page-ledger" class="page">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:20px;font-weight:700">📅 每日记账</div>
-            <div style="font-size:12px;color:var(--text3);margin-top:3px">每日进账 · 出账 · 独立记录，不影响其他数据</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">每日进账 · 出账 · 应付欠款追踪，独立记录，不影响其他数据</div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;gap:8px;align-items:center" id="ledger-month-nav">
             <button onclick="ledgerPrevMonth()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface);cursor:pointer;font-size:16px">‹</button>
             <span id="ledger-month-label" style="font-size:15px;font-weight:700;min-width:120px;text-align:center"></span>
             <button onclick="ledgerNextMonth()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface);cursor:pointer;font-size:16px">›</button>
           </div>
         </div>
 
-        <!-- Monthly summary cards -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px" id="ledger-summary-cards"></div>
-
-        <!-- Calendar grid -->
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
-          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--red);padding:4px">日</div>
-          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">一</div>
-          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">二</div>
-          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">三</div>
-          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">四</div>
-          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">五</div>
-          <div style="text-align:center;font-size:11px;font-weight:700;color:var(--blue);padding:4px">六</div>
+        <!-- Sub-tabs -->
+        <div style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:16px">
+          <button class="ledger-tab-btn" id="ledgertab-calendar" onclick="switchLedgerTab('calendar')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">📅 日历</button>
+          <button class="ledger-tab-btn" id="ledgertab-payables" onclick="switchLedgerTab('payables')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📒 应付/欠款追踪</button>
         </div>
-        <div id="ledger-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
 
-        <!-- Category breakdown -->
-        <div style="margin-top:20px">
-          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📊 本月出账分类</div>
-          <div id="ledger-cat-breakdown" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px"></div>
+        <!-- ── 日历 tab ── -->
+        <div id="ledger-tab-calendar">
+          <!-- Monthly summary cards -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px" id="ledger-summary-cards"></div>
+
+          <!-- Calendar grid -->
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--red);padding:4px">日</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">一</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">二</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">三</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">四</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">五</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--blue);padding:4px">六</div>
+          </div>
+          <div id="ledger-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+
+          <!-- Category breakdown -->
+          <div style="margin-top:20px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📊 本月出账分类</div>
+            <div id="ledger-cat-breakdown" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px"></div>
+          </div>
+        </div>
+
+        <!-- ── 应付/欠款追踪 tab ── -->
+        <div id="ledger-tab-payables" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+            <div style="font-size:12px;color:var(--text3)">追踪欠供应商的钱 · 跟每日记账的支出是分开的两件事，不会重复算成本</div>
+            <button class="btn btn-success" onclick="openPayableModal()">+ 新增应付款</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px" id="payable-summary-cards"></div>
+          <div id="payable-list"></div>
         </div>
 
         <!-- Day Edit Modal -->
@@ -1498,6 +1517,76 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 
             <div style="text-align:right;margin-top:14px">
               <button onclick="ledgerCloseModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">关闭</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add/Edit Payable Modal -->
+        <div id="payable-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;align-items:center;justify-content:center">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:420px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+            <div style="font-size:16px;font-weight:700;margin-bottom:16px" id="payable-modal-title">新增应付款</div>
+            <input type="hidden" id="payable-edit-id">
+            <div style="margin-bottom:10px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">供应商名称</div>
+              <input type="text" id="payable-supplier" placeholder="例：ABC Trading" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            </div>
+            <div style="margin-bottom:10px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">到货 / 开单日期</div>
+              <input type="date" id="payable-date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            </div>
+            <div style="margin-bottom:10px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">总金额 (RM)</div>
+              <input type="number" id="payable-amount" step="0.01" placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            </div>
+            <div style="margin-bottom:12px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">备注（可选）</div>
+              <input type="text" id="payable-note" placeholder="例：Invoice #1234" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            </div>
+            <label id="payable-auto-ledger-row" style="display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:12px;color:var(--text2);cursor:pointer">
+              <input type="checkbox" id="payable-auto-ledger" checked style="width:16px;height:16px;flex-shrink:0">
+              同时记一笔「进货成本」到每日记账（避免漏记成本，之后还款不会再重复记录）
+            </label>
+            <button onclick="savePayable()" style="width:100%;padding:10px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:700">保存</button>
+            <div style="text-align:right;margin-top:10px">
+              <button onclick="closePayableModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">取消</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Record Payment Modal -->
+        <div id="payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2100;align-items:center;justify-content:center">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:400px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px" id="payment-modal-title">还款记录</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:14px" id="payment-modal-sub"></div>
+            <input type="hidden" id="payment-payable-id">
+            <div id="payment-history" style="margin-bottom:14px"></div>
+            <div style="border-top:1px solid var(--border);padding-top:14px">
+              <div style="font-size:12px;font-weight:700;margin-bottom:10px">➕ 新增还款</div>
+              <div style="margin-bottom:10px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">还款日期</div>
+                <input type="date" id="payment-date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <div style="margin-bottom:10px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">金额 (RM)</div>
+                <input type="number" id="payment-amount" step="0.01" placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <div style="margin-bottom:10px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">付款方式</div>
+                <select id="payment-method" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)">
+                  <option value="cash">现金</option>
+                  <option value="transfer">转账</option>
+                  <option value="qr">QR</option>
+                  <option value="other">其他</option>
+                </select>
+              </div>
+              <div style="margin-bottom:14px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">备注（可选）</div>
+                <input type="text" id="payment-note" placeholder="备注..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <button onclick="savePayment()" style="width:100%;padding:10px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:700">保存还款</button>
+            </div>
+            <div style="text-align:right;margin-top:14px">
+              <button onclick="closePaymentModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">关闭</button>
             </div>
           </div>
         </div>
@@ -12230,6 +12319,7 @@ async function renderLedgerPage() {
   ]);
   renderLedgerGrid();
   renderLedgerSummary();
+  switchLedgerTab('calendar');
 }
 
 // Real POS sales, bucketed per day for the given month — same formula as HQ dashboard
@@ -12479,6 +12569,229 @@ async function ledgerDeleteEntry(id) {
 
 function ledgerCloseModal() {
   document.getElementById('ledger-day-modal').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════════════
+// SUPPLIER PAYABLES / INSTALLMENT TRACKER — same page, separate tab
+// Independent of daily_ledger's P&L numbers: recording a payable can
+// optionally also log the purchase cost into 每日记账 once (checkbox),
+// but repayments never re-touch 每日记账 — they only reduce the
+// outstanding balance shown here, avoiding any double-counting.
+// ══════════════════════════════════════════════════════════════
+let _ledgerTab = 'calendar';
+let _payables = [];
+let _payablePayments = [];
+
+function switchLedgerTab(tab) {
+  _ledgerTab = tab;
+  const calDiv = document.getElementById('ledger-tab-calendar');
+  const payDiv = document.getElementById('ledger-tab-payables');
+  const calBtn = document.getElementById('ledgertab-calendar');
+  const payBtn = document.getElementById('ledgertab-payables');
+  const monthNav = document.getElementById('ledger-month-nav');
+  const isCalendar = tab === 'calendar';
+  if(calDiv) calDiv.style.display = isCalendar ? '' : 'none';
+  if(payDiv) payDiv.style.display = isCalendar ? 'none' : '';
+  if(monthNav) monthNav.style.display = isCalendar ? '' : 'none';
+  if(calBtn) { calBtn.style.background = isCalendar ? 'var(--text)' : 'var(--surface)'; calBtn.style.color = isCalendar ? '#fff' : 'var(--text2)'; }
+  if(payBtn) { payBtn.style.background = isCalendar ? 'var(--surface)' : 'var(--text)'; payBtn.style.color = isCalendar ? 'var(--text2)' : '#fff'; }
+  if(!isCalendar) renderPayablesTab();
+}
+
+async function loadPayables() {
+  const [p, pay] = await Promise.all([
+    sb.from('supplier_payables').select('*').order('invoice_date', {ascending:false}),
+    sb.from('supplier_payments').select('*').order('payment_date'),
+  ]);
+  _payables = p.data || [];
+  _payablePayments = pay.data || [];
+}
+
+function payablePaidTotal(id) {
+  return _payablePayments.filter(p => String(p.payable_id) === String(id)).reduce((s,p)=>s+Number(p.amount||0),0);
+}
+
+async function renderPayablesTab() {
+  await loadPayables();
+
+  const totalOwed = _payables.reduce((s,p) => {
+    const remaining = Number(p.total_amount||0) - payablePaidTotal(p.id);
+    return s + Math.max(0, remaining);
+  }, 0);
+  const now = new Date();
+  const monthStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const paidThisMonth = _payablePayments.filter(p => p.payment_date && p.payment_date.startsWith(monthStr)).reduce((s,p)=>s+Number(p.amount||0),0);
+
+  const cards = document.getElementById('payable-summary-cards');
+  if(cards) {
+    cards.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600">目前总欠款</div>
+        <div style="font-size:20px;font-weight:800;color:var(--red);margin-top:4px">RM ${totalOwed.toFixed(2)}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600">本月已还</div>
+        <div style="font-size:20px;font-weight:800;color:var(--green);margin-top:4px">RM ${paidThisMonth.toFixed(2)}</div>
+      </div>`;
+  }
+
+  const list = document.getElementById('payable-list');
+  if(!list) return;
+  if(!_payables.length) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">暂无应付款记录</div>';
+    return;
+  }
+  list.innerHTML = _payables.map(p => {
+    const paid = payablePaidTotal(p.id);
+    const total = Number(p.total_amount||0);
+    const remaining = Math.max(0, total - paid);
+    const status = remaining <= 0
+      ? { label:'已还清', color:'var(--green)', bg:'var(--green-bg)' }
+      : paid > 0 ? { label:'部分已还', color:'#b45309', bg:'#fef3c7' }
+      : { label:'未还', color:'var(--red)', bg:'var(--red-bg)' };
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div style="font-size:14px;font-weight:700">${p.supplier_name}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${p.invoice_date}${p.note ? ' · '+p.note : ''}</div>
+        </div>
+        <span style="font-size:10px;font-weight:700;color:${status.color};background:${status.bg};padding:2px 8px;border-radius:10px;flex-shrink:0">${status.label}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;text-align:center">
+        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase">总额</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace">RM ${total.toFixed(2)}</div></div>
+        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase">已还</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">RM ${paid.toFixed(2)}</div></div>
+        <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase">还剩</div><div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--red)">RM ${remaining.toFixed(2)}</div></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn btn-success" style="flex:1;font-size:12px" ${remaining<=0?'disabled':''} onclick="openPaymentModal('${p.id}')">💰 还款</button>
+        <button class="btn" style="font-size:12px;padding:6px 10px" onclick="openPayableModal('${p.id}')">✏️</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:6px 10px" onclick="deletePayable('${p.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openPayableModal(id) {
+  const p = id ? _payables.find(x=>String(x.id)===String(id)) : null;
+  document.getElementById('payable-modal-title').textContent = id ? '编辑应付款' : '新增应付款';
+  document.getElementById('payable-edit-id').value = id || '';
+  document.getElementById('payable-supplier').value = p?.supplier_name || '';
+  document.getElementById('payable-date').value = p?.invoice_date || new Date().toISOString().slice(0,10);
+  document.getElementById('payable-amount').value = p?.total_amount || '';
+  document.getElementById('payable-note').value = p?.note || '';
+  const autoRow = document.getElementById('payable-auto-ledger-row');
+  const autoBox = document.getElementById('payable-auto-ledger');
+  if(id) { if(autoRow) autoRow.style.display = 'none'; } // editing — don't offer to re-log the expense
+  else { if(autoRow) autoRow.style.display = 'flex'; if(autoBox) autoBox.checked = true; }
+  document.getElementById('payable-modal').style.display = 'flex';
+}
+function closePayableModal() {
+  document.getElementById('payable-modal').style.display = 'none';
+}
+
+async function savePayable() {
+  const id = document.getElementById('payable-edit-id').value || null;
+  const supplier_name = document.getElementById('payable-supplier').value.trim();
+  const invoice_date = document.getElementById('payable-date').value;
+  const total_amount = parseFloat(document.getElementById('payable-amount').value);
+  const note = document.getElementById('payable-note').value.trim();
+  if(!supplier_name || !invoice_date || !total_amount || total_amount <= 0) { alert('请填写供应商名称、日期和金额'); return; }
+
+  const payload = { supplier_name, invoice_date, total_amount, note: note || null };
+  if(id) {
+    await sb.from('supplier_payables').update(payload).eq('id', id);
+  } else {
+    await sb.from('supplier_payables').insert(payload);
+    const autoBox = document.getElementById('payable-auto-ledger');
+    if(autoBox && autoBox.checked) {
+      await sb.from('daily_ledger').insert({
+        entry_date: invoice_date, entry_type: 'out', category: 'purchase',
+        amount: total_amount, note: '应付欠款 · ' + supplier_name + (note ? ' · '+note : '')
+      });
+      await loadLedgerEntries();
+    }
+  }
+  closePayableModal();
+  await renderPayablesTab();
+  showPosToast('✅ 应付款已保存');
+}
+
+async function deletePayable(id) {
+  if(!confirm('删除这笔应付款记录？（不会影响已经记进每日记账的支出）')) return;
+  await sb.from('supplier_payables').delete().eq('id', id);
+  await renderPayablesTab();
+  showPosToast('✅ 已删除');
+}
+
+function openPaymentModal(payableId) {
+  const p = _payables.find(x=>String(x.id)===String(payableId));
+  if(!p) return;
+  document.getElementById('payment-payable-id').value = payableId;
+  const remaining = Math.max(0, Number(p.total_amount||0) - payablePaidTotal(payableId));
+  document.getElementById('payment-modal-title').textContent = '还款 — ' + p.supplier_name;
+  document.getElementById('payment-modal-sub').textContent = '总额 RM ' + Number(p.total_amount).toFixed(2) + ' · 还剩 RM ' + remaining.toFixed(2);
+  document.getElementById('payment-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('payment-amount').value = '';
+  document.getElementById('payment-method').value = 'cash';
+  document.getElementById('payment-note').value = '';
+  renderPaymentHistory(payableId);
+  document.getElementById('payment-modal').style.display = 'flex';
+}
+function closePaymentModal() {
+  document.getElementById('payment-modal').style.display = 'none';
+}
+
+function renderPaymentHistory(payableId) {
+  const el = document.getElementById('payment-history');
+  if(!el) return;
+  const history = _payablePayments.filter(p => String(p.payable_id) === String(payableId))
+    .sort((a,b) => (a.payment_date||'').localeCompare(b.payment_date||''));
+  if(!history.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px">还没有还款记录</div>'; return; }
+  const methodLabel = { cash:'现金', transfer:'转账', qr:'QR', other:'其他' };
+  el.innerHTML = history.map(h => `
+    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:var(--radius-xs);padding:7px 10px;margin-bottom:5px;font-size:12px">
+      <div>
+        <span style="color:var(--text3)">${h.payment_date}</span>
+        <span style="margin-left:6px;color:var(--text3)">${methodLabel[h.method]||h.method||''}</span>
+        ${h.note ? `<div style="font-size:11px;color:var(--text3)">${h.note}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-weight:700;color:var(--green)">RM ${Number(h.amount).toFixed(2)}</span>
+        <button onclick="deletePayment('${h.id}','${payableId}')" style="border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+
+async function savePayment() {
+  const payableId = document.getElementById('payment-payable-id').value;
+  const payment_date = document.getElementById('payment-date').value;
+  const amount = parseFloat(document.getElementById('payment-amount').value);
+  const method = document.getElementById('payment-method').value;
+  const note = document.getElementById('payment-note').value.trim();
+  if(!payment_date || !amount || amount <= 0) { alert('请输入日期和有效金额'); return; }
+
+  await sb.from('supplier_payments').insert({ payable_id: payableId, payment_date, amount, method, note: note || null });
+  await loadPayables();
+  renderPaymentHistory(payableId);
+  await renderPayablesTab();
+  showPosToast('✅ 还款已记录');
+
+  const p = _payables.find(x=>String(x.id)===String(payableId));
+  if(p) {
+    const remaining = Math.max(0, Number(p.total_amount||0) - payablePaidTotal(payableId));
+    document.getElementById('payment-modal-sub').textContent = '总额 RM ' + Number(p.total_amount).toFixed(2) + ' · 还剩 RM ' + remaining.toFixed(2);
+  }
+  document.getElementById('payment-amount').value = '';
+  document.getElementById('payment-note').value = '';
+}
+
+async function deletePayment(id, payableId) {
+  if(!confirm('删除这笔还款记录？')) return;
+  await sb.from('supplier_payments').delete().eq('id', id);
+  await loadPayables();
+  renderPaymentHistory(payableId);
+  await renderPayablesTab();
+  showPosToast('✅ 已删除');
 }
 
 </script>
