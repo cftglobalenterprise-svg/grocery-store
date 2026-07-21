@@ -12596,6 +12596,7 @@ function switchLedgerTab(tab) {
   if(calBtn) { calBtn.style.background = isCalendar ? 'var(--text)' : 'var(--surface)'; calBtn.style.color = isCalendar ? '#fff' : 'var(--text2)'; }
   if(payBtn) { payBtn.style.background = isCalendar ? 'var(--surface)' : 'var(--text)'; payBtn.style.color = isCalendar ? 'var(--text2)' : '#fff'; }
   if(!isCalendar) renderPayablesTab();
+  else { renderLedgerGrid(); renderLedgerSummary(); }
 }
 
 async function loadPayables() {
@@ -12709,6 +12710,8 @@ async function savePayable() {
         amount: total_amount, note: '应付欠款 · ' + supplier_name + (note ? ' · '+note : '')
       });
       await loadLedgerEntries();
+      renderLedgerGrid();
+      renderLedgerSummary();
     }
   }
   closePayableModal();
