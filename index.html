@@ -1450,6 +1450,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         <div style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:16px">
           <button class="ledger-tab-btn" id="ledgertab-calendar" onclick="switchLedgerTab('calendar')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">📅 日历</button>
           <button class="ledger-tab-btn" id="ledgertab-payables" onclick="switchLedgerTab('payables')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📒 应付/欠款追踪</button>
+          <button class="ledger-tab-btn" id="ledgertab-personal" onclick="switchLedgerTab('personal')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">👤 个人开销</button>
         </div>
 
         <!-- ── 日历 tab ── -->
@@ -1484,6 +1485,64 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           </div>
           <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px" id="payable-summary-cards"></div>
           <div id="payable-list"></div>
+        </div>
+
+        <!-- ── 个人开销 tab ── -->
+        <div id="ledger-tab-personal" style="display:none">
+          <div style="font-size:12px;color:var(--text3);margin-bottom:14px">你自己的收入/开销 · 完全独立，不会影响生意的每日记账，也不会被稅務 LHDN 读取</div>
+
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px" id="pl-summary-cards"></div>
+
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--red);padding:4px">日</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">一</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">二</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">三</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">四</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px">五</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--blue);padding:4px">六</div>
+          </div>
+          <div id="pl-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+
+          <div style="margin-top:20px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📊 本月个人支出分类</div>
+            <div id="pl-cat-breakdown" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px"></div>
+          </div>
+        </div>
+
+        <!-- Personal Ledger Day Edit Modal -->
+        <div id="pl-day-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;align-items:center;justify-content:center">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:420px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px" id="pl-modal-title">日期</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:16px">当天的个人记录</div>
+            <div id="pl-day-entries" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
+
+            <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
+              <div style="font-size:12px;font-weight:700;margin-bottom:10px">➕ 新增记录</div>
+              <input type="hidden" id="pl-entry-date">
+              <div style="display:flex;gap:8px;margin-bottom:10px">
+                <button id="pl-type-in" onclick="plSetType('in')" style="flex:1;padding:8px;border:1px solid var(--green);border-radius:var(--radius-xs);background:var(--green);color:#fff;cursor:pointer;font-size:13px;font-weight:600">💰 收入</button>
+                <button id="pl-type-out" onclick="plSetType('out')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface);color:var(--text2);cursor:pointer;font-size:13px;font-weight:600">💸 支出</button>
+              </div>
+              <div style="margin-bottom:10px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">类别</div>
+                <select id="pl-entry-cat" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)"></select>
+              </div>
+              <div style="margin-bottom:10px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">金额 (RM)</div>
+                <input type="number" id="pl-entry-amount" step="0.01" placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <div style="margin-bottom:14px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">备注（可选）</div>
+                <input type="text" id="pl-entry-note" placeholder="例：7月Coway月供、油站入油..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <button onclick="plSaveEntry()" style="width:100%;padding:10px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:700">保存</button>
+            </div>
+
+            <div style="text-align:right;margin-top:14px">
+              <button onclick="plCloseModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">关闭</button>
+            </div>
+          </div>
         </div>
 
         <!-- Day Edit Modal -->
@@ -12357,12 +12416,14 @@ function computeDailyPosSalesMap(year, month) {
 function ledgerPrevMonth() {
   _ledgerMonth--;
   if(_ledgerMonth < 0) { _ledgerMonth = 11; _ledgerYear--; }
-  renderLedgerGrid(); renderLedgerSummary();
+  if(_ledgerTab === 'personal') { renderPlGrid(); renderPlSummary(); }
+  else { renderLedgerGrid(); renderLedgerSummary(); }
 }
 function ledgerNextMonth() {
   _ledgerMonth++;
   if(_ledgerMonth > 11) { _ledgerMonth = 0; _ledgerYear++; }
-  renderLedgerGrid(); renderLedgerSummary();
+  if(_ledgerTab === 'personal') { renderPlGrid(); renderPlSummary(); }
+  else { renderLedgerGrid(); renderLedgerSummary(); }
 }
 
 function ledgerMonthEntries() {
@@ -12586,17 +12647,31 @@ function switchLedgerTab(tab) {
   _ledgerTab = tab;
   const calDiv = document.getElementById('ledger-tab-calendar');
   const payDiv = document.getElementById('ledger-tab-payables');
+  const persDiv = document.getElementById('ledger-tab-personal');
   const calBtn = document.getElementById('ledgertab-calendar');
   const payBtn = document.getElementById('ledgertab-payables');
+  const persBtn = document.getElementById('ledgertab-personal');
   const monthNav = document.getElementById('ledger-month-nav');
-  const isCalendar = tab === 'calendar';
-  if(calDiv) calDiv.style.display = isCalendar ? '' : 'none';
-  if(payDiv) payDiv.style.display = isCalendar ? 'none' : '';
-  if(monthNav) monthNav.style.display = isCalendar ? '' : 'none';
-  if(calBtn) { calBtn.style.background = isCalendar ? 'var(--text)' : 'var(--surface)'; calBtn.style.color = isCalendar ? '#fff' : 'var(--text2)'; }
-  if(payBtn) { payBtn.style.background = isCalendar ? 'var(--surface)' : 'var(--text)'; payBtn.style.color = isCalendar ? 'var(--text2)' : '#fff'; }
-  if(!isCalendar) renderPayablesTab();
-  else { renderLedgerGrid(); renderLedgerSummary(); }
+
+  [calDiv, payDiv, persDiv].forEach(d => { if(d) d.style.display = 'none'; });
+  [calBtn, payBtn, persBtn].forEach(b => { if(b) { b.style.background = 'var(--surface)'; b.style.color = 'var(--text2)'; } });
+
+  if(tab === 'calendar') {
+    if(calDiv) calDiv.style.display = '';
+    if(calBtn) { calBtn.style.background = 'var(--text)'; calBtn.style.color = '#fff'; }
+    if(monthNav) monthNav.style.display = '';
+    renderLedgerGrid(); renderLedgerSummary();
+  } else if(tab === 'payables') {
+    if(payDiv) payDiv.style.display = '';
+    if(payBtn) { payBtn.style.background = 'var(--text)'; payBtn.style.color = '#fff'; }
+    if(monthNav) monthNav.style.display = 'none';
+    renderPayablesTab();
+  } else if(tab === 'personal') {
+    if(persDiv) persDiv.style.display = '';
+    if(persBtn) { persBtn.style.background = 'var(--text)'; persBtn.style.color = '#fff'; }
+    if(monthNav) monthNav.style.display = '';
+    renderPlTab();
+  }
 }
 
 async function loadPayables() {
@@ -12795,6 +12870,219 @@ async function deletePayment(id, payableId) {
   renderPaymentHistory(payableId);
   await renderPayablesTab();
   showPosToast('✅ 已删除');
+}
+
+// ══════════════════════════════════════════════════════════════
+// PERSONAL LEDGER — 个人开销, same page, third tab. Fully independent
+// of daily_ledger: does not affect business P&L or 稅務 LHDN in any way.
+// Shares the same month/year navigation state as the business calendar.
+// ══════════════════════════════════════════════════════════════
+const PL_CAT_META = {
+  owner_draw:         { label:'老板提款/工资', color:'#1e6641', bg:'#d4f0dc', type:'in'  },
+  other_in:           { label:'其他收入',      color:'#1a4d7a', bg:'#d6eaf8', type:'in'  },
+  epf:                { label:'EPF供款',       color:'#4338ca', bg:'#e0e7ff', type:'out' },
+  food:               { label:'吃喝',          color:'#b45309', bg:'#fef3c7', type:'out' },
+  petrol:             { label:'打油',          color:'#8b5a00', bg:'#fef3c7', type:'out' },
+  phone_bill:         { label:'电话费',        color:'#0369a1', bg:'#e0f2fe', type:'out' },
+  coway:              { label:'Coway月供',     color:'#0f766e', bg:'#ccfbf1', type:'out' },
+  device_installment: { label:'手机/电脑分期', color:'#a21caf', bg:'#fae8ff', type:'out' },
+  investment:         { label:'投资(Moomoo)',  color:'#7c3aed', bg:'#ede9fe', type:'out' },
+  misc:               { label:'其他',          color:'#475569', bg:'#f1f5f9', type:'out' },
+};
+
+let _plEntries = [];
+let _plCurType = 'in';
+let _plCurDate = '';
+
+async function loadPlEntries() {
+  const { data, error } = await sb.from('personal_ledger').select('*').order('entry_date');
+  if(error) { console.error('personal_ledger load error:', error); _plEntries = []; return; }
+  _plEntries = data || [];
+}
+
+async function renderPlTab() {
+  await loadPlEntries();
+  renderPlGrid();
+  renderPlSummary();
+}
+
+function plMonthEntries() {
+  const monthStr = _ledgerYear + '-' + String(_ledgerMonth+1).padStart(2,'0');
+  return _plEntries.filter(e => e.entry_date && e.entry_date.startsWith(monthStr));
+}
+
+function renderPlGrid() {
+  const grid = document.getElementById('pl-grid');
+  if(!grid) return;
+
+  const today = new Date().toISOString().slice(0,10);
+  const firstDay = new Date(_ledgerYear, _ledgerMonth, 1).getDay();
+  const daysInMonth = new Date(_ledgerYear, _ledgerMonth+1, 0).getDate();
+  const monthStr = _ledgerYear + '-' + String(_ledgerMonth+1).padStart(2,'0');
+  const monthEntries = plMonthEntries();
+
+  let cells = '';
+  for(let i = 0; i < firstDay; i++) cells += '<div style="min-height:78px"></div>';
+
+  for(let d = 1; d <= daysInMonth; d++) {
+    const dateStr = monthStr + '-' + String(d).padStart(2,'0');
+    const dayEntries = monthEntries.filter(e => e.entry_date === dateStr);
+    const dayIn = dayEntries.filter(e=>e.entry_type==='in').reduce((s,e)=>s+Number(e.amount||0),0);
+    const dayOut = dayEntries.filter(e=>e.entry_type==='out').reduce((s,e)=>s+Number(e.amount||0),0);
+    const isToday = dateStr === today;
+    const isSun = new Date(_ledgerYear, _ledgerMonth, d).getDay() === 0;
+    const isSat = new Date(_ledgerYear, _ledgerMonth, d).getDay() === 6;
+    const dayColor = isSun ? '#ef4444' : isSat ? '#3b82f6' : 'var(--text)';
+    const todayStyle = isToday ? 'border:2px solid var(--blue);' : 'border:1px solid var(--border);';
+
+    cells += `<div style="${todayStyle}background:var(--surface);border-radius:6px;padding:5px;min-height:78px;cursor:pointer" onclick="plOpenDay('${dateStr}')">
+      <div style="font-size:12px;font-weight:700;color:${dayColor};margin-bottom:3px">${d}</div>
+      ${dayIn > 0 ? `<div style="font-size:10px;color:var(--green);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">进 RM${dayIn.toFixed(0)}</div>` : ''}
+      ${dayOut > 0 ? `<div style="font-size:10px;color:var(--red);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">出 RM${dayOut.toFixed(0)}</div>` : ''}
+    </div>`;
+  }
+  grid.innerHTML = cells;
+}
+
+function renderPlSummary() {
+  const monthEntries = plMonthEntries();
+  const totalIn = monthEntries.filter(e=>e.entry_type==='in').reduce((s,e)=>s+Number(e.amount||0),0);
+  const totalOut = monthEntries.filter(e=>e.entry_type==='out').reduce((s,e)=>s+Number(e.amount||0),0);
+  const net = totalIn - totalOut;
+  const netColor = net >= 0 ? 'var(--green)' : 'var(--red)';
+
+  const cards = document.getElementById('pl-summary-cards');
+  if(cards) {
+    cards.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600">本月收入</div>
+        <div style="font-size:20px;font-weight:800;color:var(--green);margin-top:4px">RM ${totalIn.toFixed(2)}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600">本月支出</div>
+        <div style="font-size:20px;font-weight:800;color:var(--red);margin-top:4px">RM ${totalOut.toFixed(2)}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600">净剩</div>
+        <div style="font-size:20px;font-weight:800;color:${netColor};margin-top:4px">RM ${net.toFixed(2)}</div>
+      </div>`;
+  }
+
+  const catTotals = {};
+  monthEntries.filter(e=>e.entry_type==='out').forEach(e => {
+    const cat = e.category || 'misc';
+    catTotals[cat] = (catTotals[cat]||0) + Number(e.amount||0);
+  });
+  const catEl = document.getElementById('pl-cat-breakdown');
+  if(catEl) {
+    const keys = Object.keys(catTotals);
+    if(!keys.length) {
+      catEl.innerHTML = '<div style="font-size:12px;color:var(--text3)">本月暂无个人支出记录</div>';
+    } else {
+      catEl.innerHTML = keys.map(k => {
+        const meta = PL_CAT_META[k] || PL_CAT_META.misc;
+        return `<div style="background:${meta.bg};border-radius:var(--radius-xs);padding:10px">
+          <div style="font-size:10px;font-weight:700;color:${meta.color}">${meta.label}</div>
+          <div style="font-size:15px;font-weight:800;color:${meta.color};margin-top:2px">RM ${catTotals[k].toFixed(2)}</div>
+        </div>`;
+      }).join('');
+    }
+  }
+}
+
+function plSetType(type) {
+  _plCurType = type;
+  const inBtn = document.getElementById('pl-type-in');
+  const outBtn = document.getElementById('pl-type-out');
+  if(inBtn && outBtn) {
+    if(type === 'in') {
+      inBtn.style.background = 'var(--green)'; inBtn.style.color = '#fff'; inBtn.style.borderColor = 'var(--green)';
+      outBtn.style.background = 'var(--surface)'; outBtn.style.color = 'var(--text2)'; outBtn.style.borderColor = 'var(--border)';
+    } else {
+      outBtn.style.background = 'var(--red)'; outBtn.style.color = '#fff'; outBtn.style.borderColor = 'var(--red)';
+      inBtn.style.background = 'var(--surface)'; inBtn.style.color = 'var(--text2)'; inBtn.style.borderColor = 'var(--border)';
+    }
+  }
+  plRefreshCatOptions();
+}
+
+function plRefreshCatOptions() {
+  const sel = document.getElementById('pl-entry-cat');
+  if(!sel) return;
+  const opts = Object.entries(PL_CAT_META).filter(([k,v]) => v.type === _plCurType);
+  sel.innerHTML = opts.map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('');
+}
+
+function plOpenDay(dateStr) {
+  _plCurDate = dateStr;
+  document.getElementById('pl-entry-date').value = dateStr;
+  const d = new Date(dateStr + 'T00:00:00');
+  document.getElementById('pl-modal-title').textContent = (d.getMonth()+1) + '月' + d.getDate() + '日';
+  document.getElementById('pl-entry-amount').value = '';
+  document.getElementById('pl-entry-note').value = '';
+  plSetType('in');
+  renderPlDayEntries();
+  document.getElementById('pl-day-modal').style.display = 'flex';
+}
+
+function renderPlDayEntries() {
+  const list = document.getElementById('pl-day-entries');
+  if(!list) return;
+  const entries = _plEntries.filter(e => e.entry_date === _plCurDate)
+    .sort((a,b) => (a.created_at||'').localeCompare(b.created_at||''));
+  if(!entries.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:10px">当天暂无记录</div>';
+    return;
+  }
+  list.innerHTML = entries.map(e => {
+    const meta = PL_CAT_META[e.category] || (e.entry_type === 'in' ? PL_CAT_META.other_in : PL_CAT_META.misc);
+    const sign = e.entry_type === 'in' ? '+' : '-';
+    const color = e.entry_type === 'in' ? 'var(--green)' : 'var(--red)';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 10px">
+      <div>
+        <span style="font-size:10px;font-weight:700;color:${meta.color};background:${meta.bg};padding:1px 6px;border-radius:8px">${meta.label}</span>
+        ${e.note ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${e.note}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;font-weight:700;color:${color}">${sign}RM ${Number(e.amount).toFixed(2)}</span>
+        <button onclick="plDeleteEntry('${e.id}')" style="border:none;background:none;color:var(--text3);cursor:pointer;font-size:13px">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function plSaveEntry() {
+  const date = document.getElementById('pl-entry-date').value;
+  const amount = parseFloat(document.getElementById('pl-entry-amount').value);
+  const cat = document.getElementById('pl-entry-cat').value;
+  const note = document.getElementById('pl-entry-note').value.trim();
+  if(!date || !amount || amount <= 0) { alert('请输入日期和有效金额'); return; }
+
+  const { error } = await sb.from('personal_ledger').insert({
+    entry_date: date, entry_type: _plCurType, category: cat, amount: amount, note: note || null
+  });
+  if(error) { alert('保存失败：' + error.message); return; }
+
+  document.getElementById('pl-entry-amount').value = '';
+  document.getElementById('pl-entry-note').value = '';
+  await loadPlEntries();
+  renderPlDayEntries();
+  renderPlGrid();
+  renderPlSummary();
+}
+
+async function plDeleteEntry(id) {
+  if(!confirm('删除这笔记录？')) return;
+  const { error } = await sb.from('personal_ledger').delete().eq('id', id);
+  if(error) { alert('删除失败：' + error.message); return; }
+  await loadPlEntries();
+  renderPlDayEntries();
+  renderPlGrid();
+  renderPlSummary();
+}
+
+function plCloseModal() {
+  document.getElementById('pl-day-modal').style.display = 'none';
 }
 
 </script>
