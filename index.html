@@ -12924,16 +12924,14 @@ async function deletePayment(id, payableId) {
 // Shares the same month/year navigation state as the business calendar.
 // ══════════════════════════════════════════════════════════════
 const PL_CAT_META = {
-  owner_draw:         { label:'老板提款/工资', color:'#1e6641', bg:'#d4f0dc', type:'in'  },
-  other_in:           { label:'其他收入',      color:'#1a4d7a', bg:'#d6eaf8', type:'in'  },
-  epf:                { label:'EPF供款',       color:'#4338ca', bg:'#e0e7ff', type:'out' },
-  food:               { label:'吃喝',          color:'#b45309', bg:'#fef3c7', type:'out' },
-  petrol:             { label:'打油',          color:'#8b5a00', bg:'#fef3c7', type:'out' },
-  phone_bill:         { label:'电话费',        color:'#0369a1', bg:'#e0f2fe', type:'out' },
-  coway:              { label:'Coway月供',     color:'#0f766e', bg:'#ccfbf1', type:'out' },
-  device_installment: { label:'手机/电脑分期', color:'#a21caf', bg:'#fae8ff', type:'out' },
-  investment:         { label:'投资(Moomoo)',  color:'#7c3aed', bg:'#ede9fe', type:'out' },
-  misc:               { label:'其他',          color:'#475569', bg:'#f1f5f9', type:'out' },
+  owner_draw: { label:'老板提款/工资',        color:'#1e6641', bg:'#d4f0dc', type:'in'  },
+  other_in:   { label:'其他收入',             color:'#1a4d7a', bg:'#d6eaf8', type:'in'  },
+  // 跟「收入分配」共用同一套分类 (id 完全对应 BUDGET_CATS)，记一笔支出就是从对应格子扣钱
+  living:     { label:'🍚 生活需求',          color:'#1e6641', bg:'#d4f0dc', type:'out' },
+  savings:    { label:'💰 储蓄(投资/定投)',   color:'#4338ca', bg:'#e0e7ff', type:'out' },
+  growth:     { label:'📚 自我提升',          color:'#0369a1', bg:'#e0f2fe', type:'out' },
+  emergency:  { label:'🛡️ 紧急备用金',        color:'#b45309', bg:'#fef3c7', type:'out' },
+  fun:        { label:'🎮 娱乐',              color:'#a21caf', bg:'#fae8ff', type:'out' },
 };
 
 let _plEntries = [];
@@ -13026,7 +13024,7 @@ function renderPlSummary() {
       catEl.innerHTML = '<div style="font-size:12px;color:var(--text3)">本月暂无个人支出记录</div>';
     } else {
       catEl.innerHTML = keys.map(k => {
-        const meta = PL_CAT_META[k] || PL_CAT_META.misc;
+        const meta = PL_CAT_META[k] || { label:k||'其他', color:'#475569', bg:'#f1f5f9' };
         return `<div style="background:${meta.bg};border-radius:var(--radius-xs);padding:10px">
           <div style="font-size:10px;font-weight:700;color:${meta.color}">${meta.label}</div>
           <div style="font-size:15px;font-weight:800;color:${meta.color};margin-top:2px">RM ${catTotals[k].toFixed(2)}</div>
@@ -13081,7 +13079,7 @@ function renderPlDayEntries() {
     return;
   }
   list.innerHTML = entries.map(e => {
-    const meta = PL_CAT_META[e.category] || (e.entry_type === 'in' ? PL_CAT_META.other_in : PL_CAT_META.misc);
+    const meta = PL_CAT_META[e.category] || { label: e.category || '其他', color:'#475569', bg:'#f1f5f9' };
     const sign = e.entry_type === 'in' ? '+' : '-';
     const color = e.entry_type === 'in' ? 'var(--green)' : 'var(--red)';
     return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 10px">
@@ -13159,6 +13157,7 @@ async function loadBudgetData() {
   const [allocRes, pctRes] = await Promise.all([
     sb.from('budget_allocations').select('*'),
     sb.from('budget_categories').select('*'),
+    (typeof loadPlEntries === 'function') ? loadPlEntries() : Promise.resolve(),
   ]);
   _budgetAllocations = allocRes.data || [];
   const pctRows = pctRes.data || [];
@@ -13218,19 +13217,29 @@ function renderBudgetCatGrid() {
   const monthStr = budgetMonthStr(_budgetYear, _budgetMonth);
   const thisMonthSalary = Number((_budgetAllocations.find(a => a.month === monthStr) || {}).salary_amount || 0);
   const totalSalaryAllTime = _budgetAllocations.reduce((s,a) => s + Number(a.salary_amount||0), 0);
+  const plEntries = typeof _plEntries !== 'undefined' ? _plEntries : [];
 
   grid.innerHTML = BUDGET_CATS.map(c => {
     const pct = _budgetPct[c.id] ?? BUDGET_DEFAULT_PCT[c.id];
     const thisMonthAmt = thisMonthSalary * (pct/100);
     const totalAmt = totalSalaryAllTime * (pct/100);
+    const spentThisMonth = plEntries
+      .filter(e => e.entry_type === 'out' && e.category === c.id && e.entry_date && e.entry_date.startsWith(monthStr))
+      .reduce((s,e) => s + Number(e.amount||0), 0);
+    const remaining = thisMonthAmt - spentThisMonth;
+    const remainColor = remaining < 0 ? 'var(--red)' : c.color;
     return `<div style="background:${c.bg};border-radius:var(--radius);padding:14px">
       <div style="font-size:20px">${c.emoji}</div>
       <div style="font-size:12px;font-weight:700;color:${c.color};margin-top:4px">${c.label}</div>
       <div style="font-size:11px;color:${c.color};opacity:.75">${pct}%</div>
-      <div style="margin-top:10px;font-size:10px;color:${c.color};opacity:.8">本月</div>
-      <div style="font-size:16px;font-weight:800;color:${c.color};font-family:'DM Mono',monospace">RM ${thisMonthAmt.toFixed(2)}</div>
-      <div style="margin-top:6px;font-size:10px;color:${c.color};opacity:.8">累计总额</div>
-      <div style="font-size:14px;font-weight:700;color:${c.color};font-family:'DM Mono',monospace">RM ${totalAmt.toFixed(2)}</div>
+      <div style="margin-top:10px;font-size:10px;color:${c.color};opacity:.8">本月分配</div>
+      <div style="font-size:15px;font-weight:800;color:${c.color};font-family:'DM Mono',monospace">RM ${thisMonthAmt.toFixed(2)}</div>
+      <div style="margin-top:6px;font-size:10px;color:${c.color};opacity:.8">本月已用</div>
+      <div style="font-size:13px;font-weight:700;color:${c.color};font-family:'DM Mono',monospace">RM ${spentThisMonth.toFixed(2)}</div>
+      <div style="margin-top:6px;font-size:10px;color:${c.color};opacity:.8">本月剩余</div>
+      <div style="font-size:14px;font-weight:800;color:${remainColor};font-family:'DM Mono',monospace">RM ${remaining.toFixed(2)}</div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,.08);font-size:10px;color:${c.color};opacity:.8">累计总额</div>
+      <div style="font-size:13px;font-weight:700;color:${c.color};font-family:'DM Mono',monospace">RM ${totalAmt.toFixed(2)}</div>
     </div>`;
   }).join('');
 }
