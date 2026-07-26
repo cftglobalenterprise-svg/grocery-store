@@ -1451,6 +1451,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           <button class="ledger-tab-btn" id="ledgertab-calendar" onclick="switchLedgerTab('calendar')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">📅 日历</button>
           <button class="ledger-tab-btn" id="ledgertab-payables" onclick="switchLedgerTab('payables')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📒 应付/欠款追踪</button>
           <button class="ledger-tab-btn" id="ledgertab-personal" onclick="switchLedgerTab('personal')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">👤 个人开销</button>
+          <button class="ledger-tab-btn" id="ledgertab-savings" onclick="switchLedgerTab('savings')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">🎯 储蓄目标</button>
         </div>
 
         <!-- ── 日历 tab ── -->
@@ -1510,10 +1511,78 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           </div>
         </div>
 
+        <!-- ── 储蓄目标 tab ── -->
+        <div id="ledger-tab-savings" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+            <div style="font-size:12px;color:var(--text3)">工资分配到不同口袋 · 紧急备用金、买店头期、买车分开存，各自看进度</div>
+            <button class="btn btn-success" onclick="openSavingsGoalModal()">+ 新增储蓄目标</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px" id="savings-summary-cards"></div>
+          <div id="savings-goal-list"></div>
+        </div>
+
+        <!-- Add/Edit Savings Goal Modal -->
+        <div id="savings-goal-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;align-items:center;justify-content:center">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:420px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+            <div style="font-size:16px;font-weight:700;margin-bottom:16px" id="savings-goal-modal-title">新增储蓄目标</div>
+            <input type="hidden" id="savings-goal-edit-id">
+            <div style="margin-bottom:10px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">口袋名称</div>
+              <input type="text" id="savings-goal-name" placeholder="例：紧急备用金、买店头期、买车" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            </div>
+            <div style="margin-bottom:10px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">目标金额 (RM) — 可留空，不设目标就纯粹记录存了多少</div>
+              <input type="number" id="savings-goal-target" step="0.01" placeholder="例：80000（可留空）" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            </div>
+            <div style="margin-bottom:16px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">备注（可选）</div>
+              <input type="text" id="savings-goal-note" placeholder="备注..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            </div>
+            <button onclick="saveSavingsGoal()" style="width:100%;padding:10px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:700">保存</button>
+            <div style="text-align:right;margin-top:10px">
+              <button onclick="closeSavingsGoalModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">取消</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Savings Deposit/Withdraw Modal -->
+        <div id="savings-txn-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2100;align-items:center;justify-content:center">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:400px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px" id="savings-txn-modal-title">存入 / 支出</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:14px" id="savings-txn-modal-sub"></div>
+            <input type="hidden" id="savings-txn-goal-id">
+            <div id="savings-txn-history" style="margin-bottom:14px"></div>
+            <div style="border-top:1px solid var(--border);padding-top:14px">
+              <div style="font-size:12px;font-weight:700;margin-bottom:10px">➕ 新增记录</div>
+              <div style="display:flex;gap:8px;margin-bottom:10px">
+                <button id="savings-txn-type-in" onclick="savingsSetTxnType('in')" style="flex:1;padding:8px;border:1px solid var(--green);border-radius:var(--radius-xs);background:var(--green);color:#fff;cursor:pointer;font-size:13px;font-weight:600">💰 存入</button>
+                <button id="savings-txn-type-out" onclick="savingsSetTxnType('out')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface);color:var(--text2);cursor:pointer;font-size:13px;font-weight:600">📤 支出/使用</button>
+              </div>
+              <div style="margin-bottom:10px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">日期</div>
+                <input type="date" id="savings-txn-date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <div style="margin-bottom:10px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">金额 (RM)</div>
+                <input type="number" id="savings-txn-amount" step="0.01" placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <div style="margin-bottom:14px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">备注（可选）</div>
+                <input type="text" id="savings-txn-note" placeholder="例：7月工资分配..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <button onclick="saveSavingsTxn()" style="width:100%;padding:10px;border:1px solid var(--blue);border-radius:var(--radius-xs);background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:700">保存</button>
+            </div>
+            <div style="text-align:right;margin-top:14px">
+              <button onclick="closeSavingsTxnModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">关闭</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Personal Ledger Day Edit Modal -->
         <div id="pl-day-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;align-items:center;justify-content:center">
           <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:420px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
             <div style="font-size:16px;font-weight:700;margin-bottom:4px" id="pl-modal-title">日期</div>
+
             <div style="font-size:11px;color:var(--text3);margin-bottom:16px">当天的个人记录</div>
             <div id="pl-day-entries" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
 
@@ -12648,13 +12717,15 @@ function switchLedgerTab(tab) {
   const calDiv = document.getElementById('ledger-tab-calendar');
   const payDiv = document.getElementById('ledger-tab-payables');
   const persDiv = document.getElementById('ledger-tab-personal');
+  const savDiv = document.getElementById('ledger-tab-savings');
   const calBtn = document.getElementById('ledgertab-calendar');
   const payBtn = document.getElementById('ledgertab-payables');
   const persBtn = document.getElementById('ledgertab-personal');
+  const savBtn = document.getElementById('ledgertab-savings');
   const monthNav = document.getElementById('ledger-month-nav');
 
-  [calDiv, payDiv, persDiv].forEach(d => { if(d) d.style.display = 'none'; });
-  [calBtn, payBtn, persBtn].forEach(b => { if(b) { b.style.background = 'var(--surface)'; b.style.color = 'var(--text2)'; } });
+  [calDiv, payDiv, persDiv, savDiv].forEach(d => { if(d) d.style.display = 'none'; });
+  [calBtn, payBtn, persBtn, savBtn].forEach(b => { if(b) { b.style.background = 'var(--surface)'; b.style.color = 'var(--text2)'; } });
 
   if(tab === 'calendar') {
     if(calDiv) calDiv.style.display = '';
@@ -12671,6 +12742,11 @@ function switchLedgerTab(tab) {
     if(persBtn) { persBtn.style.background = 'var(--text)'; persBtn.style.color = '#fff'; }
     if(monthNav) monthNav.style.display = '';
     renderPlTab();
+  } else if(tab === 'savings') {
+    if(savDiv) savDiv.style.display = '';
+    if(savBtn) { savBtn.style.background = 'var(--text)'; savBtn.style.color = '#fff'; }
+    if(monthNav) monthNav.style.display = 'none';
+    renderSavingsTab();
   }
 }
 
@@ -13083,6 +13159,201 @@ async function plDeleteEntry(id) {
 
 function plCloseModal() {
   document.getElementById('pl-day-modal').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════════════
+// SAVINGS GOALS ("口袋") — same page, 4th tab. Independent tables,
+// completely separate from daily_ledger / personal_ledger / LHDN.
+// Each goal is a pocket with a running balance (sum of its
+// deposit/withdraw transactions), optionally against a target amount.
+// ══════════════════════════════════════════════════════════════
+let _savingsGoals = [];
+let _savingsTxns = [];
+let _savingsCurTxnType = 'in';
+
+async function loadSavingsGoals() {
+  const [g, t] = await Promise.all([
+    sb.from('savings_goals').select('*').order('created_at'),
+    sb.from('savings_transactions').select('*').order('txn_date'),
+  ]);
+  _savingsGoals = g.data || [];
+  _savingsTxns = t.data || [];
+}
+
+function savingsGoalBalance(goalId) {
+  return _savingsTxns.filter(t => String(t.goal_id) === String(goalId)).reduce((s,t)=>s+Number(t.amount||0),0);
+}
+
+async function renderSavingsTab() {
+  await loadSavingsGoals();
+
+  const totalSaved = _savingsGoals.reduce((s,g) => s + Math.max(0, savingsGoalBalance(g.id)), 0);
+  const cards = document.getElementById('savings-summary-cards');
+  if(cards) {
+    cards.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600">目前总储蓄</div>
+        <div style="font-size:20px;font-weight:800;color:var(--green);margin-top:4px">RM ${totalSaved.toFixed(2)}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600">储蓄口袋数量</div>
+        <div style="font-size:20px;font-weight:800;color:var(--blue);margin-top:4px">${_savingsGoals.length} 个</div>
+      </div>`;
+  }
+
+  const list = document.getElementById('savings-goal-list');
+  if(!list) return;
+  if(!_savingsGoals.length) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">还没有储蓄目标，点右上角新增一个</div>';
+    return;
+  }
+  list.innerHTML = _savingsGoals.map(g => {
+    const balance = savingsGoalBalance(g.id);
+    const target = g.target_amount ? Number(g.target_amount) : null;
+    const pct = target ? Math.min(100, Math.max(0, (balance/target)*100)) : null;
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div style="font-size:14px;font-weight:700">${g.name}</div>
+          ${g.note ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${g.note}</div>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:16px;font-weight:800;color:var(--green);font-family:'DM Mono',monospace">RM ${balance.toFixed(2)}</div>
+          ${target ? `<div style="font-size:10px;color:var(--text3)">目标 RM ${target.toFixed(2)}</div>` : '<div style="font-size:10px;color:var(--text3)">无目标</div>'}
+        </div>
+      </div>
+      ${target ? `<div style="margin-top:8px;background:var(--border);border-radius:6px;height:8px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:var(--green);border-radius:6px"></div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:3px;text-align:right">${pct.toFixed(0)}%</div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn btn-success" style="flex:1;font-size:12px" onclick="openSavingsTxnModal('${g.id}')">💰 存入/支出</button>
+        <button class="btn" style="font-size:12px;padding:6px 10px" onclick="openSavingsGoalModal('${g.id}')">✏️</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:6px 10px" onclick="deleteSavingsGoal('${g.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openSavingsGoalModal(id) {
+  const g = id ? _savingsGoals.find(x=>String(x.id)===String(id)) : null;
+  document.getElementById('savings-goal-modal-title').textContent = id ? '编辑储蓄目标' : '新增储蓄目标';
+  document.getElementById('savings-goal-edit-id').value = id || '';
+  document.getElementById('savings-goal-name').value = g?.name || '';
+  document.getElementById('savings-goal-target').value = g?.target_amount || '';
+  document.getElementById('savings-goal-note').value = g?.note || '';
+  document.getElementById('savings-goal-modal').style.display = 'flex';
+}
+function closeSavingsGoalModal() {
+  document.getElementById('savings-goal-modal').style.display = 'none';
+}
+
+async function saveSavingsGoal() {
+  const id = document.getElementById('savings-goal-edit-id').value || null;
+  const name = document.getElementById('savings-goal-name').value.trim();
+  const targetVal = document.getElementById('savings-goal-target').value;
+  const target_amount = targetVal === '' ? null : parseFloat(targetVal);
+  const note = document.getElementById('savings-goal-note').value.trim();
+  if(!name) { alert('请输入口袋名称'); return; }
+
+  const payload = { name, target_amount, note: note || null };
+  if(id) await sb.from('savings_goals').update(payload).eq('id', id);
+  else    await sb.from('savings_goals').insert(payload);
+
+  closeSavingsGoalModal();
+  await renderSavingsTab();
+  showPosToast('✅ 储蓄目标已保存');
+}
+
+async function deleteSavingsGoal(id) {
+  if(!confirm('删除这个储蓄口袋？（连同它的存入/支出记录一起删除）')) return;
+  await sb.from('savings_goals').delete().eq('id', id);
+  await renderSavingsTab();
+  showPosToast('✅ 已删除');
+}
+
+function savingsSetTxnType(type) {
+  _savingsCurTxnType = type;
+  const inBtn = document.getElementById('savings-txn-type-in');
+  const outBtn = document.getElementById('savings-txn-type-out');
+  if(type === 'in') {
+    inBtn.style.background = 'var(--green)'; inBtn.style.color = '#fff'; inBtn.style.borderColor = 'var(--green)';
+    outBtn.style.background = 'var(--surface)'; outBtn.style.color = 'var(--text2)'; outBtn.style.borderColor = 'var(--border)';
+  } else {
+    outBtn.style.background = 'var(--red)'; outBtn.style.color = '#fff'; outBtn.style.borderColor = 'var(--red)';
+    inBtn.style.background = 'var(--surface)'; inBtn.style.color = 'var(--text2)'; inBtn.style.borderColor = 'var(--border)';
+  }
+}
+
+function openSavingsTxnModal(goalId) {
+  const g = _savingsGoals.find(x=>String(x.id)===String(goalId));
+  if(!g) return;
+  document.getElementById('savings-txn-goal-id').value = goalId;
+  const balance = savingsGoalBalance(goalId);
+  document.getElementById('savings-txn-modal-title').textContent = g.name;
+  document.getElementById('savings-txn-modal-sub').textContent = '目前余额 RM ' + balance.toFixed(2) + (g.target_amount ? ' · 目标 RM ' + Number(g.target_amount).toFixed(2) : '');
+  document.getElementById('savings-txn-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('savings-txn-amount').value = '';
+  document.getElementById('savings-txn-note').value = '';
+  savingsSetTxnType('in');
+  renderSavingsTxnHistory(goalId);
+  document.getElementById('savings-txn-modal').style.display = 'flex';
+}
+function closeSavingsTxnModal() {
+  document.getElementById('savings-txn-modal').style.display = 'none';
+}
+
+function renderSavingsTxnHistory(goalId) {
+  const el = document.getElementById('savings-txn-history');
+  if(!el) return;
+  const history = _savingsTxns.filter(t => String(t.goal_id) === String(goalId))
+    .sort((a,b) => (a.txn_date||'').localeCompare(b.txn_date||''));
+  if(!history.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px">还没有记录</div>'; return; }
+  el.innerHTML = history.map(t => {
+    const isIn = Number(t.amount) >= 0;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:var(--radius-xs);padding:7px 10px;margin-bottom:5px;font-size:12px">
+      <div>
+        <span style="color:var(--text3)">${t.txn_date}</span>
+        ${t.note ? `<div style="font-size:11px;color:var(--text3)">${t.note}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-weight:700;color:${isIn?'var(--green)':'var(--red)'}">${isIn?'+':''}RM ${Number(t.amount).toFixed(2)}</span>
+        <button onclick="deleteSavingsTxn('${t.id}','${goalId}')" style="border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveSavingsTxn() {
+  const goalId = document.getElementById('savings-txn-goal-id').value;
+  const txn_date = document.getElementById('savings-txn-date').value;
+  const rawAmount = parseFloat(document.getElementById('savings-txn-amount').value);
+  const note = document.getElementById('savings-txn-note').value.trim();
+  if(!txn_date || !rawAmount || rawAmount <= 0) { alert('请输入日期和有效金额'); return; }
+  const amount = _savingsCurTxnType === 'in' ? rawAmount : -rawAmount;
+
+  await sb.from('savings_transactions').insert({ goal_id: goalId, txn_date, amount, note: note || null });
+  await loadSavingsGoals();
+  renderSavingsTxnHistory(goalId);
+  await renderSavingsTab();
+  showPosToast('✅ 已记录');
+
+  const g = _savingsGoals.find(x=>String(x.id)===String(goalId));
+  if(g) {
+    const balance = savingsGoalBalance(goalId);
+    document.getElementById('savings-txn-modal-sub').textContent = '目前余额 RM ' + balance.toFixed(2) + (g.target_amount ? ' · 目标 RM ' + Number(g.target_amount).toFixed(2) : '');
+  }
+  document.getElementById('savings-txn-amount').value = '';
+  document.getElementById('savings-txn-note').value = '';
+}
+
+async function deleteSavingsTxn(id, goalId) {
+  if(!confirm('删除这笔记录？')) return;
+  await sb.from('savings_transactions').delete().eq('id', id);
+  await loadSavingsGoals();
+  renderSavingsTxnHistory(goalId);
+  await renderSavingsTab();
+  showPosToast('✅ 已删除');
 }
 
 </script>
