@@ -12811,7 +12811,10 @@ function closePayableModal() {
   document.getElementById('payable-modal').style.display = 'none';
 }
 
+let _savePayableBusy = false;
 async function savePayable() {
+  if(_savePayableBusy) return; _savePayableBusy = true;
+  try {
   const id = document.getElementById('payable-edit-id').value || null;
   const supplier_name = document.getElementById('payable-supplier').value.trim();
   const invoice_date = document.getElementById('payable-date').value;
@@ -12838,6 +12841,7 @@ async function savePayable() {
   closePayableModal();
   await renderPayablesTab();
   showPosToast('✅ 应付款已保存');
+  } finally { _savePayableBusy = false; }
 }
 
 async function deletePayable(id) {
