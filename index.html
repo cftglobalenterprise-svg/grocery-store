@@ -7064,6 +7064,12 @@ function updateTransferQty(id, val) {
   scheduleSaveDraft();
 }
 
+// 从商品名字第一个词取出brand（例如 "KOHS BLACKCURRANT LYCHEE" → "KOHS"）
+function getBrandFromName(name) {
+  if(!name) return '';
+  return name.trim().split(/\s+/)[0].toUpperCase();
+}
+
 function renderTransferCart() {
   const wrap = document.getElementById('transfer-cart-wrap');
   const listEl = document.getElementById('transfer-cart-list');
@@ -7071,9 +7077,25 @@ function renderTransferCart() {
   if(!transferCart.length) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
   countEl.textContent = transferCart.length + ' 项';
-  listEl.innerHTML = transferCart.map(r => {
-    const it = items.find(i => String(i.id) === String(r.itemId));
-    if(!it) return '';
+
+  // 按brand分组排序，方便实际去拿货时同一个牌子的东西排在一起
+  const rows = transferCart
+    .map(r => ({ r, it: items.find(i => String(i.id) === String(r.itemId)) }))
+    .filter(x => x.it);
+  rows.sort((a,b) => {
+    const ba = getBrandFromName(a.it.name), bb = getBrandFromName(b.it.name);
+    if(ba !== bb) return ba < bb ? -1 : 1;
+    return a.it.name < b.it.name ? -1 : (a.it.name > b.it.name ? 1 : 0);
+  });
+
+  let lastBrand = null;
+  let html = '';
+  rows.forEach(({r, it}) => {
+    const brand = getBrandFromName(it.name);
+    if(brand !== lastBrand) {
+      html += `<div style="font-size:11px;font-weight:700;color:var(--blue);letter-spacing:0.5px;padding:8px 2px 4px;text-transform:uppercase">${brand}</div>`;
+      lastBrand = brand;
+    }
     // 有目标库存的品项，显示缺口资讯（是否只能部分补足）
     let gapNote = '';
     if(it.target_stock !== null && it.target_stock !== undefined) {
@@ -7084,7 +7106,7 @@ function renderTransferCart() {
         gapNote = `<br><small style="color:var(--text3);font-weight:400">目标库存 ${it.target_stock}</small>`;
       }
     }
-    return `<div class="cart-item">
+    html += `<div class="cart-item">
       <div class="cart-item-name">${it.name}<br>
         <small style="color:var(--text3);font-weight:400">家里:${it.home_qty} 店里:${it.shop_qty}</small>${gapNote}
       </div>
@@ -7096,7 +7118,8 @@ function renderTransferCart() {
       </div>
       <button class="cart-remove" onclick="removeFromTransferCart('${it.id}')">✕</button>
     </div>`;
-  }).join('');
+  });
+  listEl.innerHTML = html;
 }
 
 function renderSupplierList() {
@@ -7105,14 +7128,30 @@ function renderSupplierList() {
   if(!wrap || !listEl) return;
   if(!supplierNeededList.length) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
-  listEl.innerHTML = supplierNeededList.map(s => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border:1px solid var(--red);border-radius:var(--radius-xs);margin-bottom:6px;background:rgba(220,38,38,0.06)">
+
+  const sorted = [...supplierNeededList].sort((a,b) => {
+    const ba = getBrandFromName(a.name), bb = getBrandFromName(b.name);
+    if(ba !== bb) return ba < bb ? -1 : 1;
+    return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0);
+  });
+
+  let lastBrand = null;
+  let html = '';
+  sorted.forEach(s => {
+    const brand = getBrandFromName(s.name);
+    if(brand !== lastBrand) {
+      html += `<div style="font-size:11px;font-weight:700;color:var(--red);letter-spacing:0.5px;padding:6px 2px 2px;text-transform:uppercase">${brand}</div>`;
+      lastBrand = brand;
+    }
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border:1px solid var(--red);border-radius:var(--radius-xs);margin-bottom:6px;background:rgba(220,38,38,0.06)">
       <div>
         <div style="font-size:13px;font-weight:600">${s.name}</div>
         <div style="font-size:11px;color:var(--text3)">目标 ${s.target_stock} · 店里 0 · 家里 0</div>
       </div>
       <button class="cart-remove" onclick="dismissSupplierItem('${s.itemId}')" title="我知道了,先不管">✕</button>
-    </div>`).join('');
+    </div>`;
+  });
+  listEl.innerHTML = html;
 }
 
 function dismissSupplierItem(id) {
