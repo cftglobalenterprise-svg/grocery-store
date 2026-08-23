@@ -948,10 +948,6 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <button class="btn btn-block" onclick="addItem()">+ 添加商品</button>
               </div>
             </div>
-            <!-- Bulk qty editor entry -->
-            <div class="collapse-card" id="panel-bulk-qty" style="margin-bottom:12px">
-              <button class="btn btn-block" style="background:var(--purple,#6d28d9);border-color:var(--purple,#6d28d9);color:#fff;font-weight:700" onclick="openBulkQtyModal()">⚡ 批量快速编辑数量</button>
-            </div>
             <!-- Restock -->
             <div class="collapse-card" id="panel-restock">
               <div class="collapse-header" onclick="togglePanel('panel-restock')"><span>📦 进货 / 补库存</span><span class="collapse-arrow" id="arrow-panel-restock">▾</span></div>
@@ -1033,6 +1029,11 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 </div>
                 <button onclick="applyBulkPrice()" class="btn btn-block" style="background:var(--green);border-color:var(--green);color:#fff">✅ 确认批量调价</button>
               </div>
+            </div>
+
+            <!-- Bulk qty editor entry -->
+            <div class="collapse-card" id="panel-bulk-qty" style="margin-bottom:12px">
+              <button class="btn btn-block" style="background:var(--purple,#6d28d9);border-color:var(--purple,#6d28d9);color:#fff;font-weight:700" onclick="openBulkQtyModal()">⚡ 批量快速编辑数量</button>
             </div>
 
 </div>
