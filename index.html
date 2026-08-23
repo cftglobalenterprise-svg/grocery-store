@@ -948,6 +948,24 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <button class="btn btn-block" onclick="addItem()">+ 添加商品</button>
               </div>
             </div>
+            <!-- Bulk qty editor -->
+            <div class="collapse-card" id="panel-bulk-qty">
+              <div class="collapse-header" onclick="togglePanel('panel-bulk-qty')"><span>⚡ 批量快速编辑数量</span><span class="collapse-arrow" id="arrow-panel-bulk-qty">▾</span></div>
+              <div class="collapse-body" id="body-panel-bulk-qty" style="display:none;max-height:600px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:8px">改完直接跳下一格就自动存了,不用逐个开弹窗</div>
+                <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+                  <input type="text" id="bulk-qty-search" placeholder="🔍 搜索商品..." oninput="renderBulkQtyEditor()" style="flex:1;min-width:100px">
+                  <select id="bulk-qty-cat" onchange="renderBulkQtyEditor()" style="max-width:110px"><option value="">全部类别</option></select>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 62px 62px 62px;gap:0;background:var(--surface2);padding:6px 8px;border-radius:8px 8px 0 0;position:sticky;top:0;z-index:1">
+                  <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">商品</div>
+                  <div style="font-size:10px;font-weight:700;color:var(--text3);text-align:center">家里</div>
+                  <div style="font-size:10px;font-weight:700;color:var(--text3);text-align:center">店里</div>
+                  <div style="font-size:10px;font-weight:700;color:var(--text3);text-align:center">🎯目标</div>
+                </div>
+                <div id="bulk-qty-list"></div>
+              </div>
+            </div>
             <!-- Restock -->
             <div class="collapse-card" id="panel-restock">
               <div class="collapse-header" onclick="togglePanel('panel-restock')"><span>📦 进货 / 补库存</span><span class="collapse-arrow" id="arrow-panel-restock">▾</span></div>
@@ -5606,6 +5624,64 @@ async function saveCostPrice(itemId, val) {
   showPosToast('✅ 成本已保存');
 }
 
+// ── 批量快速编辑数量（家里 / 店里 / 目标库存）─────────────────────
+function renderBulkQtyEditor() {
+  const q   = (document.getElementById('bulk-qty-search')?.value||'').toLowerCase();
+  const cat = document.getElementById('bulk-qty-cat')?.value||'';
+
+  const catSel = document.getElementById('bulk-qty-cat');
+  if(catSel && catSel.options.length <= 1) {
+    getCategories().forEach(c => {
+      const o = document.createElement('option'); o.value=c; o.textContent=c; catSel.appendChild(o);
+    });
+  }
+
+  const filtered = items.filter(i =>
+    !i.is_service &&
+    (!q || i.name.toLowerCase().includes(q)) &&
+    (!cat || i.category===cat)
+  );
+
+  const el = document.getElementById('bulk-qty-list');
+  if(!el) return;
+  if(!filtered.length) { el.innerHTML='<div class="empty">没有找到商品</div>'; return; }
+
+  el.innerHTML = filtered.map(it => {
+    return `<div id="bulk-qty-row-${it.id}" style="display:grid;grid-template-columns:1fr 62px 62px 62px;gap:0;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border)">
+      <div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600">${it.name}${it.bundle_components?` <span style="font-size:9px;background:#d6eaf8;color:#1a5276;padding:1px 4px;border-radius:4px">套装</span>`:''}</div>
+      <input type="number" min="0" value="${it.home_qty??0}"
+        style="width:56px;padding:4px 3px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace"
+        onchange="saveBulkQtyField('${it.id}','home_qty',this.value)">
+      <input type="number" min="0" value="${it.shop_qty??0}"
+        style="width:56px;padding:4px 3px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace"
+        onchange="saveBulkQtyField('${it.id}','shop_qty',this.value)">
+      <input type="number" min="0" value="${it.target_stock??''}" placeholder="—"
+        style="width:56px;padding:4px 3px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace;color:var(--purple,#6d28d9);font-weight:600"
+        onchange="saveBulkQtyField('${it.id}','target_stock',this.value)">
+    </div>`;
+  }).join('');
+}
+
+async function saveBulkQtyField(itemId, field, val) {
+  const it = items.find(i => String(i.id) === String(itemId));
+  if(!it) return;
+  let newVal;
+  if(field === 'target_stock') {
+    const trimmed = String(val).trim();
+    newVal = trimmed === '' ? null : (+trimmed || 0);
+  } else {
+    newVal = Math.max(0, +val || 0);
+  }
+  const tbl = itemTable(it);
+  const row = document.getElementById('bulk-qty-row-'+itemId);
+  if(row) row.style.opacity = '0.5';
+  const { error } = await sb.from(tbl).update({ [field]: newVal }).eq('id', it.id);
+  if(row) row.style.opacity = '1';
+  if(error) { alert('保存失败：' + error.message); return; }
+  it[field] = newVal;
+  showPosToast('✅ 已存');
+}
+
 // ── MONTHLY P&L ────────────────────────────────────────────────────
 // Fixed expenses in Supabase (pnl_expenses), monthly overrides in localStorage
 let _pnlExpenses = []; // loaded from Supabase
@@ -7914,6 +7990,7 @@ function posSwitchTab(t) {
     setTimeout(() => {
       if(typeof renderBulkPriceList === 'function') renderBulkPriceList();
       if(typeof renderCostEditor === 'function') renderCostEditor();
+      if(typeof renderBulkQtyEditor === 'function') renderBulkQtyEditor();
       const catEl = document.getElementById('cost-cat-filter');
       if(catEl && catEl.options.length <= 1) {
         const cats = [...new Set(items.map(i=>i.category).filter(Boolean))].sort();
