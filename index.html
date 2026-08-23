@@ -7414,8 +7414,9 @@ function posSearchInput(val) {
 
 function handleBarcodeInput(barcode) {
   const now = Date.now();
-  // Prevent double-scan: ignore same barcode within 1.5 seconds
-  if (barcode === _lastBarcodeAdded && now - _lastBarcodeTime < 1500) {
+  // 只挡「同一次物理扫描」被扫描器意外重复触发两次读取的情况（通常发生在几百毫秒内）。
+  // 400ms 之后如果还是同一个条码，视为你故意再扫一次（例如买了2件同款），要正常算进去。
+  if (barcode === _lastBarcodeAdded && now - _lastBarcodeTime < 400) {
     document.getElementById('pos-search-input').value = '';
     return;
   }
