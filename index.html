@@ -967,10 +967,6 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <div><div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">📄 从 Supplier PDF 导入</div><label style="display:block;padding:10px;border:1px dashed var(--border);border-radius:var(--radius-xs);text-align:center;cursor:pointer;font-size:13px;color:var(--text2)">点击上传 PDF<input type="file" id="pdf-upload" accept=".pdf" style="display:none" onchange="handlePdfUpload(this)"></label><div id="pdf-status" style="font-size:12px;color:var(--text2);margin-top:8px;min-height:18px"></div><div id="pdf-results" style="display:none;margin-top:8px"><button class="btn btn-block" onclick="document.getElementById('pdf-modal').classList.add('open');document.body.classList.add('modal-open')">📋 查看识别结果</button></div></div>
               </div>
             </div>
-            <!-- Transfer -->
-            <!-- Transfer stock entry -->
-            <button class="btn btn-block" id="panel-transfer" style="background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700;margin-top:12px" onclick="openTransferModal()">🔄 转移库存（家里→店里）</button>
-          
             <!-- Cost editor panel -->
             <div class="collapse-card" id="panel-cost">
               <div class="collapse-header" onclick="togglePanel('panel-cost')"><span>⚙️ 成本价设置</span><span class="collapse-arrow" id="arrow-panel-cost">▾</span></div>
@@ -1009,6 +1005,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 <button onclick="applyBulkPrice()" class="btn btn-block" style="background:var(--green);border-color:var(--green);color:#fff">✅ 确认批量调价</button>
               </div>
             </div>
+
+            <!-- Transfer stock entry -->
+            <button class="btn btn-block" id="panel-transfer" style="background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700;margin-top:12px" onclick="openTransferModal()">🔄 转移库存（家里→店里）</button>
 
             <!-- Bulk qty editor entry -->
             <button class="btn btn-block" id="panel-bulk-qty" style="background:var(--purple,#6d28d9);border-color:var(--purple,#6d28d9);color:#fff;font-weight:700;margin-top:12px" onclick="openBulkQtyModal()">⚡ 批量快速编辑数量</button>
