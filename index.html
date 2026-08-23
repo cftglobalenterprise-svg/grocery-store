@@ -70,7 +70,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 #page-instore { padding: 0 !important; overflow: clip !important; display: none !important; height: 100%; }
 #page-instore.active { display: flex !important; }
 /* Ensure scroll events bubble through all content children */
-#page-orders *, #page-overview *, #page-profit * {
+#page-orders *, #page-overview * {
   overscroll-behavior: auto;
 }
 /* Stock page scroll containers need contain, not auto */
@@ -356,7 +356,6 @@ body.modal-open { overflow: hidden; }
 
 /* ── MISC ────────────────────────────────────────── */
 .empty { text-align: center; color: var(--text3); font-size: 13px; padding: 2rem 0; }
-#page-profit { max-width: 900px; }
 .tabs { display: none !important; }
 /* HQ-only elements: hidden by default, shown via JS for HQ role */
 .hq-only { display: none !important; }
@@ -533,9 +532,6 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
   /* Stock layout on mobile */
   .stock-layout { flex-direction: column !important; }
   .stock-left { width: 100% !important; flex: none !important; }
-
-  /* Profit page */
-  #page-profit { max-width: 100% !important; }
 
   /* Form rows on mobile */
   .form-row { flex-wrap: wrap; gap: 6px; }
@@ -1121,8 +1117,6 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         <div class="card" style="margin-bottom:14px;padding:0;overflow:visible"><div id="ov-sec-order-hdr" onclick="toggleOvSection('order')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:14px;font-weight:600">📋 需订货</span><span id="ov-order-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600"></span></div><span id="ov-arr-order" style="font-size:13px;color:var(--text3);transition:transform 0.2s;transform:rotate(-90deg)">▼</span></div><div id="ov-sec-order-body" style="display:none;border-top:1px solid var(--border);max-height:340px;overflow-y:auto"><div id="warn-order" style="padding:0 16px"></div></div></div>
         <div class="card" style="padding:0;overflow:visible"><div onclick="toggleOvSection('inv')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none"><span style="font-size:14px;font-weight:600">📦 全部库存</span><span id="ov-arr-inv" style="font-size:13px;color:var(--text3);transition:transform 0.2s;transform:rotate(-90deg)">▼</span></div><div id="ov-sec-inv-body" style="display:none;border-top:1px solid var(--border)"><div id="ov-list" style="padding:0 16px 8px"></div></div></div>
       </div>
-
-      <!-- ══ PROFIT ════════════════════════════════════ -->
 
       <!-- ══ HQ TOTAL PAGE ══════════════════════════════ -->
       <div id="page-hq" class="page">
@@ -5410,158 +5404,7 @@ async function confirmRestock() {
   await loadItems();
 }
 
-// ── PROFIT / COST (hidden tab) ─────────────────────────────────────
-const PROFIT_PASSWORD = '960108'; // 改成你想要的密码
-let _profitUnlocked = false;
-let _profitPeriod = 'month';
-
-function promptProfitUnlock() {
-  if(_profitUnlocked) {
-    lockProfit();
-    return;
-  }
-  const pw = prompt('请输入老板密码：');
-  if(pw === null) return;
-  if(pw !== PROFIT_PASSWORD) { alert('密码错误'); return; }
-  _profitUnlocked = true;
-  // Show hidden tab
-  document.getElementById('tab-profit').style.display = '';
-  document.getElementById('profit-unlock-topbar').textContent = '🔓';
-  document.getElementById('profit-unlock-topbar').title = '点击锁定';
-  // Switch to profit tab
-  const tabEl = document.getElementById('tab-profit');
-  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  tabEl.classList.add('active');
-  document.getElementById('page-profit').classList.add('active');
-  renderProfitReport();
-  renderCostEditor();
-}
-
-function lockProfit() {
-  _profitUnlocked = false;
-  document.getElementById('tab-profit').style.display = 'none';
-  document.getElementById('profit-unlock-topbar').textContent = '🔒';
-  document.getElementById('profit-unlock-topbar').title = '老板专用';
-  // Switch back to stock tab
-  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelector('.tab').classList.add('active');
-  document.getElementById('page-stock').classList.add('active');
-}
-
-function setProfitPeriod(p) {
-  _profitPeriod = p;
-  // Clear custom dates if switching to preset
-  if(p !== 'custom') {
-    const f = document.getElementById('profit-date-from');
-    const t = document.getElementById('profit-date-to');
-    if(f) f.value = '';
-    if(t) t.value = '';
-  }
-  ['today','week','month','all'].forEach(x => {
-    const btn = document.getElementById('profit-btn-' + x);
-    if(!btn) return;
-    btn.style.cssText = x === p
-      ? 'font-size:11px;padding:4px 8px;background:var(--text);color:#fff;border-color:var(--text)'
-      : 'font-size:11px;padding:4px 8px';
-  });
-  renderProfitReport();
-}
-
-function getProfitDateRange() {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  if(_profitPeriod === 'custom') {
-    const fromVal = document.getElementById('profit-date-from')?.value;
-    const toVal   = document.getElementById('profit-date-to')?.value;
-    const start = fromVal ? new Date(fromVal) : new Date(0);
-    const end   = toVal   ? new Date(new Date(toVal).getTime() + 86400000) : new Date();
-    return { start, end };
-  }
-  if(_profitPeriod === 'today') return { start: today, end: new Date(today.getTime() + 86400000) };
-  if(_profitPeriod === 'week') {
-    const dow = today.getDay() || 7;
-    const mon = new Date(today); mon.setDate(today.getDate() - (dow-1));
-    return { start: mon, end: new Date() };
-  }
-  if(_profitPeriod === 'month') {
-    return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date() };
-  }
-  return { start: new Date(0), end: new Date() };
-}
-
-function renderProfitReport() {
-  const { start, end } = getProfitDateRange();
-  const bizFilter = document.getElementById('profit-biz-filter')?.value || '';
-  const salesOrders = orders.filter(o => {
-    const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
-    const pm = o.pay_method || o.payment_method || o.payment_status || '';
-    if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
-    if(o.is_delivery_fee) return false; // delivery fee is cost, not revenue
-    const dt = new Date(o.status === 'collected' && o.paid_at ? o.paid_at : o.created_at);
-    return (o.status === 'instore' || o.status === 'collected') && dt >= start && dt <= end && bizMatch;
-  });
-
-  // Delivery fees = rider cost (paid by us, not revenue)
-  const deliveryFeeOrders = orders.filter(o => {
-    if(!o.is_delivery_fee) return false;
-    const bizMatch = !bizFilter || (o.business || 'A') === bizFilter;
-    const dt = new Date(o.paid_at || o.created_at);
-    return dt >= start && dt <= end && bizMatch;
-  });
-  const totalDeliveryFees = deliveryFeeOrders.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
-
-  const byItem = {};
-  salesOrders.forEach(o => {
-    const k = o.item_id;
-    if(!k) return;
-    if(!byItem[k]) byItem[k] = { name: o.item_name||'?', qty:0, revenue:0 };
-    byItem[k].qty += +(o.qty||0);
-    byItem[k].revenue += +(o.total_price||o.total||0);
-  });
-
-  let totalRevenue=0, totalCost=0, noCostCount=0;
-  Object.entries(byItem).forEach(([id, d]) => {
-    const it = items.find(i=>i.id==id);
-    const cost = it ? +(it.cost_price||0) : 0;
-    d.cost = cost; d.totalCost = cost*d.qty; d.profit = d.revenue - d.totalCost;
-    totalRevenue += d.revenue; totalCost += d.totalCost;
-    if(!cost) noCostCount++;
-  });
-  // Add rider delivery fees as cost
-  totalCost += totalDeliveryFees;
-  const totalProfit = totalRevenue - totalCost;
-  const margin = totalRevenue>0 ? (totalProfit/totalRevenue*100).toFixed(1) : 0;
-
-  document.getElementById('profit-revenue').textContent = 'RM ' + totalRevenue.toFixed(2);
-  document.getElementById('profit-cost').textContent    = 'RM ' + totalCost.toFixed(2);
-  document.getElementById('profit-gross').textContent   = 'RM ' + totalProfit.toFixed(2);
-  document.getElementById('profit-margin').textContent  = margin + '%';
-
-  const hint = document.getElementById('profit-no-cost-hint');
-  if(hint) hint.textContent = noCostCount > 0 ? `⚠ ${noCostCount} 个商品未设成本` : '';
-
-  const sorted = Object.values(byItem).sort((a,b) => b.revenue - a.revenue);
-  const el = document.getElementById('profit-breakdown');
-  if(!sorted.length) { el.innerHTML = '<div class="empty">该时间段暂无销售记录</div>'; return; }
-  el.innerHTML = sorted.map(d => {
-    const hasCost = d.cost > 0;
-    const profitColor = d.profit >= 0 ? '#2d6a4f' : '#922b21';
-    const marginPct = d.revenue > 0 ? (d.profit/d.revenue*100).toFixed(0)+'%' : '-';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.name}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:1px">× ${d.qty} 件 · ${hasCost?`成本 RM${d.cost.toFixed(2)}/个 · 利润率 ${marginPct}`:'<span style="color:#e67e22">未设成本</span>'}</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:12px;font-family:\'DM Mono\',monospace;color:var(--text2)">RM ${d.revenue.toFixed(2)}</div>
-        ${hasCost?`<div style="font-size:11px;font-family:\'DM Mono\',monospace;color:${profitColor};font-weight:600">${d.profit>=0?'+':''}RM ${d.profit.toFixed(2)}</div>`:''}
-      </div>
-    </div>`;
-  }).join('');
-}
+// ── COST EDITOR (used by 成本价设置 panel) ──────────────────────────
 
 // Cost editor in profit tab
 function renderCostEditor() {
@@ -5630,7 +5473,6 @@ async function saveCostPrice(itemId, val) {
   const { error } = await sb.from(cpTbl).update({cost_price: cost}).eq('id', cpItem.id);
   if(error) { alert('保存失败：' + error.message); return; }
   cpItem.cost_price = cost;
-  renderProfitReport();
   showPosToast('✅ 成本已保存');
 }
 
@@ -8077,22 +7919,6 @@ function posSwitchTab(t) {
   else if(t === 'ledger') { renderLedgerPage(); }
 }
 
-function posSidebarProfitUnlock() {
-  // No password needed - already authenticated via system login
-  _profitUnlocked = true;
-  const el = document.getElementById('navbtn-profit');
-  if(el) el.style.display = '';
-  posSwitchTab('profit');
-  renderProfitReport();
-  renderCostEditor();
-  const picker = document.getElementById('pnl-month-picker');
-  if(picker && !picker.value) {
-    const now = new Date();
-    picker.value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-    renderPnL();
-  }
-}
-
 function posOpenBundle() { openBundleRulesModal(); }
 function posOpenCustomer() { openCustomerMode(); }
 
@@ -8242,7 +8068,7 @@ function applyRolePermissions(role) {
 
   // Reset all nav buttons visibility first
   ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-overview',
-   'navbtn-profit','navbtn-hq'].forEach(id => {
+   'navbtn-hq'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -8254,8 +8080,8 @@ function applyRolePermissions(role) {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
-    // 隐藏: 总览、利润、总部报表、老板模式、套餐
-    ['navbtn-overview','navbtn-profit','navbtn-hq'].forEach(id => {
+    // 隐藏: 总览、总部报表、老板模式、套餐
+    ['navbtn-overview','navbtn-hq'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = 'none';
     });
@@ -8287,7 +8113,6 @@ function applyRolePermissions(role) {
     const bundleBtn = document.getElementById('btn-bundle');
     if(bundleBtn) bundleBtn.style.display = '';
     document.body.classList.add('hq-mode');
-    _profitUnlocked = true;
     // HQ: hide clock nav (not needed)
     ['navbtn-clock','nav-divider-clock'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
     // Start on HQ dashboard
