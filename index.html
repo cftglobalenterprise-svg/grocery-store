@@ -2680,7 +2680,9 @@ async function loadOrders() {
 function subscribeRealtime() {
   sb.channel('db-changes')
     .on('postgres_changes', {event:'*', schema:'public', table:'items'}, async()=>{ await loadItems(); setSync('ok','已同步 · '+timeNow()); })
+    .on('postgres_changes', {event:'*', schema:'public', table:'g_items'}, async()=>{ await loadItems(); setSync('ok','已同步 · '+timeNow()); })
     .on('postgres_changes', {event:'*', schema:'public', table:'orders'}, async()=>{ await loadOrders(); renderInstoreHistory(); setSync('ok','已同步 · '+timeNow()); })
+    .on('postgres_changes', {event:'*', schema:'public', table:'g_orders'}, async()=>{ await loadOrders(); renderInstoreHistory(); setSync('ok','已同步 · '+timeNow()); })
     .subscribe((status)=>{
       if(status==='SUBSCRIBED') setSync('ok','实时同步已开启');
       else if(status==='CLOSED') setSync('err','连接断开，请刷新');
@@ -8164,11 +8166,20 @@ let _loginRole = 'branch';       // 'branch' or 'hq'
 let _currentRole = null;
 let _branchRole = false;
 
-function directLogin(role) {
+async function directLogin(role) {
   _currentRole = role;
   _loginRole = role;
   applyRolePermissions(role);
   document.getElementById('login-screen').style.display = 'none';
+  // 每次登入都强制重新抓最新数据，不管是刚打开浏览器还是登出后再登入，
+  // 保证看到的一定是当下最新的库存/订单，不会用到内存里过期的旧数据
+  setSync('busy','同步中...');
+  try {
+    await Promise.all([loadItems(), loadOrders()]);
+    setSync('ok','已同步 · '+timeNow());
+  } catch(e) {
+    setSync('err','同步失败，请检查网络');
+  }
 }
 
 function selectLoginRole(role) {
