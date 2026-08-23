@@ -970,7 +970,14 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <!-- Transfer -->
             <div class="collapse-card" id="panel-transfer">
               <div class="collapse-header" onclick="togglePanel('panel-transfer')"><span>🔄 转移库存（家里→店里）</span><span class="collapse-arrow" id="arrow-panel-transfer">▾</span></div>
-              <div class="collapse-body" id="body-panel-transfer" style="display:none;max-height:500px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain">
+              <div class="collapse-body" id="body-panel-transfer" style="display:none;max-height:600px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain">
+                <button class="btn btn-block" style="background:var(--purple,#6d28d9);border-color:var(--purple,#6d28d9);color:#fff;font-weight:700;margin-bottom:6px" onclick="generatePickList()">🎯 自动生成每日拣货清单</button>
+                <div id="pick-draft-note" style="display:none;font-size:11px;color:var(--text3);text-align:center;margin-bottom:10px"></div>
+                <div id="pick-supplier-wrap" style="display:none;margin-bottom:14px">
+                  <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:6px">⚠️ 家店都没货，需跟供应商叫货</div>
+                  <div id="pick-supplier-list"></div>
+                  <div style="height:1px;background:var(--border);margin:14px 0"></div>
+                </div>
                 <div id="transfer-cart-wrap" style="display:none;margin-bottom:14px">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:13px;font-weight:600;color:var(--text2)">📋 待转移清单</span><span style="font-size:12px;color:var(--text3)" id="transfer-cart-count">0 项</span></div>
                   <div id="transfer-cart-list"></div>
@@ -978,6 +985,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                   <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearTransfer()">🗑 清空</button>
                   <div style="height:1px;background:var(--border);margin:14px 0"></div>
                 </div>
+                <div style="font-size:12px;color:var(--text3);margin-bottom:6px">或手动加入品项（例外情况）：</div>
                 <div class="form-row"><label>搜索商品</label><input type="text" id="transfer-search" placeholder="输入商品名..." oninput="renderTransferSearch()" style="flex:1;min-width:0"></div>
                 <div id="transfer-search-results"></div>
                 <div class="form-row"><label>或扫 Barcode</label><div class="barcode-input-wrap"><input type="text" id="transfer-barcode" placeholder="扫描 barcode" oninput="onTransferBarcodeTyped(this.value)"><button class="btn btn-scan" onclick="openScanModal('transfer')">📷</button></div></div>
@@ -1936,6 +1944,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     </div>
     <div class="form-row"><label>家里</label><input type="number" id="adj-home" min="0"></div>
     <div class="form-row"><label>店里</label><input type="number" id="adj-shop" min="0"></div>
+    <div class="form-row"><label>🎯 目标库存<br><small style="font-weight:400;color:var(--text3)">店内应维持数量,留空=不参与自动拣货</small></label><input type="number" id="adj-target-stock" min="0" placeholder="留空 = 不参与"></div>
     <div class="form-row"><label>单价 (RM)</label><input type="number" id="adj-price" min="0" step="0.01" placeholder="0.00"></div>
     <div class="form-row"><label>Category</label><select id="adj-category"><option value="">-- 无 --</option></select></div>
     <div class="form-row">
@@ -2603,6 +2612,21 @@ async function loadItems() {
   if(ovPage && ovPage.classList.contains('active')) renderOverview();
 }
 
+// 库存原子调整：写入前先重新向 Supabase 抓当下最新值再计算，
+// 避免用内存里可能过期的 items 快照算出新值、覆盖掉其他设备刚写入的真实库存。
+// delta 可正可负（正=增加，负=扣除）。返回写入后的新值；失败会 throw。
+async function adjustStockAtomic(item, field, delta) {
+  const tbl = itemTable(item);
+  const { data, error: selErr } = await sb.from(tbl).select(field).eq('id', item.id).single();
+  if(selErr) throw selErr;
+  const current = +(data[field] || 0);
+  const next = current + delta;
+  const { error: updErr } = await sb.from(tbl).update({ [field]: next }).eq('id', item.id);
+  if(updErr) throw updErr;
+  item[field] = next; // 同步本地缓存，让画面立刻显示正确数字
+  return next;
+}
+
 async function loadOrders() {
   async function fetchAll(table, extraMap) {
     let all = [], from = 0, pageSize = 1000;
@@ -2998,6 +3022,7 @@ function openAdj(id) {
   document.getElementById('adj-ignore-stock').checked = !!it.ignore_stock;
   document.getElementById('adj-home').value = it.home_qty;
   document.getElementById('adj-shop').value = it.shop_qty;
+  document.getElementById('adj-target-stock').value = (it.target_stock===null || it.target_stock===undefined) ? '' : it.target_stock;
   document.getElementById('adj-price').value = it.price || 0;
   document.getElementById('adj-barcode').value = it.barcode || '';
   // populate adj category select
@@ -3088,10 +3113,12 @@ async function saveAdj() {
     if(!batteryId || !cartridgeId) { alert('请选择 Battery 和 Cartridge 零件！'); setSync('ok',''); return; }
     bundle_components = { battery_id: batteryId, cartridge_id: cartridgeId };
   }
+  const targetStockRaw = document.getElementById('adj-target-stock').value.trim();
   const updatePayload = {
     name: adjName,
     home_qty: +document.getElementById('adj-home').value||0,
     shop_qty: +document.getElementById('adj-shop').value||0,
+    target_stock: targetStockRaw === '' ? null : (+targetStockRaw || 0),
     price: +document.getElementById('adj-price').value||0,
     category: adjCat||null,
     barcode: adjBarcode||null,
@@ -3267,17 +3294,16 @@ async function addOrder() {
       if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
         const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
         const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
-        const batUpdate = deduct==='home' ? {home_qty: bat.home_qty - c.qty} : {shop_qty: bat.shop_qty - c.qty};
-        const carUpdate = deduct==='home' ? {home_qty: car.home_qty - c.qty} : {shop_qty: car.shop_qty - c.qty};
-        await sb.from(itemTable(bat)).update(batUpdate).eq('id', bat.id);
-        if(deduct==='home') bat.home_qty -= c.qty; else bat.shop_qty -= c.qty;
-        await sb.from(itemTable(car)).update(carUpdate).eq('id', car.id);
-        if(deduct==='home') car.home_qty -= c.qty; else car.shop_qty -= c.qty;
+        const field = deduct==='home' ? 'home_qty' : 'shop_qty';
+        try {
+          await adjustStockAtomic(bat, field, -c.qty);
+          await adjustStockAtomic(car, field, -c.qty);
+        } catch(err) { alert('下单失败：' + err.message); setSync('err','失败'); return; }
       } else {
-        const updateQty = deduct==='home' ? {home_qty: item.home_qty - c.qty} : {shop_qty: item.shop_qty - c.qty};
-        const { error: e1 } = await sb.from(tbl).update(updateQty).eq('id', item.id);
-        if(e1) { alert('下单失败：' + item.name); setSync('err','失败'); return; }
-        if(deduct==='home') item.home_qty -= c.qty; else item.shop_qty -= c.qty;
+        const field = deduct==='home' ? 'home_qty' : 'shop_qty';
+        try {
+          await adjustStockAtomic(item, field, -c.qty);
+        } catch(err) { alert('下单失败：' + item.name + ' — ' + err.message); setSync('err','失败'); return; }
       }
     }
     const bundleItemFinalTotals = cart._bundleItemFinalTotals || new Map();
@@ -3316,11 +3342,10 @@ async function voidInstoreSale(idsStr) {
       if(item.bundle_components?.battery_id && item.bundle_components?.cartridge_id) {
         const bat = items.find(i=>String(i.id)===String(item.bundle_components.battery_id));
         const car = items.find(i=>String(i.id)===String(item.bundle_components.cartridge_id));
-        if(bat) { await sb.from(itemTable(bat)).update({shop_qty: bat.shop_qty+o.qty}).eq('id',bat.id); bat.shop_qty+=o.qty; }
-        if(car) { await sb.from(itemTable(car)).update({shop_qty: car.shop_qty+o.qty}).eq('id',car.id); car.shop_qty+=o.qty; }
+        if(bat) await adjustStockAtomic(bat, 'shop_qty', o.qty);
+        if(car) await adjustStockAtomic(car, 'shop_qty', o.qty);
       } else {
-        await sb.from(itemTable(item)).update({shop_qty: item.shop_qty+o.qty}).eq('id',item.id);
-        item.shop_qty += o.qty;
+        await adjustStockAtomic(item, 'shop_qty', o.qty);
       }
     }
     const oTblVoid = (o.business==='K19') ? 'g_orders' : 'orders';
@@ -3597,14 +3622,14 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
       if(item.bundle_components && item.bundle_components.battery_id && item.bundle_components.cartridge_id) {
         const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
         const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
-        await sb.from(itemTable(bat)).update({ shop_qty: bat.shop_qty - c.qty }).eq('id', bat.id);
-        bat.shop_qty -= c.qty;
-        await sb.from(itemTable(car)).update({ shop_qty: car.shop_qty - c.qty }).eq('id', car.id);
-        car.shop_qty -= c.qty;
+        try {
+          await adjustStockAtomic(bat, 'shop_qty', -c.qty);
+          await adjustStockAtomic(car, 'shop_qty', -c.qty);
+        } catch(err) { alert('结账失败：' + err.message); setSync('err','失败'); return; }
       } else {
-        const { error: e1 } = await sb.from(tbl).update({ shop_qty: item.shop_qty - c.qty }).eq('id', item.id);
-        if(e1) { alert('结账失败：' + item.name + ' — ' + e1.message); setSync('err','失败'); return; }
-        item.shop_qty -= c.qty;
+        try {
+          await adjustStockAtomic(item, 'shop_qty', -c.qty);
+        } catch(err) { alert('结账失败：' + item.name + ' — ' + err.message); setSync('err','失败'); return; }
       }
     }
     const isK19 = (oTbl === 'g_orders');
@@ -4501,8 +4526,8 @@ async function cancelGroup(idsStr) {
     if(!o) continue;
     const item = items.find(i=>i.id==o.item_id);
     if(item) {
-      const restore = o.deduct_from==='shop' ? {shop_qty: item.shop_qty+o.qty} : {home_qty: item.home_qty+o.qty};
-      await sb.from(itemTable(item)).update(restore).eq('id', item.id);
+      const field = o.deduct_from==='shop' ? 'shop_qty' : 'home_qty';
+      await adjustStockAtomic(item, field, o.qty);
     }
     await sb.from((orders.find(x=>x.id===id)||{}).business==='K19' ? 'g_orders' : 'orders').update({status:'cancelled'}).eq('id',id);
   }
@@ -7023,8 +7048,11 @@ function togglePanel(panelId) {
   else arrow.classList.add('open');
 }
 
-// ── TRANSFER STOCK (cart-style, multi-item) ─────────────────────────
-let transferCart = []; // [{ itemId, qty }]
+// ── TRANSFER STOCK / 每日拣货清单 (cart-style, multi-item) ──────────
+let transferCart = []; // [{ itemId, qty, target_stock, shop_qty_at_gen, home_qty_at_gen, auto }]
+let supplierNeededList = []; // [{ itemId, name, target_stock, shop_qty, business }] - 仅提示,不参与转移
+let _draftSaveTimer = null;
+let _draftLoaded = false;
 
 function renderTransferSearch() {
   const query = document.getElementById('transfer-search').value.trim().toLowerCase();
@@ -7044,22 +7072,14 @@ function renderTransferSearch() {
   }).join('') + '</div>';
 }
 
-function onTransferBarcodeTyped(val) {
-  val = val.trim();
-  if(!val) return;
-  const found = items.find(i => i.barcode && i.barcode === val && !i.bundle_components);
-  if(found) {
-    addToTransferCart(found.id);
-    document.getElementById('transfer-barcode').value = '';
-  }
-}
-
 function addToTransferCart(id) {
   id = String(id);
+  const it = items.find(i => String(i.id) === id);
   const existing = transferCart.find(r => String(r.itemId) === id);
   if(existing) existing.qty += 1;
-  else transferCart.push({ itemId: id, qty: 1 });
+  else transferCart.push({ itemId: id, qty: 1, target_stock: it?.target_stock ?? null, auto: false });
   renderTransferCart();
+  scheduleSaveDraft();
   const wrap = document.getElementById('transfer-cart-wrap');
   if(wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -7067,6 +7087,7 @@ function addToTransferCart(id) {
 function removeFromTransferCart(id) { id = String(id);
   transferCart = transferCart.filter(r => r.itemId !== id);
   renderTransferCart();
+  scheduleSaveDraft();
 }
 
 function updateTransferQty(id, val) {
@@ -7078,6 +7099,7 @@ function updateTransferQty(id, val) {
     entry.qty = Math.min(max, Math.max(1, parseInt(val) || 1));
   }
   renderTransferCart();
+  scheduleSaveDraft();
 }
 
 function renderTransferCart() {
@@ -7090,9 +7112,19 @@ function renderTransferCart() {
   listEl.innerHTML = transferCart.map(r => {
     const it = items.find(i => String(i.id) === String(r.itemId));
     if(!it) return '';
+    // 有目标库存的品项，显示缺口资讯（是否只能部分补足）
+    let gapNote = '';
+    if(it.target_stock !== null && it.target_stock !== undefined) {
+      const demand = Math.max(0, (+it.target_stock) - (+it.shop_qty||0));
+      if(demand > r.qty) {
+        gapNote = `<br><small style="color:var(--orange);font-weight:600">⚠️ 目标需要 ${demand} 个，家里不够，只能带 ${r.qty} 个（还缺 ${demand - r.qty}）</small>`;
+      } else if(demand > 0) {
+        gapNote = `<br><small style="color:var(--text3);font-weight:400">目标库存 ${it.target_stock}</small>`;
+      }
+    }
     return `<div class="cart-item">
       <div class="cart-item-name">${it.name}<br>
-        <small style="color:var(--text3);font-weight:400">家里:${it.home_qty} 店里:${it.shop_qty}</small>
+        <small style="color:var(--text3);font-weight:400">家里:${it.home_qty} 店里:${it.shop_qty}</small>${gapNote}
       </div>
       <div class="cart-qty-wrap">
         <label>数量</label>
@@ -7105,12 +7137,110 @@ function renderTransferCart() {
   }).join('');
 }
 
+function renderSupplierList() {
+  const wrap = document.getElementById('pick-supplier-wrap');
+  const listEl = document.getElementById('pick-supplier-list');
+  if(!wrap || !listEl) return;
+  if(!supplierNeededList.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  listEl.innerHTML = supplierNeededList.map(s => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border:1px solid var(--red);border-radius:var(--radius-xs);margin-bottom:6px;background:rgba(220,38,38,0.06)">
+      <div>
+        <div style="font-size:13px;font-weight:600">${s.name}</div>
+        <div style="font-size:11px;color:var(--text3)">目标 ${s.target_stock} · 店里 0 · 家里 0</div>
+      </div>
+      <button class="cart-remove" onclick="dismissSupplierItem('${s.itemId}')" title="我知道了,先不管">✕</button>
+    </div>`).join('');
+}
+
+function dismissSupplierItem(id) {
+  supplierNeededList = supplierNeededList.filter(s => String(s.itemId) !== String(id));
+  renderSupplierList();
+  scheduleSaveDraft();
+}
+
+// 自动生成每日拣货清单：比对 目标库存 vs 店里现有 vs 家里现有
+function generatePickList() {
+  const candidates = items.filter(i =>
+    !i.bundle_components && !i.is_service &&
+    i.target_stock !== null && i.target_stock !== undefined && +i.target_stock > 0
+  );
+  const newCart = [];
+  const newSupplier = [];
+  candidates.forEach(it => {
+    const target = +it.target_stock;
+    const shop = +(it.shop_qty||0);
+    const home = +(it.home_qty||0);
+    const demand = target - shop;
+    if(demand <= 0) return; // 店里已经足够，不用带
+    if(home <= 0) {
+      newSupplier.push({ itemId: String(it.id), name: it.name, target_stock: target, business: it.business });
+    } else {
+      const bring = Math.min(home, demand);
+      newCart.push({ itemId: String(it.id), qty: bring, target_stock: target, auto: true });
+      if(home < demand) {
+        // 家里不够全部补齐，但还是把能带的先带走；不足部分不额外加入供应商清单，
+        // 因为家里还有货，不算「家店都没货」的情况，只是提示在清单行内(见 renderTransferCart 的 gapNote)
+      }
+    }
+  });
+  transferCart = newCart;
+  supplierNeededList = newSupplier;
+  renderTransferCart();
+  renderSupplierList();
+  scheduleSaveDraft();
+  if(!newCart.length && !newSupplier.length) {
+    showTransferToast('✅ 全部商品都已达到目标库存，不用补货');
+  }
+}
+
 function clearTransfer() {
   transferCart = [];
+  supplierNeededList = [];
   renderTransferCart();
+  renderSupplierList();
   document.getElementById('transfer-search').value = '';
   document.getElementById('transfer-search-results').innerHTML = '';
   document.getElementById('transfer-barcode').value = '';
+  scheduleSaveDraft();
+}
+
+// ── 草稿自动存档到 Supabase（防止中途被打断，刷新页面也找得回来）──
+function scheduleSaveDraft() {
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer = setTimeout(saveDraftNow, 800);
+}
+
+async function saveDraftNow() {
+  try {
+    await sb.from('restock_pick_draft').upsert({
+      id: 1,
+      updated_at: new Date().toISOString(),
+      items: { cart: transferCart, supplier: supplierNeededList }
+    });
+  } catch(e) { /* 草稿存档失败不影响主要操作，安静失败即可 */ }
+}
+
+async function loadDraftIfAny() {
+  if(_draftLoaded) return;
+  _draftLoaded = true;
+  try {
+    const { data, error } = await sb.from('restock_pick_draft').select('*').eq('id', 1).maybeSingle();
+    if(error || !data || !data.items) return;
+    const cart = data.items.cart || [];
+    const supplier = data.items.supplier || [];
+    if(!cart.length && !supplier.length) return;
+    transferCart = cart;
+    supplierNeededList = supplier;
+    renderTransferCart();
+    renderSupplierList();
+    const note = document.getElementById('pick-draft-note');
+    if(note) {
+      const t = new Date(data.updated_at);
+      note.style.display = 'block';
+      note.textContent = `📝 已还原上次未完成的拣货清单（${t.toLocaleDateString('zh-CN')} ${t.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}）`;
+    }
+  } catch(e) { /* ignore */ }
 }
 
 async function confirmTransfer() {
@@ -7126,17 +7256,42 @@ async function confirmTransfer() {
     }
   }
   setSync('busy', '转移中...');
+  const historyLines = [];
   for(const r of transferCart) {
     const it = items.find(i => String(i.id) === String(r.itemId));
     if(!it) continue;
-    const { error } = await sb.from(itemTable(it)).update({
-      home_qty: it.home_qty - r.qty,
-      shop_qty: it.shop_qty + r.qty
-    }).eq('id', it.id);
-    if(error) { alert('转移失败：' + it.name); setSync('err','失败'); return; }
+    const homeBefore = it.home_qty, shopBefore = it.shop_qty;
+    try {
+      await adjustStockAtomic(it, 'home_qty', -r.qty);
+      await adjustStockAtomic(it, 'shop_qty', r.qty);
+    } catch(err) {
+      alert('转移失败：' + it.name + ' — ' + err.message);
+      setSync('err','失败');
+      return;
+    }
+    historyLines.push({
+      item_id: it.id, name: it.name, business: it.business,
+      target_stock: it.target_stock ?? null,
+      home_before: homeBefore, shop_before: shopBefore, qty: r.qty,
+      auto: !!r.auto
+    });
   }
+  // 写入永久历史记录（可查回每天到底带了什么）
+  try {
+    await sb.from('restock_pick_history').insert({
+      items: { transferred: historyLines, supplier_needed: supplierNeededList },
+      total_lines: historyLines.length,
+      total_qty: historyLines.reduce((s,l)=>s+(+l.qty||0),0)
+    });
+  } catch(e) { /* 历史记录写入失败不影响本次转移已完成 */ }
+  // 清空草稿
+  try { await sb.from('restock_pick_draft').delete().eq('id', 1); } catch(e) {}
   setSync('ok', `已转移 ${transferCart.length} 项 家里→店里 · ${timeNow()}`);
-  clearTransfer();
+  transferCart = []; supplierNeededList = [];
+  renderTransferCart(); renderSupplierList();
+  document.getElementById('transfer-search').value = '';
+  document.getElementById('transfer-search-results').innerHTML = '';
+  document.getElementById('transfer-barcode').value = '';
   await loadItems();
 }
 
@@ -7822,7 +7977,7 @@ function posOpenCustomer() { openCustomerMode(); }
 
 
 init();
-setTimeout(() => { renderPosCats(); renderPosGrid(); updatePosCartUI(); loadCustomers(); }, 300);
+setTimeout(() => { renderPosCats(); renderPosGrid(); updatePosCartUI(); loadCustomers(); loadDraftIfAny(); }, 300);
 // ── Debounced barcode handlers for Transfer and Restock ──
 let _transferBarcodeTimer = null;
 let _restockBarcodeTimer = null;
@@ -8024,13 +8179,10 @@ async function hqVoidSale(orderId, tbl) {
   if(!o) { alert('找不到记录'); return; }
   const item = items.find(i => String(i.id) === String(o.item_id));
   if(item && !item.is_service && !item.ignore_stock) {
-    const stockTbl = item._table || (item.business==='K19' ? 'g_items' : 'items');
     const deductFrom = o.deduct_from || 'shop';
     const qty = +(o.qty||1);
-    const stockUpdate = deductFrom === 'home'
-      ? { home_qty: (item.home_qty||0) + qty }
-      : { shop_qty: (item.shop_qty||0) + qty };
-    await sb.from(stockTbl).update(stockUpdate).eq('id', item.id);
+    const field = deductFrom === 'home' ? 'home_qty' : 'shop_qty';
+    await adjustStockAtomic(item, field, qty);
   }
   // If credit order, delete matching debt record (paid or unpaid)
   const payM = o.pay_method || o.payment_method || o.payment_status || '';
