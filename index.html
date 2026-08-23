@@ -968,29 +968,8 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
               </div>
             </div>
             <!-- Transfer -->
-            <div class="collapse-card" id="panel-transfer">
-              <div class="collapse-header" onclick="togglePanel('panel-transfer')"><span>🔄 转移库存（家里→店里）</span><span class="collapse-arrow" id="arrow-panel-transfer">▾</span></div>
-              <div class="collapse-body" id="body-panel-transfer" style="display:none;max-height:600px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain">
-                <button class="btn btn-block" style="background:var(--purple,#6d28d9);border-color:var(--purple,#6d28d9);color:#fff;font-weight:700;margin-bottom:6px" onclick="generatePickList()">🎯 自动生成每日拣货清单</button>
-                <div id="pick-draft-note" style="display:none;font-size:11px;color:var(--text3);text-align:center;margin-bottom:10px"></div>
-                <div id="pick-supplier-wrap" style="display:none;margin-bottom:14px">
-                  <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:6px">⚠️ 家店都没货，需跟供应商叫货</div>
-                  <div id="pick-supplier-list"></div>
-                  <div style="height:1px;background:var(--border);margin:14px 0"></div>
-                </div>
-                <div id="transfer-cart-wrap" style="display:none;margin-bottom:14px">
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:13px;font-weight:600;color:var(--text2)">📋 待转移清单</span><span style="font-size:12px;color:var(--text3)" id="transfer-cart-count">0 项</span></div>
-                  <div id="transfer-cart-list"></div>
-                  <button class="btn btn-block" style="background:var(--blue);border-color:var(--blue);color:#fff;margin-top:10px" onclick="confirmTransfer()">🔄 确认全部转移</button>
-                  <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearTransfer()">🗑 清空</button>
-                  <div style="height:1px;background:var(--border);margin:14px 0"></div>
-                </div>
-                <div style="font-size:12px;color:var(--text3);margin-bottom:6px">或手动加入品项（例外情况）：</div>
-                <div class="form-row"><label>搜索商品</label><input type="text" id="transfer-search" placeholder="输入商品名..." oninput="renderTransferSearch()" style="flex:1;min-width:0"></div>
-                <div id="transfer-search-results"></div>
-                <div class="form-row"><label>或扫 Barcode</label><div class="barcode-input-wrap"><input type="text" id="transfer-barcode" placeholder="扫描 barcode" oninput="onTransferBarcodeTyped(this.value)"><button class="btn btn-scan" onclick="openScanModal('transfer')">📷</button></div></div>
-              </div>
-            </div>
+            <!-- Transfer stock entry -->
+            <button class="btn btn-block" id="panel-transfer" style="background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700;margin-top:12px" onclick="openTransferModal()">🔄 转移库存（家里→店里）</button>
           
             <!-- Cost editor panel -->
             <div class="collapse-card" id="panel-cost">
@@ -2009,6 +1988,36 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         <button class="btn" onclick="document.getElementById('pdf-modal').classList.remove('open');document.body.classList.remove('modal-open')">取消</button>
         <button class="btn btn-block" style="width:auto;margin:0;background:var(--green);border-color:var(--green);color:#fff" onclick="addPdfMatchesToCart()">✅ 确认加入进货清单</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- TRANSFER STOCK MODAL -->
+<div class="modal-overlay" id="transfer-modal">
+  <div class="modal" style="max-width:560px;max-height:90vh;display:flex;flex-direction:column" onwheel="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3 style="margin:0">🔄 转移库存（家里→店里）</h3>
+      <button class="btn" style="font-size:12px;padding:4px 10px" onclick="closeTransferModal()">✕ 关闭</button>
+    </div>
+    <div style="flex:1;overflow-y:auto">
+      <button class="btn btn-block" style="background:var(--purple,#6d28d9);border-color:var(--purple,#6d28d9);color:#fff;font-weight:700;margin-bottom:6px" onclick="generatePickList()">🎯 自动生成每日拣货清单</button>
+      <div id="pick-draft-note" style="display:none;font-size:11px;color:var(--text3);text-align:center;margin-bottom:10px"></div>
+      <div id="pick-supplier-wrap" style="display:none;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:6px">⚠️ 家店都没货，需跟供应商叫货</div>
+        <div id="pick-supplier-list"></div>
+        <div style="height:1px;background:var(--border);margin:14px 0"></div>
+      </div>
+      <div id="transfer-cart-wrap" style="display:none;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:13px;font-weight:600;color:var(--text2)">📋 待转移清单</span><span style="font-size:12px;color:var(--text3)" id="transfer-cart-count">0 项</span></div>
+        <div id="transfer-cart-list"></div>
+        <button class="btn btn-block" style="background:var(--blue);border-color:var(--blue);color:#fff;margin-top:10px" onclick="confirmTransfer()">🔄 确认全部转移</button>
+        <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="clearTransfer()">🗑 清空</button>
+        <div style="height:1px;background:var(--border);margin:14px 0"></div>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px">或手动加入品项（例外情况）：</div>
+      <div class="form-row"><label>搜索商品</label><input type="text" id="transfer-search" placeholder="输入商品名..." oninput="renderTransferSearch()" style="flex:1;min-width:0"></div>
+      <div id="transfer-search-results"></div>
+      <div class="form-row"><label>或扫 Barcode</label><div class="barcode-input-wrap"><input type="text" id="transfer-barcode" placeholder="扫描 barcode" oninput="onTransferBarcodeTyped(this.value)"><button class="btn btn-scan" onclick="openScanModal('transfer')">📷</button></div></div>
     </div>
   </div>
 </div>
@@ -7147,6 +7156,18 @@ function togglePanel(panelId) {
 }
 
 // ── TRANSFER STOCK / 每日拣货清单 (cart-style, multi-item) ──────────
+function openTransferModal() {
+  document.getElementById('transfer-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+  renderTransferCart();
+  renderSupplierList();
+}
+
+function closeTransferModal() {
+  document.getElementById('transfer-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+
 let transferCart = []; // [{ itemId, qty, target_stock, shop_qty_at_gen, home_qty_at_gen, auto }]
 let supplierNeededList = []; // [{ itemId, name, target_stock, shop_qty, business }] - 仅提示,不参与转移
 let _draftSaveTimer = null;
