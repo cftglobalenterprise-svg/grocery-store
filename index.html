@@ -7079,7 +7079,8 @@ function renderTransferCart() {
   const countEl = document.getElementById('transfer-cart-count');
   if(!transferCart.length) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
-  countEl.textContent = transferCart.length + ' 项';
+  const doneCount = transferCart.filter(r => r.done).length;
+  countEl.textContent = `${transferCart.length} 项` + (doneCount ? ` · 已拿 ${doneCount}` : '');
 
   // 按brand分组排序，方便实际去拿货时同一个牌子的东西排在一起
   const rows = transferCart
@@ -7109,8 +7110,9 @@ function renderTransferCart() {
         gapNote = `<br><small style="color:var(--text3);font-weight:400">目标库存 ${it.target_stock}</small>`;
       }
     }
-    html += `<div class="cart-item">
-      <div class="cart-item-name">${it.name}<br>
+    const done = !!r.done;
+    html += `<div class="cart-item" style="${done?'opacity:0.5':''}">
+      <div class="cart-item-name" style="${done?'text-decoration:line-through':''}">${it.name}<br>
         <small style="color:var(--text3);font-weight:400">家里:${it.home_qty} 店里:${it.shop_qty}</small>${gapNote}
       </div>
       <div class="cart-qty-wrap">
@@ -7119,10 +7121,20 @@ function renderTransferCart() {
           oninput="updateTransferQty('${it.id}', this.value)"
           onchange="updateTransferQty('${it.id}', this.value)">
       </div>
+      <button onclick="toggleTransferDone('${it.id}')" title="标记已拿"
+        style="width:34px;height:34px;flex-shrink:0;border-radius:8px;border:1px solid ${done?'var(--green)':'var(--border)'};background:${done?'var(--green)':'var(--bg)'};color:${done?'#fff':'var(--text3)'};font-size:16px;cursor:pointer">✓</button>
       <button class="cart-remove" onclick="removeFromTransferCart('${it.id}')">✕</button>
     </div>`;
   });
   listEl.innerHTML = html;
+}
+
+function toggleTransferDone(id) {
+  const entry = transferCart.find(r => String(r.itemId) === String(id));
+  if(!entry) return;
+  entry.done = !entry.done;
+  renderTransferCart();
+  scheduleSaveDraft();
 }
 
 function renderSupplierList() {
@@ -7264,6 +7276,11 @@ async function loadDraftIfAny() {
 
 async function confirmTransfer() {
   if(!transferCart.length) return;
+  const undoneCount = transferCart.filter(r => !r.done).length;
+  if(undoneCount > 0) {
+    const ok = confirm(`还有 ${undoneCount} 项还没打勾「✓ 已拿」，确定全部转移吗？`);
+    if(!ok) return;
+  }
   // Validate all
   for(const r of transferCart) {
     const it = items.find(i => String(i.id) === String(r.itemId));
