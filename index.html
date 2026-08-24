@@ -1993,7 +1993,10 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="btn" style="font-size:12px;padding:4px 10px" onclick="closeTransferModal()">✕ 关闭</button>
     </div>
     <div style="flex:1;overflow-y:auto">
-      <button class="btn btn-block" style="background:var(--purple,#6d28d9);border-color:var(--purple,#6d28d9);color:#fff;font-weight:700;margin-bottom:6px" onclick="generatePickList()">🎯 自动生成每日拣货清单</button>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn" style="flex:1;background:var(--purple,#6d28d9);border-color:var(--purple,#6d28d9);color:#fff;font-weight:700;white-space:normal;line-height:1.3" onclick="generateTransferList()">🎯 今日要从家里带的货</button>
+        <button class="btn" style="flex:1;background:var(--red);border-color:var(--red);color:#fff;font-weight:700;white-space:normal;line-height:1.3" onclick="generateSupplierAlertList()">⚠️ 缺货叫供应商提醒</button>
+      </div>
       <div id="pick-draft-note" style="display:none;font-size:11px;color:var(--text3);text-align:center;margin-bottom:10px"></div>
       <div id="pick-supplier-wrap" style="display:none;margin-bottom:14px">
         <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:6px">⚠️ 家店都没货，需跟供应商叫货</div>
@@ -7161,37 +7164,52 @@ function dismissSupplierItem(id) {
 }
 
 // 自动生成每日拣货清单：比对 目标库存 vs 店里现有 vs 家里现有
-function generatePickList() {
+// 只生成「今天要从家里收拾带去店里的清单」，不动供应商叫货清单
+function generateTransferList() {
   const candidates = items.filter(i =>
     !i.bundle_components && !i.is_service &&
     i.target_stock !== null && i.target_stock !== undefined && +i.target_stock > 0
   );
   const newCart = [];
-  const newSupplier = [];
   candidates.forEach(it => {
     const target = +it.target_stock;
     const shop = +(it.shop_qty||0);
     const home = +(it.home_qty||0);
     const demand = target - shop;
     if(demand <= 0) return; // 店里已经足够，不用带
-    if(home <= 0) {
-      newSupplier.push({ itemId: String(it.id), name: it.name, target_stock: target, business: it.business });
-    } else {
-      const bring = Math.min(home, demand);
-      newCart.push({ itemId: String(it.id), qty: bring, target_stock: target, auto: true });
-      if(home < demand) {
-        // 家里不够全部补齐，但还是把能带的先带走；不足部分不额外加入供应商清单，
-        // 因为家里还有货，不算「家店都没货」的情况，只是提示在清单行内(见 renderTransferCart 的 gapNote)
-      }
-    }
+    if(home <= 0) return;   // 家里也没货，这个交给「缺货提醒」按钮处理
+    const bring = Math.min(home, demand);
+    newCart.push({ itemId: String(it.id), qty: bring, target_stock: target, auto: true });
   });
   transferCart = newCart;
-  supplierNeededList = newSupplier;
   renderTransferCart();
+  scheduleSaveDraft();
+  if(!newCart.length) {
+    showTransferToast('✅ 家里没有需要带去店里的货');
+  }
+}
+
+// 只生成「家店都没货，需跟供应商叫货」的提醒清单，不动待转移清单
+function generateSupplierAlertList() {
+  const candidates = items.filter(i =>
+    !i.bundle_components && !i.is_service &&
+    i.target_stock !== null && i.target_stock !== undefined && +i.target_stock > 0
+  );
+  const newSupplier = [];
+  candidates.forEach(it => {
+    const target = +it.target_stock;
+    const shop = +(it.shop_qty||0);
+    const home = +(it.home_qty||0);
+    const demand = target - shop;
+    if(demand <= 0) return; // 店里已经足够
+    if(home > 0) return;    // 家里还有货，不算缺货，交给「今日拣货」按钮处理
+    newSupplier.push({ itemId: String(it.id), name: it.name, target_stock: target, business: it.business });
+  });
+  supplierNeededList = newSupplier;
   renderSupplierList();
   scheduleSaveDraft();
-  if(!newCart.length && !newSupplier.length) {
-    showTransferToast('✅ 全部商品都已达到目标库存，不用补货');
+  if(!newSupplier.length) {
+    showTransferToast('✅ 目前没有需要跟供应商叫货的品项');
   }
 }
 
