@@ -2640,6 +2640,26 @@ async function adjustStockAtomic(item, field, delta) {
   return next;
 }
 
+// 撤回订单时归还库存的共用逻辑（门市销售/配送自取订单/总部报表撤回都走这里）。
+// 正确对称结账时的判断：服务商品或勾了「不扣库存」的，结账时没扣，撤回也不归还。
+// 套装商品会拆成电池+烟弹两份分别归还。deduct_from 决定归还去家里还是店里，缺省视为店里。
+async function restoreOrderStock(order) {
+  const item = items.find(i => String(i.id) === String(order.item_id));
+  if(!item) return; // 商品已被删除，无从归还
+  if(item.is_service || item.ignore_stock) return; // 结账时本来就没扣，撤回也不归还
+  const field = order.deduct_from === 'home' ? 'home_qty' : 'shop_qty';
+  const qty = +(order.qty || 0);
+  if(!qty) return;
+  if(item.bundle_components?.battery_id && item.bundle_components?.cartridge_id) {
+    const bat = items.find(i => String(i.id) === String(item.bundle_components.battery_id));
+    const car = items.find(i => String(i.id) === String(item.bundle_components.cartridge_id));
+    if(bat) await adjustStockAtomic(bat, field, qty);
+    if(car) await adjustStockAtomic(car, field, qty);
+  } else {
+    await adjustStockAtomic(item, field, qty);
+  }
+}
+
 async function loadOrders() {
   async function fetchAll(table, extraMap) {
     let all = [], from = 0, pageSize = 1000;
@@ -3351,18 +3371,7 @@ async function voidInstoreSale(idsStr) {
   for(const id of ids) {
     const o = orders.find(x=>String(x.id)===String(id));
     if(!o) continue;
-    // Restore stock
-    const item = items.find(i=>String(i.id)===String(o.item_id));
-    if(item) {
-      if(item.bundle_components?.battery_id && item.bundle_components?.cartridge_id) {
-        const bat = items.find(i=>String(i.id)===String(item.bundle_components.battery_id));
-        const car = items.find(i=>String(i.id)===String(item.bundle_components.cartridge_id));
-        if(bat) await adjustStockAtomic(bat, 'shop_qty', o.qty);
-        if(car) await adjustStockAtomic(car, 'shop_qty', o.qty);
-      } else {
-        await adjustStockAtomic(item, 'shop_qty', o.qty);
-      }
-    }
+    await restoreOrderStock(o);
     const oTblVoid = (o.business==='K19') ? 'g_orders' : 'orders';
     // If credit order, find and delete the debtor record created at same time
     const payM = o.pay_method || o.payment_method || o.payment_status || '';
@@ -3390,13 +3399,7 @@ async function voidOrderSale(idsStr) {
   for(const id of ids) {
     const o = orders.find(x=>String(x.id)===String(id));
     if(!o) continue;
-    const item = items.find(i=>String(i.id)===String(o.item_id));
-    if(item) {
-      const field = o.deduct_from==='shop' ? 'shop_qty' : 'home_qty';
-      const cur   = o.deduct_from==='shop' ? item.shop_qty : item.home_qty;
-      await sb.from(itemTable(item)).update({[field]: cur+o.qty}).eq('id',item.id);
-      if(o.deduct_from==='shop') item.shop_qty+=o.qty; else item.home_qty+=o.qty;
-    }
+    await restoreOrderStock(o);
     const oTblV2 = (o.business==='K19') ? 'g_orders' : 'orders';
     await sb.from(oTblV2).delete().eq('id',id);
     // Also delete associated delivery fee row (same customer, within 10 minutes)
@@ -4298,9 +4301,10 @@ async function updateOrderItemQty(orderId, gKey, val) {
   if(diff === 0) return;
 
   const item = items.find(i => i.id === o.item_id);
+  const skipStock = !item || item.is_service || item.ignore_stock;
 
   // Check stock if increasing qty
-  if(diff > 0 && item) {
+  if(diff > 0 && item && !skipStock) {
     const field = o.deduct_from === 'shop' ? 'shop_qty' : 'home_qty';
     if(item[field] < diff) {
       alert('库存不足！\n"' + item.name + '" ' + (o.deduct_from==='shop'?'店里':'家里') + ' 只剩 ' + item[field] + ' 个，无法再加 ' + diff + ' 个');
@@ -4319,12 +4323,10 @@ async function updateOrderItemQty(orderId, gKey, val) {
   const qtyTbl = (qtyOrd && qtyOrd.business==='K19') ? 'g_orders' : 'orders';
   await sb.from(qtyTbl).update({ qty: newQty, total_price: newTotal }).eq('id', orderId);
 
-  // Adjust stock by the difference
-  if(item) {
+  // Adjust stock by the difference（服务/不扣库存商品跳过，结账时本来就没扣）
+  if(item && !skipStock) {
     const field = o.deduct_from === 'shop' ? 'shop_qty' : 'home_qty';
-    const newStock = item[field] - diff;
-    await sb.from(itemTable(item)).update({ [field]: newStock }).eq('id', item.id);
-    item[field] = newStock;
+    await adjustStockAtomic(item, field, -diff);
   }
 
   o.qty = newQty;
@@ -4354,15 +4356,8 @@ async function removeOrderItem(orderId, gKey) {
   if(!confirm('删除这个商品？')) return;
   const g = window._pendingGroups[gKey];
   if(!g) return;
-  // Restore stock
   const o = g.orders.find(x => x.id === orderId);
-  if(o) {
-    const item = items.find(i => i.id === o.item_id);
-    if(item) {
-      const field = o.deduct_from === 'shop' ? 'shop_qty' : 'home_qty';
-      await sb.from(itemTable(item)).update({ [field]: item[field] + o.qty }).eq('id', item.id);
-    }
-  }
+  if(o) await restoreOrderStock(o);
   const delOrdTbl = (o && o.business==='K19') ? 'g_orders' : 'orders';
   await sb.from(delOrdTbl).delete().eq('id', orderId);
   g.orders = g.orders.filter(x => x.id !== orderId);
@@ -4405,8 +4400,9 @@ async function addItemToPending(gKey, itemId) {
   if(!item) return;
 
   const deduct = g.orders[0]?.deduct_from || 'home';
+  const skipStock = item.is_service || item.ignore_stock;
   const avail = deduct === 'shop' ? item.shop_qty : item.home_qty;
-  if(avail < 1) { alert(`库存不足！${item.name} 只剩 ${avail} 个`); return; }
+  if(!skipStock && avail < 1) { alert(`库存不足！${item.name} 只剩 ${avail} 个`); return; }
 
   const total_price = +(item.price||0);
   const quickItem = items.find(i => i.id === item.id);
@@ -4418,9 +4414,11 @@ async function addItemToPending(gKey, itemId) {
   }).select().single();
   if(error) { alert('加入失败：' + error.message); return; }
 
-  // Deduct stock
-  const field = deduct === 'shop' ? 'shop_qty' : 'home_qty';
-  await sb.from(itemTable(item)).update({ [field]: item[field] - 1 }).eq('id', item.id);
+  // Deduct stock（服务/不扣库存商品跳过）
+  if(!skipStock) {
+    const field = deduct === 'shop' ? 'shop_qty' : 'home_qty';
+    await adjustStockAtomic(item, field, -1);
+  }
 
   g.orders.push(data);
   window._pendingGroups[gKey] = g;
@@ -4540,11 +4538,7 @@ async function cancelGroup(idsStr) {
   for(const id of ids) {
     const o = orders.find(x=>x.id==id);
     if(!o) continue;
-    const item = items.find(i=>i.id==o.item_id);
-    if(item) {
-      const field = o.deduct_from==='shop' ? 'shop_qty' : 'home_qty';
-      await adjustStockAtomic(item, field, o.qty);
-    }
+    await restoreOrderStock(o);
     await sb.from((orders.find(x=>x.id===id)||{}).business==='K19' ? 'g_orders' : 'orders').update({status:'cancelled'}).eq('id',id);
   }
   await loadItems();
@@ -8152,13 +8146,7 @@ async function hqVoidSale(orderId, tbl) {
   if(!confirm('撤回这笔销售并归还库存？')) return;
   const o = orders.find(x => String(x.id) === String(orderId));
   if(!o) { alert('找不到记录'); return; }
-  const item = items.find(i => String(i.id) === String(o.item_id));
-  if(item && !item.is_service && !item.ignore_stock) {
-    const deductFrom = o.deduct_from || 'shop';
-    const qty = +(o.qty||1);
-    const field = deductFrom === 'home' ? 'home_qty' : 'shop_qty';
-    await adjustStockAtomic(item, field, qty);
-  }
+  await restoreOrderStock(o);
   // If credit order, delete matching debt record (paid or unpaid)
   const payM = o.pay_method || o.payment_method || o.payment_status || '';
   if(payM && payM.includes('credit')) {
