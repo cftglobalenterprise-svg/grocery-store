@@ -838,8 +838,12 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                 </div>
               </div>
               <div id="pos-points-row" style="display:none;padding:8px 0;border-top:1px dashed var(--border)">
+                <div style="display:flex;gap:6px;margin-bottom:8px">
+                  <button id="pos-points-tab-earn" onclick="setPosPointsMode('earn')" style="flex:1;padding:5px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid var(--text);background:var(--text);color:#fff;cursor:pointer">赚积分</button>
+                  <button id="pos-points-tab-redeem" onclick="setPosPointsMode('redeem')" style="flex:1;padding:5px;font-size:11px;font-weight:600;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer">用积分折抵</button>
+                </div>
                 <div style="display:flex;align-items:center;gap:6px;position:relative">
-                  <span style="font-size:12px;color:var(--text2);flex-shrink:0">🎁 积分给谁</span>
+                  <span style="font-size:12px;color:var(--text2);flex-shrink:0" id="pos-points-label">🎁 积分给谁</span>
                   <input id="pos-points-search" type="text" placeholder="搜索顾客名字/电话..." style="flex:1;min-width:0;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px" oninput="renderPosPointsSearch()">
                   <div id="pos-points-search-results" style="position:absolute;top:32px;left:0;right:0;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:20;max-height:180px;overflow-y:auto"></div>
                 </div>
@@ -847,10 +851,22 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                   <span style="font-size:12px;color:#5b21b6;font-weight:600" id="pos-points-selected-name"></span>
                   <button onclick="clearPosPointsCustomer()" style="padding:3px 8px;background:none;border:1px solid #5b21b6;border-radius:6px;font-size:11px;color:#5b21b6;cursor:pointer">✕ 取消</button>
                 </div>
+                <div id="pos-points-redeem-area" style="display:none;margin-top:8px">
+                  <div style="font-size:11px;color:var(--text3);margin-bottom:6px" id="pos-points-balance-line"></div>
+                  <div id="pos-redeem-input-row" style="display:flex;align-items:center;gap:6px">
+                    <input id="pos-points-redeem-input" type="number" min="0" placeholder="用几分" style="flex:1;min-width:0;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px" oninput="updatePosRedeemPreview()">
+                    <button onclick="confirmPosRedeem()" style="padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">✓ 确认</button>
+                  </div>
+                  <div id="pos-points-redeem-preview" style="font-size:12px;font-weight:600;margin-top:4px"></div>
+                  <div id="pos-redeem-confirmed-row" style="display:none;align-items:center;justify-content:space-between;background:#dcfce7;border-radius:8px;padding:6px 10px;margin-top:6px">
+                    <span style="font-size:12px;color:#15803d;font-weight:600" id="pos-redeem-confirmed-text"></span>
+                    <button onclick="cancelPosRedeem()" style="padding:3px 8px;background:none;border:1px solid #dc2626;border-radius:6px;font-size:11px;color:#dc2626;cursor:pointer">✕ 取消</button>
+                  </div>
+                </div>
               </div>
               <div style="padding:4px 0 2px;display:flex;justify-content:space-between;align-items:center">
                 <div style="display:flex;gap:10px">
-                  <button onclick="togglePosDiscount()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0">✂️ 折扣</button>
+                  <button id="pos-discount-toggle-btn" onclick="togglePosDiscount()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0">✂️ 折扣</button>
                   <button onclick="togglePosPoints()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0">🎁 积分</button>
                 </div>
                 <span style="font-size:18px;font-weight:800;font-family:'DM Mono',monospace;color:var(--text)" id="pos-final-display"></span>
@@ -2665,24 +2681,25 @@ async function adjustStockAtomic(item, field, delta) {
   return next;
 }
 
-// 撤回积分：如果这笔订单当初有算过积分（用结账时的精确时间戳 checkout_ts 对应），扣回对应的分数。
-// 用 ref_ledger_id 记录已经处理过，避免同一笔积分被扣两次。
+// 撤回积分：如果这笔订单当初有算过积分（赚分或折抵扣分，用结账时的精确时间戳 checkout_ts 对应），
+// 都要对称地还原——赚的分要扣回去，折抵用掉的分要还回来。
+// 用 ref_ledger_id 记录已经处理过，避免同一笔积分被处理两次。
 async function reversePointsForOrder(order) {
   const ts = order?.paid_at;
   if(!ts) return; // 没有付款时间戳（比如还没完成的订单），不可能有积分
   try {
-    const { data: entries } = await sb.from('customer_points_ledger').select('*').eq('reason','earn').eq('checkout_ts', ts);
+    const { data: entries } = await sb.from('customer_points_ledger').select('*').in('reason', ['earn','redeem']).eq('checkout_ts', ts);
     if(!entries || !entries.length) return;
     for(const entry of entries) {
       const { data: existingVoid } = await sb.from('customer_points_ledger').select('id').eq('ref_ledger_id', entry.id).maybeSingle();
-      if(existingVoid) continue; // 已经扣回过了，不重复扣
+      if(existingVoid) continue; // 已经处理过了，不重复处理
       await sb.from('customer_points_ledger').insert({
         customer_id: entry.customer_id,
         customer_name: entry.customer_name,
-        delta: -entry.delta,
+        delta: -entry.delta, // 赚分(正数)变负数扣回；折抵扣分(负数)变正数还回
         reason: 'void',
         ref_ledger_id: entry.id,
-        note: '撤回消费，扣回积分'
+        note: entry.reason === 'redeem' ? '撤回消费，退回折抵用的积分' : '撤回消费，扣回积分'
       });
       _customerPointsLoaded = false;
       _checkoutPointsLoaded = false;
@@ -3743,7 +3760,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
     if(debtErr) console.error('Debtor insert error:', debtErr.message);
   }
   // 会员积分（可选，没选顾客完全不影响正常结账）
-  if(_posPointsCustomer) {
+  if(_posPointsCustomer && _posPointsMode === 'earn') {
     const pts = Math.floor(total);
     if(pts > 0) {
       try {
@@ -3760,9 +3777,29 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
         _checkoutPointsLoaded = false;
       } catch(e) { console.error('积分记录失败', e); }
     }
+  } else if(_posPointsCustomer && _posPointsMode === 'redeem' && _posRedeemConfirmed) {
+    try {
+      await sb.from('customer_points_ledger').insert({
+        customer_id: _posPointsCustomer.id,
+        customer_name: _posPointsCustomer.name,
+        delta: -_posRedeemPoints,
+        reason: 'redeem',
+        checkout_ts: _checkoutTs,
+        note: `兑换折扣 RM${_posRedeemAmt.toFixed(2)}`
+      });
+      showPosToast(`🎁 ${_posPointsCustomer.name} 用了 ${_posRedeemPoints} 分`);
+      _customerPointsLoaded = false;
+      _checkoutPointsLoaded = false;
+    } catch(e) { console.error('积分记录失败', e); }
+  }
+  if(_posPointsCustomer) {
     clearPosPointsCustomer();
+    cancelPosRedeem();
+    setPosPointsMode('earn');
     const ptsRow = document.getElementById('pos-points-row');
     if(ptsRow) ptsRow.style.display = 'none';
+    const discBtn = document.getElementById('pos-discount-toggle-btn');
+    if(discBtn) { discBtn.style.opacity = ''; discBtn.style.pointerEvents = ''; }
   }
   instoreCart = [];
   setTimeout(() => { document.getElementById('pos-search-input')?.focus(); }, 50);
@@ -3868,7 +3905,9 @@ function renderInstoreHistory() {
     }).join('');
     const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total||o.total_price||0)),0);
     const ptsInfo = checkoutPointsMap[g.orders[0]?.paid_at];
-    const ptsLine = ptsInfo ? `<div style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:2px">🎁 ${ptsInfo.name} +${ptsInfo.delta} 分</div>` : '';
+    const ptsLine = !ptsInfo ? '' : ptsInfo.reason === 'redeem'
+      ? `<div style="font-size:11px;color:#16a34a;font-weight:600;margin-top:2px">🎁 ${ptsInfo.name} 用了 ${Math.abs(ptsInfo.delta)} 分折抵</div>`
+      : `<div style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:2px">🎁 ${ptsInfo.name} +${ptsInfo.delta} 分</div>`;
     return `<div class="order-row">
       <div class="order-info" style="flex:1">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
@@ -7669,7 +7708,7 @@ function updatePosCartUI() {
   if(finalDisplay) {
     if(discount > 0) {
       finalDisplay.textContent = `RM ${afterDiscount.toFixed(2)}`;
-      finalDisplay.style.color = _posDiscountConfirmed ? '#16a34a' : 'var(--text)';
+      finalDisplay.style.color = (_posDiscountConfirmed || _posRedeemConfirmed) ? '#16a34a' : 'var(--text)';
     } else {
       finalDisplay.textContent = '';
       finalDisplay.style.color = 'var(--text)';
@@ -7795,6 +7834,10 @@ function posRemoveItem(itemId) { itemId = String(itemId);
 
 function posClearCart() {
   instoreCart = [];
+  clearPosPointsCustomer();
+  cancelPosRedeem();
+  const ptsRow = document.getElementById('pos-points-row');
+  if(ptsRow) ptsRow.style.display = 'none';
   updatePosCartUI();
   renderPosGrid();
   document.getElementById('pos-search-input')?.focus();
@@ -7824,6 +7867,10 @@ let _posDiscountConfirmed = false; // true after user clicks ✓
 let _posDiscountConfirmedAmt = 0;  // locked discount amount
 
 function togglePosDiscount() {
+  if(_posRedeemConfirmed) {
+    alert('已经用积分折抵了，不能再叠加手动折扣，请先取消积分折抵');
+    return;
+  }
   const row = document.getElementById('pos-discount-row');
   if(!row) return;
   const isOpen = row.style.display !== 'none' && row.style.display !== '';
@@ -7840,6 +7887,14 @@ function togglePosDiscount() {
 }
 
 let _posPointsCustomer = null; // {id, name} 结账时选中的积分顾客，未选则完全不影响正常结账
+let _posPointsMode = 'earn';   // 'earn'=赚积分 / 'redeem'=用积分折抵
+let _posRedeemConfirmed = false;
+let _posRedeemPoints = 0;
+let _posRedeemAmt = 0;
+
+const POINTS_REDEEM_MIN = 100;      // 起兑门槛
+const POINTS_REDEEM_VALUE = 0.03;   // 1分 = RM0.03（对应3%回馈比例）
+const POINTS_REDEEM_CAP_PCT = 0.5;  // 单笔最多折抵消费金额的50%
 
 function togglePosPoints() {
   const row = document.getElementById('pos-points-row');
@@ -7850,8 +7905,27 @@ function togglePosPoints() {
     row.style.display = 'none';
   } else {
     row.style.display = 'block';
+    setPosPointsMode('earn'); // 每次打开都先回到「赚积分」
     setTimeout(() => document.getElementById('pos-points-search')?.focus(), 50);
   }
+}
+
+function setPosPointsMode(mode) {
+  if(mode === 'redeem' && _posDiscountConfirmed) {
+    alert('已经用了手动折扣，用积分折抵不能跟其他折扣一起用，请先取消折扣');
+    return;
+  }
+  _posPointsMode = mode;
+  clearPosPointsCustomer();
+  cancelPosRedeem();
+  const activeStyle = 'flex:1;padding:5px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid var(--text);background:var(--text);color:#fff;cursor:pointer';
+  const inactiveStyle = 'flex:1;padding:5px;font-size:11px;font-weight:600;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer';
+  const earnBtn = document.getElementById('pos-points-tab-earn');
+  const redeemBtn = document.getElementById('pos-points-tab-redeem');
+  if(earnBtn) earnBtn.style.cssText = mode === 'earn' ? activeStyle : inactiveStyle;
+  if(redeemBtn) redeemBtn.style.cssText = mode === 'redeem' ? activeStyle : inactiveStyle;
+  const label = document.getElementById('pos-points-label');
+  if(label) label.textContent = mode === 'earn' ? '🎁 积分给谁' : '🎁 谁要折抵';
 }
 
 function renderPosPointsSearch() {
@@ -7868,14 +7942,32 @@ function renderPosPointsSearch() {
     </div>`).join('');
 }
 
-function selectPosPointsCustomer(id) {
+async function selectPosPointsCustomer(id) {
   const c = customers.find(x => String(x.id) === String(id));
   if(!c) return;
   _posPointsCustomer = { id: c.id, name: c.name };
   document.getElementById('pos-points-search').value = '';
   document.getElementById('pos-points-search-results').innerHTML = '';
   document.getElementById('pos-points-selected').style.display = 'flex';
-  document.getElementById('pos-points-selected-name').textContent = '✓ 帮 ' + c.name + ' 加分';
+  document.getElementById('pos-points-selected-name').textContent = _posPointsMode === 'earn' ? ('✓ 帮 ' + c.name + ' 加分') : ('✓ ' + c.name);
+
+  const redeemArea = document.getElementById('pos-points-redeem-area');
+  if(_posPointsMode === 'redeem') {
+    await loadCustomerPoints(); // 折抵是花钱的事，每次都重新抓最新余额，不要用旧缓存
+    const balance = customerPointsMap[c.id] || 0;
+    redeemArea.style.display = 'block';
+    document.getElementById('pos-points-redeem-input').value = '';
+    document.getElementById('pos-points-redeem-preview').textContent = '';
+    if(balance < POINTS_REDEEM_MIN) {
+      document.getElementById('pos-points-balance-line').innerHTML = `当前 <b>${balance}</b> 分，未满 ${POINTS_REDEEM_MIN} 分门槛，暂不能折抵`;
+      document.getElementById('pos-redeem-input-row').style.display = 'none';
+    } else {
+      document.getElementById('pos-points-balance-line').innerHTML = `当前 <b style="color:#7c3aed">${balance}</b> 分`;
+      document.getElementById('pos-redeem-input-row').style.display = 'flex';
+    }
+  } else {
+    redeemArea.style.display = 'none';
+  }
 }
 
 function clearPosPointsCustomer() {
@@ -7886,6 +7978,75 @@ function clearPosPointsCustomer() {
   if(search) search.value = '';
   const results = document.getElementById('pos-points-search-results');
   if(results) results.innerHTML = '';
+  const redeemArea = document.getElementById('pos-points-redeem-area');
+  if(redeemArea) redeemArea.style.display = 'none';
+}
+
+function getPosRedeemBaseTotal() {
+  // 折抵上限是根据当下购物车总额（套餐优惠后、其他折扣前）算的
+  const baseTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
+  const { savings } = applyBundleRulesToCart(instoreCart);
+  return Math.max(0, baseTotal - savings);
+}
+
+function updatePosRedeemPreview() {
+  if(_posRedeemConfirmed) return;
+  const pts = parseInt(document.getElementById('pos-points-redeem-input').value) || 0;
+  const previewEl = document.getElementById('pos-points-redeem-preview');
+  if(pts <= 0) { previewEl.textContent = ''; return; }
+  const balance = customerPointsMap[_posPointsCustomer?.id] || 0;
+  const capAmt = getPosRedeemBaseTotal() * POINTS_REDEEM_CAP_PCT;
+  const amt = Math.round(pts * POINTS_REDEEM_VALUE * 20) / 20; // 四舍五入到最近的RM0.05
+  const warnings = [];
+  if(pts > balance) warnings.push(`超过余额(${balance}分)`);
+  if(amt > capAmt) warnings.push(`超过单笔上限(最多折抵RM${capAmt.toFixed(2)})`);
+  previewEl.innerHTML = warnings.length
+    ? `<span style="color:#dc2626">⚠️ ${warnings.join('，')}</span>`
+    : `<span style="color:#16a34a">折抵 RM ${amt.toFixed(2)}</span>`;
+}
+
+function confirmPosRedeem() {
+  const pts = parseInt(document.getElementById('pos-points-redeem-input').value) || 0;
+  if(pts <= 0) { alert('请输入要用的积分数量'); return; }
+  const balance = customerPointsMap[_posPointsCustomer?.id] || 0;
+  if(pts > balance) { alert('超过顾客现有积分（现有 ' + balance + ' 分）'); return; }
+  const capAmt = getPosRedeemBaseTotal() * POINTS_REDEEM_CAP_PCT;
+  const amt = Math.round(pts * POINTS_REDEEM_VALUE * 20) / 20;
+  if(amt > capAmt) { alert('超过单笔折抵上限（最多折抵 RM' + capAmt.toFixed(2) + '，也就是消费金额的' + (POINTS_REDEEM_CAP_PCT*100) + '%）'); return; }
+  if(amt <= 0) { alert('折抵金额太小，请增加积分数量'); return; }
+
+  _posRedeemConfirmed = true;
+  _posRedeemPoints = pts;
+  _posRedeemAmt = amt;
+
+  document.getElementById('pos-redeem-input-row').style.display = 'none';
+  document.getElementById('pos-points-redeem-preview').textContent = '';
+  document.getElementById('pos-redeem-confirmed-row').style.display = 'flex';
+  document.getElementById('pos-redeem-confirmed-text').textContent = `✓ 用 ${pts} 分折抵 RM${amt.toFixed(2)}`;
+
+  // 跟手动折扣互斥：清掉手动折扣、收起折扣区块、把折扣按钮停用
+  cancelPosDiscount();
+  const discRow = document.getElementById('pos-discount-row');
+  if(discRow) discRow.style.display = 'none';
+  const discBtn = document.getElementById('pos-discount-toggle-btn');
+  if(discBtn) { discBtn.style.opacity = '0.4'; discBtn.style.pointerEvents = 'none'; }
+
+  updatePosCartUI();
+}
+
+function cancelPosRedeem() {
+  _posRedeemConfirmed = false;
+  _posRedeemPoints = 0;
+  _posRedeemAmt = 0;
+  const confirmedRow = document.getElementById('pos-redeem-confirmed-row');
+  if(confirmedRow) confirmedRow.style.display = 'none';
+  const inputRow = document.getElementById('pos-redeem-input-row');
+  if(inputRow) inputRow.style.display = (_posPointsCustomer && _posPointsMode==='redeem') ? 'flex' : 'none';
+  const preview = document.getElementById('pos-points-redeem-preview');
+  if(preview) preview.textContent = '';
+  const discBtn = document.getElementById('pos-discount-toggle-btn');
+  if(discBtn) { discBtn.style.opacity = ''; discBtn.style.pointerEvents = ''; }
+  updatePosCartUI();
 }
 
 function confirmPosDiscount() {
@@ -7929,6 +8090,8 @@ function setPosDiscountType(type) {
 }
 
 function getPosDiscount(baseTotal) {
+  // 积分折抵跟手动折扣互斥，折抵已确认的话直接用它，走跟手动折扣一样的路径
+  if(_posRedeemConfirmed) return Math.min(baseTotal, _posRedeemAmt);
   // If confirmed, always return the locked amount
   if(_posDiscountConfirmed) return _posDiscountConfirmedAmt;
   const row = document.getElementById('pos-discount-row');
@@ -9399,15 +9562,15 @@ async function loadCustomerPoints() {
   } catch(e) { console.error('积分读取失败', e); }
 }
 
-let checkoutPointsMap = {}; // checkout_ts(付款时间戳) -> {name, delta}，给消费记录显示「谁拿了多少分」用
+let checkoutPointsMap = {}; // checkout_ts(付款时间戳) -> {name, delta, reason}，给消费记录显示「谁拿了/用了多少分」用
 let _checkoutPointsLoaded = false;
 
 async function loadCheckoutPointsMap() {
   try {
-    const { data, error } = await sb.from('customer_points_ledger').select('customer_name,delta,checkout_ts').eq('reason','earn');
+    const { data, error } = await sb.from('customer_points_ledger').select('customer_name,delta,checkout_ts,reason').in('reason', ['earn','redeem']);
     if(error) throw error;
     const map = {};
-    (data||[]).forEach(row => { if(row.checkout_ts) map[row.checkout_ts] = { name: row.customer_name, delta: row.delta }; });
+    (data||[]).forEach(row => { if(row.checkout_ts) map[row.checkout_ts] = { name: row.customer_name, delta: row.delta, reason: row.reason }; });
     checkoutPointsMap = map;
     _checkoutPointsLoaded = true;
   } catch(e) { console.error('积分读取失败', e); }
