@@ -3688,6 +3688,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
     if(debtErr) console.error('Debtor insert error:', debtErr.message);
   }
   instoreCart = [];
+  setTimeout(() => { document.getElementById('pos-search-input')?.focus(); }, 50);
   // Clear discount
   _posDiscountConfirmed = false;
   _posDiscountConfirmedAmt = 0;
@@ -7724,6 +7725,7 @@ function posClearCart() {
   instoreCart = [];
   updatePosCartUI();
   renderPosGrid();
+  document.getElementById('pos-search-input')?.focus();
 }
 
 
@@ -7871,7 +7873,10 @@ function posSwitchTab(t) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const page = document.getElementById('page-' + t);
   if(page) page.classList.add('active');
-  if(t === 'instore') { renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard(); }
+  if(t === 'instore') {
+    renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard();
+    setTimeout(() => { document.getElementById('pos-search-input')?.focus(); }, 50);
+  }
   else if(t === 'stock') {
     setTimeout(() => {
       if(typeof renderBulkPriceList === 'function') renderBulkPriceList();
@@ -7925,6 +7930,21 @@ function posOpenCustomer() { openCustomerMode(); }
 
 init();
 setTimeout(() => { renderPosCats(); renderPosGrid(); updatePosCartUI(); loadCustomers(); loadDraftIfAny(); }, 300);
+
+// 收银页面：点了商品卡片/分类等地方后，焦点自动跳回搜索框，
+// 不用每次都手动点一下才能继续打字/扫码（除非是在填别的输入框，或有弹窗开着）
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('page-instore')?.classList.contains('active')) return;
+  if (document.body.classList.contains('modal-open')) return;
+  if (document.getElementById('credit-modal')?.style.display === 'flex') return;
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  const searchInput = document.getElementById('pos-search-input');
+  if (searchInput && document.activeElement !== searchInput) {
+    setTimeout(() => searchInput.focus(), 0);
+  }
+});
+
 // ── Debounced barcode handlers for Transfer and Restock ──
 let _transferBarcodeTimer = null;
 let _restockBarcodeTimer = null;
