@@ -2994,10 +2994,11 @@ function renderItems() {
       const canMake = (_bat && _car) ? Math.min(_bat.home_qty+_bat.shop_qty, _car.home_qty+_car.shop_qty) : 0;
       bundleBadge = `<span class="badge badge-bundle">🎁 套装</span><span class="can-make-badge">可组 ${canMake} 套</span>`;
     }
-    const checked = selectedIds.has(it.id) ? 'checked' : '';
-    const rowClass = selectedIds.has(it.id) ? 'item-row selected' : 'item-row';
-    return `<div class="${rowClass}" id="row-${it.id}">
-      <input type="checkbox" class="item-checkbox" ${checked} onchange="toggleSelect(${it.id}, this.checked)">
+    const selKey = it._table + '_' + it.id;
+    const checked = selectedIds.has(selKey) ? 'checked' : '';
+    const rowClass = selectedIds.has(selKey) ? 'item-row selected' : 'item-row';
+    return `<div class="${rowClass}" id="row-${selKey}">
+      <input type="checkbox" class="item-checkbox" ${checked} onchange="toggleSelect('${selKey}', this.checked)">
       <div class="item-info">
         <div class="item-name">${it.is_service?'<span style="display:inline-block;background:#0369a1;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:2px">服务</span>':''}${it.business==='K19'?'<span style="display:inline-block;background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:2px">杂货</span>':''} ${it.name} ${warn}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">${cat} ${price} ${bundleBadge}</div>
@@ -3052,11 +3053,11 @@ function toggleSelectAll() {
   const filterCat = document.getElementById('filter-category');
   const selectedCat = filterCat ? filterCat.value : '';
   const visible = selectedCat ? items.filter(i=>i.category===selectedCat) : items;
-  const allSelected = visible.every(i => selectedIds.has(i.id));
+  const allSelected = visible.every(i => selectedIds.has(i._table + '_' + i.id));
   if(allSelected) {
-    visible.forEach(i => selectedIds.delete(i.id));
+    visible.forEach(i => selectedIds.delete(i._table + '_' + i.id));
   } else {
-    visible.forEach(i => selectedIds.add(i.id));
+    visible.forEach(i => selectedIds.add(i._table + '_' + i.id));
   }
   renderItems();
 }
@@ -3097,10 +3098,11 @@ async function saveBulkEdit() {
   if(shop !== '') update.shop_qty = +shop;
   setSync('busy','批量更新中...');
   closeBulkEdit();
-  for(const id of selectedIds) {
-    const bkItem = items.find(i => i.id == id);
-    const bkTbl = bkItem ? (bkItem._table || 'items') : 'items';
-    await sb.from(bkTbl).update(update).eq('id', id);
+  for(const key of selectedIds) {
+    const idx = key.lastIndexOf('_');
+    const bkTbl = key.slice(0, idx);
+    const rawId = key.slice(idx + 1);
+    await sb.from(bkTbl).update(update).eq('id', rawId);
   }
   selectedIds.clear();
   await loadItems();
