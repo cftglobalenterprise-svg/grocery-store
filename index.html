@@ -3989,17 +3989,17 @@ function renderOrders() {
     const itemLines = g.orders.map(o => {
       const total_price = +(o.total_price||o.total||0);
       const priceTag = total_price > 0
-        ? `<span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline dotted" onclick="promptOrderItemPrice(${o.id},'${gKey}')" title="点击修改价格">RM ${total_price.toFixed(2)}</span>`
-        : `<span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="promptOrderItemPrice(${o.id},'${gKey}')">＋ 价格</span>`;
+        ? `<span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline dotted" onclick="promptOrderItemPrice('${o.id}','${gKey}')" title="点击修改价格">RM ${total_price.toFixed(2)}</span>`
+        : `<span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="promptOrderItemPrice('${o.id}','${gKey}')">＋ 价格</span>`;
       return `<li style="display:flex;align-items:center;gap:6px;padding:3px 0;flex-wrap:wrap">
         <span style="flex:1;min-width:0">• ${o.item_name}</span>
         <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
           <span style="font-size:11px;color:var(--text3)">x</span>
           <input type="number" min="1" value="${o.qty}" style="width:40px;padding:1px 4px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace"
-            onchange="updateOrderItemQty(${o.id},'${gKey}',this.value)">
+            onchange="updateOrderItemQty('${o.id}','${gKey}',this.value)">
           ${priceTag}
         </div>
-        <button onclick="removeOrderItem(${o.id},'${gKey}')" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0;flex-shrink:0">✕</button>
+        <button onclick="removeOrderItem('${o.id}','${gKey}')" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0;flex-shrink:0">✕</button>
       </li>`;
     }).join('');
     const groupTotal = g.orders.reduce((s,o) => s+(+(o.total_price||o.total||0)), 0);
@@ -4386,7 +4386,7 @@ function refreshPendingTotal(gKey) {
   g.orders.forEach(o => {
     const li = document.querySelector(`#pg-items-${gKey} li`);
     // Find the price span for this order by its onclick
-    const priceSpan = document.querySelector(`[onclick="promptOrderItemPrice(${o.id},'${gKey}')"]`);
+    const priceSpan = document.querySelector(`[onclick="promptOrderItemPrice('${o.id}','${gKey}')"]`);
     if(priceSpan) {
       const tp = +(o.total_price||o.total||0);
       if(tp > 0) {
@@ -4401,7 +4401,7 @@ function refreshPendingTotal(gKey) {
 async function promptOrderItemPrice(orderId, gKey) {
   const g = window._pendingGroups[gKey];
   if(!g) return;
-  const o = g.orders.find(x => x.id === orderId);
+  const o = g.orders.find(x => String(x.id) === String(orderId));
   if(!o) return;
   const cur = o.total_price ? (+o.total_price).toFixed(2) : '0.00';
   const newVal = prompt('修改总价（RM）：', cur);
@@ -4415,9 +4415,9 @@ async function updateOrderItemPrice(orderId, gKey, val) {
   const price = Math.max(0, parseFloat(val) || 0);
   const g = window._pendingGroups[gKey];
   if(!g) return;
-  const o = g.orders.find(x => x.id === orderId);
+  const o = g.orders.find(x => String(x.id) === String(orderId));
   if(!o) return;
-  const priceOrd = orders.find(x=>x.id===orderId);
+  const priceOrd = orders.find(x=>String(x.id)===String(orderId));
   const priceTbl = (priceOrd && priceOrd.business==='K19') ? 'g_orders' : 'orders';
   await sb.from(priceTbl).update({ total_price: price }).eq('id', orderId);
   o.total_price = price;
@@ -4428,7 +4428,7 @@ async function updateOrderItemQty(orderId, gKey, val) {
   const newQty = Math.max(1, parseInt(val) || 1);
   const g = window._pendingGroups[gKey];
   if(!g) return;
-  const o = g.orders.find(x => x.id === orderId);
+  const o = g.orders.find(x => String(x.id) === String(orderId));
   if(!o) return;
 
   const diff = newQty - o.qty; // positive = deduct more, negative = return stock
@@ -4442,7 +4442,7 @@ async function updateOrderItemQty(orderId, gKey, val) {
     const field = o.deduct_from === 'shop' ? 'shop_qty' : 'home_qty';
     if(item[field] < diff) {
       alert('库存不足！\n"' + item.name + '" ' + (o.deduct_from==='shop'?'店里':'家里') + ' 只剩 ' + item[field] + ' 个，无法再加 ' + diff + ' 个');
-      const qtyInp = document.querySelector('#pg-items-' + gKey + ' input[onchange*="updateOrderItemQty(' + orderId + '"]');
+      const qtyInp = document.querySelector('#pg-items-' + gKey + ' input[onchange*="updateOrderItemQty(\'' + orderId + '\'"]');
       if(qtyInp) qtyInp.value = o.qty;
       return;
     }
@@ -4453,7 +4453,7 @@ async function updateOrderItemQty(orderId, gKey, val) {
   const newTotal = parseFloat((unitPrice * newQty).toFixed(2));
 
   // Update order record
-  const qtyOrd = orders.find(x=>x.id===orderId);
+  const qtyOrd = orders.find(x=>String(x.id)===String(orderId));
   const qtyTbl = (qtyOrd && qtyOrd.business==='K19') ? 'g_orders' : 'orders';
   await sb.from(qtyTbl).update({ qty: newQty, total_price: newTotal }).eq('id', orderId);
 
@@ -4467,7 +4467,7 @@ async function updateOrderItemQty(orderId, gKey, val) {
   o.total_price = newTotal;
 
   // Update price input in DOM
-  const priceInp = document.querySelector('#pg-items-' + gKey + ' input[onchange*="updateOrderItemPrice(' + orderId + '"]');
+  const priceInp = document.querySelector('#pg-items-' + gKey + ' input[onchange*="updateOrderItemPrice(\'' + orderId + '\'"]');
   if(priceInp) priceInp.value = newTotal.toFixed(2);
 
   setSync('ok', '已更新数量 · ' + timeNow());
@@ -4490,11 +4490,11 @@ async function removeOrderItem(orderId, gKey) {
   if(!confirm('删除这个商品？')) return;
   const g = window._pendingGroups[gKey];
   if(!g) return;
-  const o = g.orders.find(x => x.id === orderId);
+  const o = g.orders.find(x => String(x.id) === String(orderId));
   if(o) await restoreOrderStock(o);
   const delOrdTbl = (o && o.business==='K19') ? 'g_orders' : 'orders';
   await sb.from(delOrdTbl).delete().eq('id', orderId);
-  g.orders = g.orders.filter(x => x.id !== orderId);
+  g.orders = g.orders.filter(x => String(x.id) !== String(orderId));
   window._pendingGroups[gKey] = g;
   // Remove the li from DOM
   const li = document.querySelector(`#pg-items-${gKey} li input[onchange*="${orderId}"]`)?.closest('li');
@@ -4564,10 +4564,10 @@ async function addItemToPending(gKey, itemId) {
   li.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0';
   li.innerHTML = `<span style="flex:1">• ${item.name} ×
     <input type="number" min="1" value="1" style="width:42px;padding:1px 4px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace"
-      onchange="updateOrderItemQty(${data.id},'${gKey}',this.value)">
+      onchange="updateOrderItemQty('${data.id}','${gKey}',this.value)">
     <span style="color:var(--green);font-family:'DM Mono',monospace;font-size:11px;font-weight:600">${total_price > 0 ? 'RM '+total_price.toFixed(2) : ''}</span>
   </span>
-  <button onclick="removeOrderItem(${data.id},'${gKey}')" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">✕</button>`;
+  <button onclick="removeOrderItem('${data.id}','${gKey}')" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">✕</button>`;
   ul.insertBefore(li, totalLi);
 
   refreshPendingTotal(gKey);
@@ -5053,7 +5053,7 @@ function renderBrSearch() {
       ${catItems.map(it => {
         const checked = _brSelectedItemIds.has(it.id);
         return `<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;border-bottom:1px solid var(--border);${checked?'background:#f0fdf4':''}">
-          <input type="checkbox" ${checked?'checked':''} onchange="brToggleItem(${it.id}, this.checked)" style="width:15px;height:15px;accent-color:#2d6a4f;flex-shrink:0">
+          <input type="checkbox" ${checked?'checked':''} onchange="brToggleItem('${it.id}', this.checked)" style="width:15px;height:15px;accent-color:#2d6a4f;flex-shrink:0">
           <span style="flex:1;font-size:12px;color:var(--text)">${it.name}</span>
           <span style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">RM${(+(it.price||0)).toFixed(2)}</span>
         </label>`;
@@ -5063,8 +5063,10 @@ function renderBrSearch() {
 }
 
 function brToggleItem(id, checked) {
-  if(checked) _brSelectedItemIds.add(id);
-  else _brSelectedItemIds.delete(id);
+  const it = items.find(i => String(i.id) === String(id));
+  const realId = it ? it.id : id;
+  if(checked) _brSelectedItemIds.add(realId);
+  else _brSelectedItemIds.delete(realId);
   renderBrCatChips();
   updateBrCount();
 }
@@ -5424,7 +5426,7 @@ function renderRestockSearch() {
   const filtered = items.filter(i => i.name.toLowerCase().includes(query)).slice(0, 8);
   if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:8px">没有找到商品</div>'; return; }
   el.innerHTML = '<div class="search-results">' + filtered.map(it => {
-    const inCart = restockCart.find(r => r.itemId === it.id);
+    const inCart = restockCart.find(r => String(r.itemId) === String(it.id));
     const tag = inCart ? `<span style="font-size:11px;color:var(--green);font-weight:600">已加 ${inCart.qty} 个</span>` : '';
     return `<div class="search-result-item" onclick="addToRestockCart('${it.id}');document.getElementById('restock-search').value='';document.getElementById('restock-search-results').innerHTML=''">
       <div>
@@ -5435,18 +5437,9 @@ function renderRestockSearch() {
   }).join('') + '</div>';
 }
 
-function onRestockBarcodeTyped(val) {
-  val = val.trim();
-  if(!val) return;
-  const found = items.find(i => i.barcode && i.barcode === val);
-  if(found) {
-    addToRestockCart(found.id);
-    document.getElementById('restock-barcode').value = '';
-  }
-}
-
 function addToRestockCart(id) {
-  const existing = restockCart.find(r => r.itemId === id);
+  id = String(id);
+  const existing = restockCart.find(r => String(r.itemId) === id);
   if(existing) {
     existing.qty += 1;
   } else {
@@ -5459,12 +5452,12 @@ function addToRestockCart(id) {
 }
 
 function removeFromRestockCart(id) { id = String(id);
-  restockCart = restockCart.filter(r => r.itemId !== id);
+  restockCart = restockCart.filter(r => String(r.itemId) !== id);
   renderRestockCart();
 }
 
 function updateRestockQty(id, val) {
-  const entry = restockCart.find(r => r.itemId === id);
+  const entry = restockCart.find(r => String(r.itemId) === String(id));
   if(entry) entry.qty = Math.max(1, parseInt(val) || 1);
   renderRestockCart();
 }
@@ -5480,7 +5473,7 @@ function renderRestockCart() {
   wrap.style.display = 'block';
   countEl.textContent = restockCart.length + ' 项';
   listEl.innerHTML = restockCart.map(r => {
-    const it = items.find(i => i.id === r.itemId);
+    const it = items.find(i => String(i.id) === String(r.itemId));
     if(!it) return '';
     return `<div class="cart-item">
       <div class="cart-item-name">${it.name}<br>
@@ -5489,8 +5482,8 @@ function renderRestockCart() {
       <div class="cart-qty-wrap">
         <label>数量</label>
         <input type="number" min="1" value="${r.qty}"
-          oninput="updateRestockQty(${it.id}, this.value)"
-          onchange="updateRestockQty(${it.id}, this.value)">
+          oninput="updateRestockQty('${it.id}', this.value)"
+          onchange="updateRestockQty('${it.id}', this.value)">
       </div>
       <button class="cart-remove" onclick="removeFromRestockCart('${it.id}')">✕</button>
     </div>`;
@@ -5514,12 +5507,12 @@ async function confirmRestock() {
   const locName = loc === 'home' ? '家里' : '店里';
   setSync('busy', '进货中...');
   for(const r of restockCart) {
-    const it = items.find(i => i.id === r.itemId);
+    const it = items.find(i => String(i.id) === String(r.itemId));
     if(!it) continue;
-    const newQty = loc === 'home' ? it.home_qty + r.qty : it.shop_qty + r.qty;
-    const update = loc === 'home' ? { home_qty: newQty } : { shop_qty: newQty };
-    const { error } = await sb.from(itemTable(it)).update(update).eq('id', it.id);
-    if(error) { alert('进货失败：' + it.name); setSync('err','失败'); return; }
+    const field = loc === 'home' ? 'home_qty' : 'shop_qty';
+    try {
+      await adjustStockAtomic(it, field, r.qty);
+    } catch(error) { alert('进货失败：' + it.name); setSync('err','失败'); return; }
   }
   setSync('ok', `已进货 ${restockCart.length} 项 → ${locName} · ${timeNow()}`);
   clearRestock();
@@ -5762,7 +5755,7 @@ function renderPnL() {
       <span style="font-size:12px;color:var(--text2);flex:1;padding-left:12px">${e.label}</span>
       <input type="number" min="0" step="0.01" value="${(+(e.amount||0)).toFixed(2)}"
         style="width:90px;padding:4px 6px;font-size:12px;border:1px solid ${e.overridden?'var(--amber-border)':'var(--border)'};border-radius:6px;background:${e.overridden?'var(--amber-bg)':'var(--bg)'};text-align:right;font-family:'DM Mono',monospace;color:var(--text)"
-        onchange="overrideExpenseAmount('${ym}',${e.id},this.value)"
+        onchange="overrideExpenseAmount('${ym}','${e.id}',this.value)"
         title="${e.overridden?'本月已修改（点✕还原默认）':'默认金额'}">
       ${e.overridden ? `<button onclick="resetExpenseOverride('${ym}','${e.id}')" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:0" title="还原默认金额">↩</button>` : '<span style="width:16px"></span>'}
       <button onclick="deleteFixedExpense('${e.id}')" style="background:none;border:none;color:var(--text3);font-size:15px;cursor:pointer;padding:0 2px">✕</button>
@@ -5822,7 +5815,7 @@ function overrideExpenseAmount(ym, id, val) {
   const amount = parseFloat(val);
   if(isNaN(amount) || amount < 0) return;
   // Check if same as default
-  const base = _pnlExpenses.find(e=>e.id===id);
+  const base = _pnlExpenses.find(e=>String(e.id)===String(id));
   if(base && Math.abs(amount - base.amount) < 0.001) {
     removeMonthOverride(ym, id);
   } else {
@@ -6851,7 +6844,7 @@ function addPdfMatchesToCart() {
     if(chk && !chk.checked) return;
 
     const sel = document.getElementById('pdf-sel-' + idx);
-    if(sel && sel.value) m.item_id = parseInt(sel.value);
+    if(sel && sel.value) m.item_id = sel.value;
     if(!m.item_id) return;
 
     const finalQty = (m.supplier_qty != null ? m.supplier_qty : 1) * (m.ratio || 1);
@@ -6860,18 +6853,18 @@ function addPdfMatchesToCart() {
     if(m.item_code) { pdfPendingCodes.add(m.item_code); savePdfPendingCodes(); }
 
     // Add item 1
-    const existing = restockCart.find(r => r.itemId === m.item_id);
+    const existing = restockCart.find(r => String(r.itemId) === String(m.item_id));
     if(existing) existing.qty += finalQty;
-    else restockCart.push({ itemId: m.item_id, qty: finalQty });
+    else restockCart.push({ itemId: String(m.item_id), qty: finalQty });
     added++;
 
     // Add item 2 (battery/cartridge partner) with same qty
     const sel2 = document.getElementById('pdf-sel2-' + idx);
-    if(sel2 && sel2.value) m.item_id2 = parseInt(sel2.value);
+    if(sel2 && sel2.value) m.item_id2 = sel2.value;
     if(m.item_id2) {
-      const existing2 = restockCart.find(r => r.itemId === m.item_id2);
+      const existing2 = restockCart.find(r => String(r.itemId) === String(m.item_id2));
       if(existing2) existing2.qty += finalQty;
-      else restockCart.push({ itemId: m.item_id2, qty: finalQty });
+      else restockCart.push({ itemId: String(m.item_id2), qty: finalQty });
     }
   });
 
@@ -9434,9 +9427,9 @@ function renderBulkPriceList() {
   if(!filtered.length) { el.innerHTML = '<div class="empty" style="padding:10px">没有找到商品</div>'; return; }
 
   el.innerHTML = filtered.map(it => {
-    const checked = _bulkPriceSelected.has(it.id);
+    const checked = _bulkPriceSelected.has(String(it.id));
     return `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;${checked?'background:var(--green-bg)':''}">
-      <input type="checkbox" ${checked?'checked':''} onchange="bulkPriceToggle(${it.id},this.checked)" style="width:15px;height:15px;accent-color:var(--green);flex-shrink:0">
+      <input type="checkbox" ${checked?'checked':''} onchange="bulkPriceToggle('${it.id}',this.checked)" style="width:15px;height:15px;accent-color:var(--green);flex-shrink:0">
       <span style="flex:1;font-size:12px;color:var(--text)">${it.name}</span>
       <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--green);font-weight:600">${it.price?'RM '+(+it.price).toFixed(2):'—'}</span>
     </label>`;
@@ -9446,8 +9439,8 @@ function renderBulkPriceList() {
 }
 
 function bulkPriceToggle(id, checked) {
-  if(checked) _bulkPriceSelected.add(id);
-  else _bulkPriceSelected.delete(id);
+  if(checked) _bulkPriceSelected.add(String(id));
+  else _bulkPriceSelected.delete(String(id));
   document.getElementById('bulk-price-selected-count').textContent = '已选 ' + _bulkPriceSelected.size + ' 项';
   renderBulkPriceList();
 }
@@ -9456,7 +9449,7 @@ function bulkPriceSelectAll() {
   const cat = document.getElementById('bulk-price-cat')?.value||'';
   const q = document.getElementById('bulk-price-search')?.value.toLowerCase()||'';
   items.filter(i => !i.bundle_components && (!cat||i.category===cat) && (!q||i.name.toLowerCase().includes(q)))
-    .forEach(i => _bulkPriceSelected.add(i.id));
+    .forEach(i => _bulkPriceSelected.add(String(i.id)));
   renderBulkPriceList();
 }
 
@@ -9486,7 +9479,7 @@ async function applyBulkPrice() {
   const val = parseFloat(document.getElementById('bulk-price-value')?.value);
   if(isNaN(val)) { alert('请输入有效数值'); return; }
 
-  const selectedItems = items.filter(i => _bulkPriceSelected.has(i.id));
+  const selectedItems = items.filter(i => _bulkPriceSelected.has(String(i.id)));
   const preview = selectedItems.slice(0,3).map(i => {
     let newPrice = val;
     if(_bulkPriceMode === 'add') newPrice = (+(i.price||0)) + val;
