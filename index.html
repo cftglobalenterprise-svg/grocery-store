@@ -1674,41 +1674,35 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 
       <div id="page-debtors" class="page">
         <div style="max-width:700px;margin:0 auto;padding:16px">
-          <!-- Tabs -->
-          <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid var(--border)">
-            <button id="debt-tab-records" onclick="switchDebtTab('records')" style="padding:10px 20px;border:none;background:none;font-size:14px;font-weight:700;color:var(--blue);border-bottom:2px solid var(--blue);margin-bottom:-2px;cursor:pointer">📋 欠款记录</button>
-            <button id="debt-tab-customers" onclick="switchDebtTab('customers')" style="padding:10px 20px;border:none;background:none;font-size:14px;font-weight:600;color:var(--text3);cursor:pointer">👤 顾客管理</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:20px;font-weight:700">📒 欠款记录</div>
+            <button onclick="posSwitchTab('customers')" style="font-size:12px;color:var(--blue);background:none;border:none;cursor:pointer;padding:0">👤 顾客名单 →</button>
           </div>
-          <!-- Records Tab -->
-          <div id="debt-panel-records">
-            <div id="debtor-summary" style="display:flex;gap:10px;margin-bottom:16px"></div>
-            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-              <select id="debt-person-filter" onchange="renderDebtors()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;flex:1">
-                <option value="">全部顾客</option>
-              </select>
-              <select id="debt-filter" onchange="renderDebtors()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">
-                <option value="unpaid">未还款</option>
-                <option value="paid">已还款</option>
-                <option value="">全部</option>
-              </select>
-              <button onclick="openAddDebtModal()" style="padding:7px 14px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">＋ 手动记账</button>
-            </div>
-            <div id="debtor-list"></div>
+          <div id="debtor-summary" style="display:flex;gap:10px;margin-bottom:16px"></div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <select id="debt-person-filter" onchange="renderDebtors()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;flex:1">
+              <option value="">全部顾客</option>
+            </select>
+            <select id="debt-filter" onchange="renderDebtors()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">
+              <option value="unpaid">未还款</option>
+              <option value="paid">已还款</option>
+              <option value="">全部</option>
+            </select>
+            <button onclick="openAddDebtModal()" style="padding:7px 14px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">＋ 手动记账</button>
           </div>
-          <!-- Customers Tab -->
-          <div id="debt-panel-customers" style="display:none">
-            <button onclick="openAddCustomerModal()" style="width:100%;padding:12px;border:2px dashed var(--border);border-radius:12px;background:none;color:var(--text2);font-size:14px;cursor:pointer;margin-bottom:16px">＋ 添加顾客</button>
-            <div id="debtor-customer-list"></div>
-          </div>
+          <div id="debtor-list"></div>
         </div>
       </div>
       <div id="page-customers" class="page">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:20px;font-weight:700;color:var(--text)">👥 顾客名单</div>
-            <div style="font-size:12px;color:var(--text3);margin-top:3px">管理顾客联络方式，用于休息通知</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">联络方式 · 休息通知 · 赊账顾客登记，统一在这里管理</div>
           </div>
-          <button onclick="openAddCustomerModal()" style="padding:10px 18px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;">+ 新增顾客</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="posSwitchTab('debtors')" style="padding:10px 14px;background:var(--surface);color:var(--text2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;">📒 欠款记录 →</button>
+            <button onclick="openAddCustomerModal()" style="padding:10px 18px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;">+ 新增顾客</button>
+          </div>
         </div>
 
         <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -7736,70 +7730,6 @@ function posClearCart() {
 }
 
 
-function openCreditModal() {
-  // Load debtor names from _debtPersons if available
-  const persons = (typeof _debtPersons !== 'undefined' && _debtPersons.length) ? _debtPersons : [];
-  const personOpts = persons.map(n=>`<option value="${n}">${n}</option>`).join('');
-  const cartTotal = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
-  const cartItems = instoreCart.map(c=>c.item.name+' ×'+c.qty+' RM'+getInstoreItemPricing(c).totalPrice.toFixed(2)).join('\n');
-
-  let m = document.getElementById('credit-modal');
-  if(!m) {
-    m = document.createElement('div');
-    m.id = 'credit-modal';
-    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
-    document.body.appendChild(m);
-  }
-  m.innerHTML = `<div style="background:var(--bg);border-radius:16px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
-    <h3 style="margin:0 0 4px;font-size:17px">📒 赊账</h3>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:16px">合计 RM ${cartTotal.toFixed(2)}</div>
-    <div style="background:var(--surface);border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--text2);white-space:pre-line;max-height:100px;overflow-y:auto">${cartItems}</div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">客人姓名</label>
-      <input id="credit-name-input" list="credit-person-list" placeholder="输入或选择..." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box">
-      <datalist id="credit-person-list">${personOpts}</datalist>
-    </div>
-    <div style="margin-bottom:16px">
-      <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">付款方式（赊账）</label>
-      <div style="display:flex;gap:8px">
-        <button onclick="confirmCredit('qr')" style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer">📲 QR 赊账</button>
-        <button onclick="confirmCredit('cash')" style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--green);color:#fff;font-size:14px;font-weight:700;cursor:pointer">💵 Cash 赊账</button>
-      </div>
-    </div>
-    <button onclick="document.getElementById('credit-modal').style.display='none'" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;cursor:pointer">取消</button>
-  </div>`;
-  m.style.display = 'flex';
-  setTimeout(()=>{ const inp = document.getElementById('credit-name-input'); if(inp) inp.focus(); }, 100);
-}
-
-async function confirmCredit(payType) {
-  const nameEl = document.getElementById('credit-name-input');
-  const name = nameEl ? nameEl.value.trim() : '';
-  if(!name) { alert('请输入客人姓名'); return; }
-  document.getElementById('credit-modal').style.display = 'none';
-  const creditBtn = document.getElementById('pos-pay-credit');
-  if(creditBtn) { creditBtn.disabled = true; }
-  // Get discount amount same way as QR/Cash checkout
-  const baseForDisc = instoreCart.reduce((s,c) => s + getInstoreItemPricing(c).totalPrice, 0);
-  const { savings: _s } = applyBundleRulesToCart(instoreCart);
-  const _discountAmt = getPosDiscount(baseForDisc - _s);
-  let ok;
-  try {
-    ok = await instoreCheckout('credit_' + payType, name, _discountAmt);
-  } catch(e) { console.error(e); }
-  setSync('ok', ok === true ? '已记账 · ' + name : '');
-  if(ok === true) {
-    renderInstoreHistory();
-    updatePosCartUI();
-    renderPosGrid();
-    showPosToast('📒 已记录赊账：' + name);
-    // refresh debtors if on that tab
-    if(typeof renderDebtors === 'function' && document.getElementById('page-debtors')?.classList.contains('active')) renderDebtors();
-  }
-  if(creditBtn) { creditBtn.disabled = false; creditBtn.innerHTML = '📒 赊账<span class="pos-pay-btn-sub">欠款记录</span>'; }
-}
-
-
 let _posSummaryOpen = false;
 function togglePosSummary() {
   const modal = document.getElementById('sales-summary-modal');
@@ -9480,19 +9410,6 @@ async function loadDebtors() {
   _debtors = [...r1data, ...r2data].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
 }
 
-function switchDebtTab(tab) {
-  document.getElementById('debt-panel-records').style.display = tab==='records' ? '' : 'none';
-  document.getElementById('debt-panel-customers').style.display = tab==='customers' ? '' : 'none';
-  document.getElementById('debt-tab-records').style.cssText = tab==='records'
-    ? 'padding:10px 20px;border:none;background:none;font-size:14px;font-weight:700;color:var(--blue);border-bottom:2px solid var(--blue);margin-bottom:-2px;cursor:pointer'
-    : 'padding:10px 20px;border:none;background:none;font-size:14px;font-weight:600;color:var(--text3);cursor:pointer';
-  document.getElementById('debt-tab-customers').style.cssText = tab==='customers'
-    ? 'padding:10px 20px;border:none;background:none;font-size:14px;font-weight:700;color:var(--blue);border-bottom:2px solid var(--blue);margin-bottom:-2px;cursor:pointer'
-    : 'padding:10px 20px;border:none;background:none;font-size:14px;font-weight:600;color:var(--text3);cursor:pointer';
-  if(tab==='records') renderDebtors();
-  if(tab==='customers') renderDebtorCustomers();
-}
-
 async function renderDebtors() {
   const listEl = document.getElementById('debtor-list');
   const summEl = document.getElementById('debtor-summary');
@@ -9589,34 +9506,6 @@ async function renderDebtors() {
         ${!allPaid ? `<div style="padding:10px 16px;display:flex;justify-content:flex-end">
           <button onclick="markAllDebtPaid('${name}')" style="padding:7px 16px;border:none;border-radius:8px;background:var(--green);color:#fff;font-size:13px;cursor:pointer;font-weight:700">💰 全部收款</button>
         </div>` : ''}
-      </div>
-    </div>`;
-  }).join('');
-}
-
-async function renderDebtorCustomers() {
-  const listEl = document.getElementById('debtor-customer-list');
-  if(!listEl) return;
-  await loadDebtors();
-  if(!customers.length) {
-    listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">还没有顾客，点上方按钮添加</div>';
-    return;
-  }
-  const sorted = [...customers].sort((a,b)=>a.name.localeCompare(b.name));
-  listEl.innerHTML = sorted.map(c => {
-    const totalOwed = _debtors.filter(d=>d.customer_name===c.name&&d.status==='unpaid').reduce((s,d)=>s+(+(d.amount||0)),0);
-    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px">
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:15px">👤 ${c.name}</div>
-        ${c.phone ? `<div style="font-size:12px;color:var(--text3)">📱 ${c.phone}</div>` : ''}
-        ${c.notes ? `<div style="font-size:12px;color:var(--text2)">${c.notes}</div>` : ''}
-      </div>
-      <div style="text-align:right;flex-shrink:0">
-        ${totalOwed > 0 ? `<div style="font-size:14px;font-weight:700;color:#dc2626;font-family:'DM Mono',monospace">欠 RM ${totalOwed.toFixed(2)}</div>` : '<div style="font-size:12px;color:var(--green)">✅ 无欠款</div>'}
-        <div style="display:flex;gap:5px;margin-top:6px;justify-content:flex-end">
-          <button onclick="openEditCustomer('${c.id}')" style="font-size:11px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer">✏️ 编辑</button>
-          <button onclick="deleteCustomer('${c.id}')" style="font-size:11px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:4px 8px;cursor:pointer">🗑️</button>
-        </div>
       </div>
     </div>`;
   }).join('');
@@ -9906,7 +9795,6 @@ async function saveCustomer() {
   }
   await loadCustomers();
   renderCustomerList();
-  if(document.getElementById('debtor-customer-list')) renderDebtorCustomers();
   closeAddCustomerModal();
 }
 
@@ -9916,7 +9804,6 @@ async function deleteCustomer(id) {
   await sb.from('customers').delete().eq('id',id);
   await loadCustomers();
   renderCustomerList();
-  if(document.getElementById('debtor-customer-list')) renderDebtorCustomers();
 }
 
 // ── NOTIFY ───────────────────────────────────────────────
