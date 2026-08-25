@@ -769,9 +769,6 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn hq-only" id="navbtn-lhdn" onclick="posSwitchTab('lhdn')" style="display:none">
         <span class="nav-icon">🗂️</span> 税务 LHDN
       </button>
-      <button class="nav-btn hq-only" id="navbtn-holidays" onclick="posSwitchTab('holidays')" style="display:none">
-        <span class="nav-icon">🎉</span> 公众假期
-      </button>
       <div class="nav-divider" id="nav-divider-clock" style="display:none"></div>
       <button class="nav-btn" id="navbtn-clock" onclick="openClockModal()" style="display:none">
         <span class="nav-icon">⏱</span> 打卡
@@ -1251,7 +1248,8 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <div style="font-size:20px;font-weight:700;color:var(--text)">💼 员工薪资管理</div>
             <div style="font-size:12px;color:var(--text3);margin-top:3px">月薪 · OT · EPF/SOCSO/EIS · 年假病假 · Bonus · 薪资单 PDF</div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn" style="background:#fef3c7;border-color:#fde68a;color:#92400e;font-weight:600" onclick="posSwitchTab('holidays')">🎉 公众假期 / 日历备忘录</button>
             <input type="month" id="payroll-month" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif" onchange="renderPayrollPage()">
             <button class="btn btn-success" onclick="openAddEmployeeModal()">+ 新增员工</button>
           </div>
@@ -1344,6 +1342,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <div id="page-holidays" class="page">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
           <div>
+            <button onclick="posSwitchTab('payroll')" style="font-size:12px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0;margin-bottom:6px">‹ 返回员工薪资</button>
             <div style="font-size:20px;font-weight:700">🗓️ 日历 & 备忘录</div>
             <div style="font-size:12px;color:var(--text3);margin-top:3px">公众假期 · 会议 · 出差 · 待办事项</div>
           </div>
@@ -8176,7 +8175,7 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-debtors',
-     'navbtn-hq','navbtn-customers','navbtn-payroll','navbtn-lhdn','navbtn-holidays'].forEach(id => {
+     'navbtn-hq','navbtn-customers','navbtn-payroll','navbtn-lhdn'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
