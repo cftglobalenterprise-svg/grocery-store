@@ -1935,6 +1935,10 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           <input type="checkbox" id="adj-ignore-stock">
           <span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px">不扣库存</span>
         </label>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px" title="勾选后消费这个商品可以帮顾客累积会员积分">
+          <input type="checkbox" id="adj-earns-points">
+          <span style="background:#7c3aed;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px">🎁 参与积分</span>
+        </label>
       </div>
     </div>
     <div class="form-row"><label>家里</label><input type="number" id="adj-home" min="0"></div>
@@ -3123,6 +3127,8 @@ function openAdj(id) {
   document.getElementById('adj-is-service').checked = !!it.is_service;
   document.getElementById('adj-is-grocery').checked = (it._table === 'g_items' || it.business === 'K19');
   document.getElementById('adj-ignore-stock').checked = !!it.ignore_stock;
+  const isK19Item = (it._table === 'g_items' || it.business === 'K19');
+  document.getElementById('adj-earns-points').checked = (it.earns_points === null || it.earns_points === undefined) ? !isK19Item : !!it.earns_points;
   document.getElementById('adj-home').value = it.home_qty;
   document.getElementById('adj-shop').value = it.shop_qty;
   document.getElementById('adj-target-stock').value = (it.target_stock===null || it.target_stock===undefined) ? '' : it.target_stock;
@@ -3227,7 +3233,8 @@ async function saveAdj() {
     barcode: adjBarcode||null,
     bundle_components,
     is_service: document.getElementById('adj-is-service').checked,
-    ignore_stock: document.getElementById('adj-ignore-stock').checked
+    ignore_stock: document.getElementById('adj-ignore-stock').checked,
+    earns_points: document.getElementById('adj-earns-points').checked
   };
   const adjItem = items.find(i => String(i.id) === String(adjId));
   const adjTbl = adjItem ? (adjItem._table || 'items') : 'items';
@@ -3692,6 +3699,14 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
   const discount = +(discountAmt||0);
   const total = Math.max(0, grossTotal - discount);
   const discountRatio = grossTotal > 0 ? (total / grossTotal) : 1;
+  // 只有勾了「参与积分」的商品才计入积分基数，折扣按比例公平分摊到这些商品上
+  const eligibleGrossTotal = instoreCart.reduce((s,c) => {
+    if(!c.item.earns_points) return s;
+    if(c.item.is_service && c.item.service_tiers && c.item.service_tiers.length)
+      return s + getInstoreItemPricing(c).totalPrice;
+    return s + (brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice);
+  }, 0);
+  const pointsEligibleTotal = eligibleGrossTotal * discountRatio;
   const _checkoutTs = new Date().toISOString(); // 这次结账所有商品共用同一个时间戳，用来对应积分记录
 
   for(const c of instoreCart) {
@@ -3761,7 +3776,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
   }
   // 会员积分（可选，没选顾客完全不影响正常结账）
   if(_posPointsCustomer && _posPointsMode === 'earn') {
-    const pts = Math.floor(total);
+    const pts = Math.floor(pointsEligibleTotal);
     if(pts > 0) {
       try {
         await sb.from('customer_points_ledger').insert({
@@ -3770,7 +3785,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
           delta: pts,
           reason: 'earn',
           checkout_ts: _checkoutTs,
-          note: `消费 RM${total.toFixed(2)}`
+          note: `消费 RM${total.toFixed(2)}（其中计积分 RM${pointsEligibleTotal.toFixed(2)}）`
         });
         showPosToast(`🎁 ${_posPointsCustomer.name} +${pts} 分`);
         _customerPointsLoaded = false;
@@ -5605,7 +5620,6 @@ function renderBulkQtyEditor() {
   }
 
   const filtered = items.filter(i =>
-    !i.is_service &&
     (!q || i.name.toLowerCase().includes(q)) &&
     (!cat || i.category===cat)
   );
@@ -5615,8 +5629,10 @@ function renderBulkQtyEditor() {
   if(!filtered.length) { el.innerHTML='<div class="empty">没有找到商品</div>'; return; }
 
   el.innerHTML = filtered.map(it => {
+    const isK19Item = (it._table === 'g_items' || it.business === 'K19');
+    const earnsPts = (it.earns_points === null || it.earns_points === undefined) ? !isK19Item : !!it.earns_points;
     return `<div id="bulk-qty-row-${it.id}" style="padding:9px 10px;border-bottom:1px solid var(--border)">
-      <div style="font-size:13px;font-weight:600;margin-bottom:6px;white-space:normal;word-break:break-word">${it.name}${it.bundle_components?` <span style="font-size:9px;background:#d6eaf8;color:#1a5276;padding:1px 4px;border-radius:4px">套装</span>`:''}${it.category?` <span style="font-size:10px;color:var(--text3);font-weight:400">· ${it.category}</span>`:''}</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px;white-space:normal;word-break:break-word">${it.name}${it.bundle_components?` <span style="font-size:9px;background:#d6eaf8;color:#1a5276;padding:1px 4px;border-radius:4px">套装</span>`:''}${it.is_service?` <span style="font-size:9px;background:#0369a1;color:#fff;padding:1px 4px;border-radius:4px">服务</span>`:''}${it.category?` <span style="font-size:10px;color:var(--text3);font-weight:400">· ${it.category}</span>`:''}</div>
       <div style="display:flex;gap:8px">
         <div style="flex:1">
           <div style="font-size:10px;color:var(--text3);margin-bottom:2px">家里</div>
@@ -5637,6 +5653,10 @@ function renderBulkQtyEditor() {
             onchange="saveBulkQtyField('${it.id}','target_stock',this.value)">
         </div>
       </div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer">
+        <input type="checkbox" ${earnsPts?'checked':''} onchange="saveBulkQtyField('${it.id}','earns_points',this.checked)">
+        <span style="font-size:12px;color:#7c3aed;font-weight:600">🎁 参与积分</span>
+      </label>
     </div>`;
   }).join('');
 }
@@ -5648,6 +5668,8 @@ async function saveBulkQtyField(itemId, field, val) {
   if(field === 'target_stock') {
     const trimmed = String(val).trim();
     newVal = trimmed === '' ? null : (+trimmed || 0);
+  } else if(field === 'earns_points') {
+    newVal = !!val;
   } else {
     newVal = Math.max(0, +val || 0);
   }
@@ -7949,7 +7971,15 @@ async function selectPosPointsCustomer(id) {
   document.getElementById('pos-points-search').value = '';
   document.getElementById('pos-points-search-results').innerHTML = '';
   document.getElementById('pos-points-selected').style.display = 'flex';
-  document.getElementById('pos-points-selected-name').textContent = _posPointsMode === 'earn' ? ('✓ 帮 ' + c.name + ' 加分') : ('✓ ' + c.name);
+
+  if(_posPointsMode === 'earn') {
+    const eligibleTotal = instoreCart.reduce((s,c2) => c2.item.earns_points ? s + getInstoreItemPricing(c2).totalPrice : s, 0);
+    const pts = Math.max(0, Math.floor(eligibleTotal));
+    const skipCount = instoreCart.filter(c2 => !c2.item.earns_points).length;
+    document.getElementById('pos-points-selected-name').innerHTML = `✓ 帮 ${c.name} 加分（预估 +${pts} 分）` + (skipCount ? `<br><small style="font-weight:400;color:#7c3aed">${skipCount} 项不算积分的商品不计入</small>` : '');
+  } else {
+    document.getElementById('pos-points-selected-name').textContent = '✓ ' + c.name;
+  }
 
   const redeemArea = document.getElementById('pos-points-redeem-area');
   if(_posPointsMode === 'redeem') {
