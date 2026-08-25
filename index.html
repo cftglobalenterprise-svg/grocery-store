@@ -760,9 +760,6 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn" id="navbtn-debtors" onclick="posSwitchTab('debtors')" style="display:none">
         <span class="nav-icon">📒</span> 欠款
       </button>
-      <button class="nav-btn hq-only" id="navbtn-customers" onclick="posSwitchTab('customers')" style="display:none">
-        <span class="nav-icon">👥</span> 顾客名单
-      </button>
       <button class="nav-btn hq-only" id="navbtn-payroll" onclick="posSwitchTab('payroll')" style="display:none">
         <span class="nav-icon">💼</span> 员工薪资
       </button>
@@ -1674,9 +1671,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 
       <div id="page-debtors" class="page">
         <div style="max-width:700px;margin:0 auto;padding:16px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
             <div style="font-size:20px;font-weight:700">📒 欠款记录</div>
-            <button onclick="posSwitchTab('customers')" style="font-size:12px;color:var(--blue);background:none;border:none;cursor:pointer;padding:0">👤 顾客名单 →</button>
+            <button onclick="posSwitchTab('customers')" style="padding:8px 14px;background:var(--purple,#6d28d9);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;">👤 顾客名单 →</button>
           </div>
           <div id="debtor-summary" style="display:flex;gap:10px;margin-bottom:16px"></div>
           <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
@@ -8105,7 +8102,7 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-debtors',
-     'navbtn-hq','navbtn-customers','navbtn-payroll','navbtn-lhdn'].forEach(id => {
+     'navbtn-hq','navbtn-payroll','navbtn-lhdn'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
