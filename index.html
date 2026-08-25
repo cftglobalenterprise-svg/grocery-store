@@ -2258,6 +2258,17 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </div>
     </div>
     <div class="form-row"><label>备注</label><input type="text" id="cust-notes" placeholder="例：VIP顾客、常买RELX" style="flex:1"></div>
+    <div id="cust-points-section" style="display:none;margin-top:4px;padding-top:12px;border-top:1px dashed var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:13px;color:var(--text2)">🎁 目前积分：<b id="cust-points-current" style="color:#7c3aed;font-family:'DM Mono',monospace"></b></span>
+        <button class="btn" style="font-size:11px;padding:4px 10px" onclick="togglePointsAdjustForm()">✏️ 手动调整</button>
+      </div>
+      <div id="cust-points-adjust-form" style="display:none;margin-top:10px;background:var(--surface2);border-radius:8px;padding:10px">
+        <div class="form-row"><label>调整数量</label><input type="number" id="pts-adjust-delta" placeholder="正数=加分，负数=扣分" style="flex:1"></div>
+        <div class="form-row"><label>原因 *</label><input type="text" id="pts-adjust-reason" placeholder="例：测试数据、补偿顾客" style="flex:1"></div>
+        <button class="btn" style="width:100%;background:#7c3aed;color:#fff;border-color:#7c3aed;margin-top:4px" onclick="saveManualPointsAdjust()">确认调整</button>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAddCustomerModal()">取消</button>
       <button class="btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="saveCustomer()">保存</button>
@@ -2654,17 +2665,15 @@ async function adjustStockAtomic(item, field, delta) {
   return next;
 }
 
-// 撤回积分：如果这笔订单当初有算过积分（order_ids 关联），扣回对应的分数。
+// 撤回积分：如果这笔订单当初有算过积分（用结账时的精确时间戳 checkout_ts 对应），扣回对应的分数。
 // 用 ref_ledger_id 记录已经处理过，避免同一笔积分被扣两次。
-async function reversePointsForOrder(orderId) {
-  if(!orderId) return;
+async function reversePointsForOrder(order) {
+  const ts = order?.paid_at;
+  if(!ts) return; // 没有付款时间戳（比如还没完成的订单），不可能有积分
   try {
-    const { data: entries } = await sb.from('customer_points_ledger').select('*').eq('reason','earn');
-    if(!entries) return;
-    const idStr = String(orderId);
+    const { data: entries } = await sb.from('customer_points_ledger').select('*').eq('reason','earn').eq('checkout_ts', ts);
+    if(!entries || !entries.length) return;
     for(const entry of entries) {
-      const linkedIds = (entry.order_ids || '').split(',').map(s=>s.trim()).filter(Boolean);
-      if(!linkedIds.includes(idStr)) continue;
       const { data: existingVoid } = await sb.from('customer_points_ledger').select('id').eq('ref_ledger_id', entry.id).maybeSingle();
       if(existingVoid) continue; // 已经扣回过了，不重复扣
       await sb.from('customer_points_ledger').insert({
@@ -2676,6 +2685,7 @@ async function reversePointsForOrder(orderId) {
         note: '撤回消费，扣回积分'
       });
       _customerPointsLoaded = false;
+      _checkoutPointsLoaded = false;
     }
   } catch(e) { console.error('积分撤回失败', e); }
 }
@@ -2684,7 +2694,7 @@ async function reversePointsForOrder(orderId) {
 // 正确对称结账时的判断：服务商品或勾了「不扣库存」的，结账时没扣，撤回也不归还。
 // 套装商品会拆成电池+烟弹两份分别归还。deduct_from 决定归还去家里还是店里，缺省视为店里。
 async function restoreOrderStock(order) {
-  await reversePointsForOrder(order.id); // 积分跟库存是独立判断的，服务类商品也可能有算积分
+  await reversePointsForOrder(order); // 积分跟库存是独立判断的，服务类商品也可能有算积分
   const item = items.find(i => String(i.id) === String(order.item_id));
   if(!item) return; // 商品已被删除，无从归还
   if(item.is_service || item.ignore_stock) return; // 结账时本来就没扣，撤回也不归还
@@ -3653,7 +3663,6 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
   }
 
   setSync('busy','结账中...');
-  const _checkoutOrderIds = [];
   // Recalculate bundle pricing fresh
   const { savings: checkoutSavings, itemFinalTotals: checkoutFinalTotals } = applyBundleRulesToCart(instoreCart);
   const brFinalTotals = checkoutFinalTotals && checkoutFinalTotals.size > 0 ? checkoutFinalTotals : (instoreCart._bundleItemFinalTotals || new Map());
@@ -3666,6 +3675,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
   const discount = +(discountAmt||0);
   const total = Math.max(0, grossTotal - discount);
   const discountRatio = grossTotal > 0 ? (total / grossTotal) : 1;
+  const _checkoutTs = new Date().toISOString(); // 这次结账所有商品共用同一个时间戳，用来对应积分记录
 
   for(const c of instoreCart) {
     const item = items.find(i => String(i.id) === String(c.item.id));
@@ -3704,7 +3714,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
       pay_method: payMethod || 'paid_cash',
       payment_method: payMethod || 'paid_cash',
       source: 'instore',
-      paid_at: new Date().toISOString(),
+      paid_at: _checkoutTs,
       business: item.business || 'A'
     } : {
       customer: '门市现场', item_id: item.id, item_name: item.name,
@@ -3713,12 +3723,11 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
       total_price: itemTotal,
       discount_amount: itemDiscountAmt,
       payment_status: payMethod || 'paid_cash',
-      paid_at: new Date().toISOString(),
+      paid_at: _checkoutTs,
       business: item.business || 'A'
     };
-    const { data: insData, error: oe } = await sb.from(oTbl).insert(insertPayload).select('id').single();
+    const { error: oe } = await sb.from(oTbl).insert(insertPayload);
     if(oe) { alert('订单保存失败：' + item.name + ' — ' + oe.message); setSync('err','失败'); return; }
-    if(insData?.id) _checkoutOrderIds.push(insData.id);
   }
 
   // 赊账记录
@@ -3743,11 +3752,12 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
           customer_name: _posPointsCustomer.name,
           delta: pts,
           reason: 'earn',
-          order_ids: _checkoutOrderIds.join(','),
+          checkout_ts: _checkoutTs,
           note: `消费 RM${total.toFixed(2)}`
         });
         showPosToast(`🎁 ${_posPointsCustomer.name} +${pts} 分`);
         _customerPointsLoaded = false;
+        _checkoutPointsLoaded = false;
       } catch(e) { console.error('积分记录失败', e); }
     }
     clearPosPointsCustomer();
@@ -3857,6 +3867,8 @@ function renderInstoreHistory() {
       return `<div style="font-size:12px;color:var(--text2);padding:1px 0">• ${o.item_name} × ${o.qty}${sub}</div>`;
     }).join('');
     const groupTotal = g.orders.reduce((s,o)=>s+(+(o.total||o.total_price||0)),0);
+    const ptsInfo = checkoutPointsMap[g.orders[0]?.paid_at];
+    const ptsLine = ptsInfo ? `<div style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:2px">🎁 ${ptsInfo.name} +${ptsInfo.delta} 分</div>` : '';
     return `<div class="order-row">
       <div class="order-info" style="flex:1">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
@@ -3866,11 +3878,13 @@ function renderInstoreHistory() {
         </div>
         ${itemLines}
         ${groupTotal > 0 ? `<div style="font-size:12px;font-weight:600;color:var(--green);font-family:'DM Mono',monospace;margin-top:4px">合计 RM ${groupTotal.toFixed(2)}</div>` : ''}
+        ${ptsLine}
       </div>
       <button onclick="printReceipt(${JSON.stringify(g.orders).split('"').join('&quot;')})" style="flex-shrink:0;margin-left:8px;padding:4px 8px;font-size:11px;background:none;border:1px solid var(--blue);border-radius:6px;color:var(--blue);cursor:pointer;font-weight:600" title="打印收据">🖨️</button>
       <button onclick="voidInstoreSale('${ids}')" style="flex-shrink:0;margin-left:8px;padding:4px 8px;font-size:11px;background:none;border:1px solid #f1948a;border-radius:6px;color:#922b21;cursor:pointer;font-weight:600" title="撤回并归还库存">↩ 撤回</button>
     </div>`;
   }).join('') : '<div class="empty">暂无门市记录</div>';
+  if(!_checkoutPointsLoaded) loadCheckoutPointsMap().then(renderInstoreHistory);
 }
 
 function renderOrders() {
@@ -9359,17 +9373,43 @@ let customers = [];
 let customerPointsMap = {}; // customer_id -> 积分余额（从流水账加总算出来，不是存一个单独的数字）
 let _customerPointsLoaded = false;
 
+const POINTS_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000; // 1年——最后一次赚分距今超过这个时间，整包积分视为过期
+
 async function loadCustomerPoints() {
   try {
-    const { data, error } = await sb.from('customer_points_ledger').select('customer_id,delta');
+    const { data, error } = await sb.from('customer_points_ledger').select('customer_id,delta,reason,created_at');
     if(error) throw error;
-    const map = {};
+    const sumMap = {}, lastEarnMap = {};
     (data||[]).forEach(row => {
       const cid = row.customer_id;
-      map[cid] = (map[cid]||0) + (+row.delta||0);
+      sumMap[cid] = (sumMap[cid]||0) + (+row.delta||0);
+      if(row.reason === 'earn') {
+        const t = new Date(row.created_at).getTime();
+        if(!lastEarnMap[cid] || t > lastEarnMap[cid]) lastEarnMap[cid] = t;
+      }
+    });
+    const now = Date.now();
+    const map = {};
+    Object.keys(sumMap).forEach(cid => {
+      const last = lastEarnMap[cid];
+      map[cid] = (!last || (now - last) > POINTS_EXPIRY_MS) ? 0 : sumMap[cid];
     });
     customerPointsMap = map;
     _customerPointsLoaded = true;
+  } catch(e) { console.error('积分读取失败', e); }
+}
+
+let checkoutPointsMap = {}; // checkout_ts(付款时间戳) -> {name, delta}，给消费记录显示「谁拿了多少分」用
+let _checkoutPointsLoaded = false;
+
+async function loadCheckoutPointsMap() {
+  try {
+    const { data, error } = await sb.from('customer_points_ledger').select('customer_name,delta,checkout_ts').eq('reason','earn');
+    if(error) throw error;
+    const map = {};
+    (data||[]).forEach(row => { if(row.checkout_ts) map[row.checkout_ts] = { name: row.customer_name, delta: row.delta }; });
+    checkoutPointsMap = map;
+    _checkoutPointsLoaded = true;
   } catch(e) { console.error('积分读取失败', e); }
 }
 
@@ -9888,11 +9928,12 @@ function openAddCustomerModal() {
   document.getElementById('cust-phone').value = '';
   document.getElementById('cust-notes').value = '';
   document.getElementById('cust-cc').value = '60';
+  document.getElementById('cust-points-section').style.display = 'none';
   document.getElementById('add-customer-modal').classList.add('open');
   document.body.classList.add('modal-open');
 }
 
-function openEditCustomer(id) {
+async function openEditCustomer(id) {
   const c = customers.find(x=>String(x.id)===String(id));
   if(!c) return;
   _editingCustomerId = id;
@@ -9907,8 +9948,47 @@ function openEditCustomer(id) {
   document.getElementById('cust-name').value = c.name;
   document.getElementById('cust-phone').value = phone;
   document.getElementById('cust-notes').value = c.notes || '';
+  document.getElementById('cust-points-section').style.display = 'block';
+  document.getElementById('cust-points-adjust-form').style.display = 'none';
+  document.getElementById('pts-adjust-delta').value = '';
+  document.getElementById('pts-adjust-reason').value = '';
+  document.getElementById('cust-points-current').textContent = '...';
   document.getElementById('add-customer-modal').classList.add('open');
   document.body.classList.add('modal-open');
+  if(!_customerPointsLoaded) await loadCustomerPoints();
+  document.getElementById('cust-points-current').textContent = (customerPointsMap[c.id]||0) + ' 分';
+}
+
+function togglePointsAdjustForm() {
+  const f = document.getElementById('cust-points-adjust-form');
+  if(!f) return;
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function saveManualPointsAdjust() {
+  const delta = parseInt(document.getElementById('pts-adjust-delta').value);
+  const reason = document.getElementById('pts-adjust-reason').value.trim();
+  if(!delta || isNaN(delta)) { alert('请输入调整数量（正数加分，负数扣分）'); return; }
+  if(!reason) { alert('请填写调整原因'); return; }
+  const c = customers.find(x=>String(x.id)===String(_editingCustomerId));
+  if(!c) return;
+  try {
+    await sb.from('customer_points_ledger').insert({
+      customer_id: c.id,
+      customer_name: c.name,
+      delta,
+      reason: 'manual',
+      note: reason
+    });
+    _customerPointsLoaded = false;
+    await loadCustomerPoints();
+    document.getElementById('cust-points-current').textContent = (customerPointsMap[c.id]||0) + ' 分';
+    document.getElementById('pts-adjust-delta').value = '';
+    document.getElementById('pts-adjust-reason').value = '';
+    document.getElementById('cust-points-adjust-form').style.display = 'none';
+    showPosToast('✅ 积分已调整');
+    if(document.getElementById('customer-list')) renderCustomerList();
+  } catch(e) { alert('调整失败：' + e.message); }
 }
 
 function closeAddCustomerModal() {
