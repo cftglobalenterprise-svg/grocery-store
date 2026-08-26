@@ -7815,6 +7815,20 @@ function updatePosCartUI() {
   if(cashBtn) cashBtn.disabled = false;
   const creditBtn2 = document.getElementById('pos-pay-credit');
   if(creditBtn2) creditBtn2.disabled = false;
+
+  refreshPosPointsEstimate(); // 购物车变了，如果已经选了顾客，预估积分也要跟着重算
+}
+
+// 重新计算「预估 +N 分」显示——顾客选了之后又加/减商品，这里保证数字跟着购物车实时更新
+// 真正记录到数据库的积分，结账时本来就是重新算的，这个函数只影响画面上看到的预估文字
+function refreshPosPointsEstimate() {
+  if(!_posPointsCustomer || _posPointsMode !== 'earn') return;
+  const nameEl = document.getElementById('pos-points-selected-name');
+  if(!nameEl) return;
+  const eligibleTotal = instoreCart.reduce((s,c2) => c2.item.earns_points ? s + getInstoreItemPricing(c2).totalPrice : s, 0);
+  const pts = Math.max(0, Math.floor(eligibleTotal));
+  const skipCount = instoreCart.filter(c2 => !c2.item.earns_points).length;
+  nameEl.innerHTML = `✓ 帮 ${_posPointsCustomer.name} 加分（预估 +${pts} 分）` + (skipCount ? `<br><small style="font-weight:400;color:#7c3aed">${skipCount} 项不算积分的商品不计入</small>` : '');
 }
 
 
@@ -8018,10 +8032,7 @@ async function selectPosPointsCustomer(id) {
   document.getElementById('pos-points-selected').style.display = 'flex';
 
   if(_posPointsMode === 'earn') {
-    const eligibleTotal = instoreCart.reduce((s,c2) => c2.item.earns_points ? s + getInstoreItemPricing(c2).totalPrice : s, 0);
-    const pts = Math.max(0, Math.floor(eligibleTotal));
-    const skipCount = instoreCart.filter(c2 => !c2.item.earns_points).length;
-    document.getElementById('pos-points-selected-name').innerHTML = `✓ 帮 ${c.name} 加分（预估 +${pts} 分）` + (skipCount ? `<br><small style="font-weight:400;color:#7c3aed">${skipCount} 项不算积分的商品不计入</small>` : '');
+    refreshPosPointsEstimate();
   } else {
     document.getElementById('pos-points-selected-name').textContent = '✓ ' + c.name;
   }
