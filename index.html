@@ -8379,6 +8379,10 @@ async function directLogin(role) {
 
 function selectLoginRole(role) {
   _loginRole = role;
+  // iOS Safari 只在点击事件的同步调用栈里 focus() 才会弹出键盘，
+  // 必须在任何其他 DOM/样式操作之前立刻同步调用，不能用 setTimeout。
+  const pw0 = document.getElementById('login-password');
+  if(pw0) { pw0.value = ''; pw0.focus(); }
   const brTab = document.getElementById('login-tab-branch');
   const hqTab = document.getElementById('login-tab-hq');
   if(brTab && hqTab) {
@@ -8402,8 +8406,6 @@ function selectLoginRole(role) {
       brTab.style.transform = '';
     }
   }
-  const pw = document.getElementById('login-password');
-  if(pw) { pw.value = ''; setTimeout(() => pw.focus(), 50); }
   const err = document.getElementById('login-error');
   if(err) err.textContent = '';
 }
