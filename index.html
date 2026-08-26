@@ -616,12 +616,12 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
-        <div id="login-tab-branch" onclick="selectLoginRole('branch')" style="padding:16px 8px;border:2px solid #3a6b28;border-radius:15px;cursor:pointer;text-align:center;background:linear-gradient(145deg,#e2f0d4,#c8e4aa);box-shadow:0 3px 10px rgba(58,107,40,0.18);transition:all 0.18s;-webkit-tap-highlight-color:transparent;">
+        <div id="login-tab-branch" onclick="selectLoginRole('branch')" ontouchend="event.preventDefault();selectLoginRole('branch')" style="padding:16px 8px;border:2px solid #3a6b28;border-radius:15px;cursor:pointer;text-align:center;background:linear-gradient(145deg,#e2f0d4,#c8e4aa);box-shadow:0 3px 10px rgba(58,107,40,0.18);transition:all 0.18s;-webkit-tap-highlight-color:transparent;">
           <div style="font-size:28px;margin-bottom:7px;">🏪</div>
           <div style="font-size:13px;font-weight:700;color:#2a4e1c;">分店登入</div>
           <div style="font-size:10px;color:#3a6b28;margin-top:3px;opacity:0.8;">POS 收银 · 库存</div>
         </div>
-        <div id="login-tab-hq" onclick="selectLoginRole('hq')" style="padding:16px 8px;border:2px solid #b89830;border-radius:15px;cursor:pointer;text-align:center;background:linear-gradient(145deg,#fdf2cc,#f0d880);box-shadow:0 3px 10px rgba(184,152,48,0.18);transition:all 0.18s;-webkit-tap-highlight-color:transparent;">
+        <div id="login-tab-hq" onclick="selectLoginRole('hq')" ontouchend="event.preventDefault();selectLoginRole('hq')" style="padding:16px 8px;border:2px solid #b89830;border-radius:15px;cursor:pointer;text-align:center;background:linear-gradient(145deg,#fdf2cc,#f0d880);box-shadow:0 3px 10px rgba(184,152,48,0.18);transition:all 0.18s;-webkit-tap-highlight-color:transparent;">
           <div style="font-size:28px;margin-bottom:7px;">🏢</div>
           <div style="font-size:13px;font-weight:700;color:#7a5010;">总部登入</div>
           <div style="font-size:10px;color:#8b6018;margin-top:3px;opacity:0.8;">报表 · 财务</div>
