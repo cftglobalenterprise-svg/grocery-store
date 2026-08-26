@@ -2631,6 +2631,14 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // Use item._table to know which Supabase table to write to
 function itemTable(item) { return (item && item._table) ? item._table : 'items'; }
 function orderTable(item) { return (item && (item._table==='g_items' || item.business==='K19')) ? 'g_orders' : 'orders'; }
+// 是否计积分：数据库欄位真的是 true/false 就照实际值来；
+// 如果还没存过（NULL/undefined，比如新增的商品从没打开编辑保存过），按预设——CFT 计、K19 不计。
+function itemEarnsPoints(item) {
+  if(item.earns_points === null || item.earns_points === undefined) {
+    return !(item._table === 'g_items' || item.business === 'K19');
+  }
+  return !!item.earns_points;
+}
 
 let items = [], orders = [], adjId = null;
 let scanTarget = null, scannerRunning = false;
@@ -3753,7 +3761,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
   const discountRatio = grossTotal > 0 ? (total / grossTotal) : 1;
   // 只有勾了「参与积分」的商品才计入积分基数，折扣按比例公平分摊到这些商品上
   const eligibleGrossTotal = instoreCart.reduce((s,c) => {
-    if(!c.item.earns_points) return s;
+    if(!itemEarnsPoints(c.item)) return s;
     if(c.item.is_service && c.item.service_tiers && c.item.service_tiers.length)
       return s + getInstoreItemPricing(c).totalPrice;
     return s + (brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice);
@@ -7825,9 +7833,9 @@ function refreshPosPointsEstimate() {
   if(!_posPointsCustomer || _posPointsMode !== 'earn') return;
   const nameEl = document.getElementById('pos-points-selected-name');
   if(!nameEl) return;
-  const eligibleTotal = instoreCart.reduce((s,c2) => c2.item.earns_points ? s + getInstoreItemPricing(c2).totalPrice : s, 0);
+  const eligibleTotal = instoreCart.reduce((s,c2) => itemEarnsPoints(c2.item) ? s + getInstoreItemPricing(c2).totalPrice : s, 0);
   const pts = Math.max(0, Math.floor(eligibleTotal));
-  const skipCount = instoreCart.filter(c2 => !c2.item.earns_points).length;
+  const skipCount = instoreCart.filter(c2 => !itemEarnsPoints(c2.item)).length;
   nameEl.innerHTML = `✓ 帮 ${_posPointsCustomer.name} 加分（预估 +${pts} 分）` + (skipCount ? `<br><small style="font-weight:400;color:#7c3aed">${skipCount} 项不算积分的商品不计入</small>` : '');
 }
 
