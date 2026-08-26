@@ -170,11 +170,11 @@ input:focus, select:focus { border-color: var(--text); background: var(--surface
 .pos-cat-pill { padding: 5px 12px; font-size: 12px; font-weight: 500; color: var(--text2); cursor: pointer; border: 1.5px solid var(--border); border-radius: 20px; white-space: nowrap; background: var(--surface2); transition: all 0.15s; font-family: 'DM Sans', sans-serif; flex-shrink: 0; }
 .pos-cat-pill:hover { border-color: var(--border2); color: var(--text); }
 .pos-cat-pill.active { background: var(--text); color: #fff; border-color: var(--text); }
-.pos-grid-wrap { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 14px; min-height: 0; }
+.pos-grid-wrap { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 14px; min-height: 0; -webkit-overflow-scrolling: touch; will-change: scroll-position; }
 .pos-grid-wrap::-webkit-scrollbar { width: 3px; }
 .pos-grid-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 .pos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-.pos-prod-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px 8px; cursor: pointer; text-align: center; transition: all 0.12s; position: relative; user-select: none; -webkit-user-select: none; }
+.pos-prod-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px 8px; cursor: pointer; text-align: center; transition: transform 0.12s, background 0.12s, border-color 0.12s; position: relative; user-select: none; -webkit-user-select: none; content-visibility: auto; contain-intrinsic-size: 120px 100px; }
 .pos-prod-card:hover { border-color: var(--border2); transform: translateY(-1px); }
 .pos-prod-card:active { transform: scale(0.96); background: var(--surface2); }
 .pos-prod-card.out-of-stock { opacity: 0.42; pointer-events: none; }
