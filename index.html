@@ -7766,6 +7766,7 @@ function updatePosCartUI() {
     const finalDisplay = document.getElementById('pos-final-display');
     if(discDisplay) discDisplay.textContent = '';
     if(finalDisplay) finalDisplay.textContent = '';
+    refreshPosPointsEstimate(); // 购物车被逐个删空时也要走这里，不然预估分数会卡在最后一次的数字
     return;
   }
 
