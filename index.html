@@ -25,6 +25,7 @@
   --radius: 14px; --radius-sm: 10px; --radius-xs: 7px;
   --nav-h: 54px; --sidebar-w: 210px;
 }
+html { overflow: hidden; width: 100%; height: 100%; }
 body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); height: 100vh; height: 100dvh; overflow: hidden; }
 
 
@@ -40,7 +41,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 
 /* ── APP SHELL ───────────────────────────────────── */
 #app { height: 100vh; height: 100dvh; overflow: clip; display: none; flex-direction: column; }
-.topbar { height: var(--nav-h); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; padding: 0 16px; flex-shrink: 0; }
+.topbar { height: calc(var(--nav-h) + env(safe-area-inset-top)); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; padding: env(safe-area-inset-top) 16px 0; flex-shrink: 0; }
 .topbar-logo { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
 .topbar-action-btn { padding: 6px 11px; font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--surface2); color: var(--text2); cursor: pointer; transition: background 0.12s; white-space: nowrap; }
 .topbar-action-btn:hover { background: var(--surface3); color: var(--text); }
@@ -369,7 +370,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
   body { overflow: hidden; }
 
   /* Topbar */
-  .topbar { padding: 0 10px; gap: 5px; }
+  .topbar { padding: env(safe-area-inset-top) 10px 0; gap: 5px; }
   .topbar-logo { font-size: 12px; }
   .topbar-action-btn { padding: 4px 7px; font-size: 10px; }
   .login-branch-badge { display: none; }
@@ -388,6 +389,8 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     order: 2;
     flex-shrink: 0 !important;
     padding: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom) !important;
+    height: calc(56px + env(safe-area-inset-bottom)) !important;
   }
   .sidebar::-webkit-scrollbar { display: none; }
   .nav-group-label, .nav-divider, .nav-bottom { display: none !important; }
@@ -567,7 +570,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 <body>
 
 <!-- LOGIN SCREEN -->
-<div id="login-screen" style="position:fixed;inset:0;z-index:9999;overflow:hidden;font-family:'DM Sans',sans-serif;">
+<div id="login-screen" style="position:fixed;inset:0;width:100vw;height:100dvh;z-index:9999;overflow:hidden;font-family:'DM Sans',sans-serif;">
 
   <!-- Real Cameron Highlands photo as background -->
   <div id="login-bg-photo" style="
@@ -717,7 +720,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 <div id="ins-cart-count" style="display:none"></div>
 <div id="ins-total" style="display:none"></div>
 
-<div id="app" style="display:none;flex-direction:column;">
+<div id="app" style="display:none;flex-direction:column;max-width:100vw;overflow-x:hidden;">
   <div class="topbar">
     <div class="topbar-logo">🛒 杂货店 POS</div>
     <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
@@ -760,10 +763,10 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn" id="navbtn-debtors" onclick="posSwitchTab('debtors')" style="display:none">
         <span class="nav-icon">📒</span> 欠款
       </button>
-      <button class="nav-btn hq-only" id="navbtn-payroll" onclick="posSwitchTab('payroll')" style="display:none">
+      <button class="nav-btn" id="navbtn-payroll" onclick="posSwitchTab('payroll')" style="display:none">
         <span class="nav-icon">💼</span> 员工薪资
       </button>
-      <button class="nav-btn hq-only" id="navbtn-lhdn" onclick="posSwitchTab('lhdn')" style="display:none">
+      <button class="nav-btn" id="navbtn-lhdn" onclick="posSwitchTab('lhdn')" style="display:none">
         <span class="nav-icon">🗂️</span> 税务 LHDN
       </button>
       <div class="nav-divider" id="nav-divider-clock" style="display:none"></div>
@@ -8400,7 +8403,7 @@ function selectLoginRole(role) {
     }
   }
   const pw = document.getElementById('login-password');
-  if(pw) { pw.value = ''; pw.focus(); }
+  if(pw) { pw.value = ''; setTimeout(() => pw.focus(), 50); }
   const err = document.getElementById('login-error');
   if(err) err.textContent = '';
 }
