@@ -7828,15 +7828,25 @@ function updatePosCartUI() {
   refreshPosPointsEstimate(); // 购物车变了，如果已经选了顾客，预估积分也要跟着重算
 }
 
-// 重新计算「预估 +N 分」显示——顾客选了之后又加/减商品，这里保证数字跟着购物车实时更新
-// 真正记录到数据库的积分，结账时本来就是重新算的，这个函数只影响画面上看到的预估文字
+// 重新计算「预估 +N 分」显示——顾客选了之后又加/减商品，这里保证数字跟着购物车实时更新。
+// 公式要跟结账时（instoreCheckout）完全一致：先套用套餐优惠算出每样商品的实际成交价，
+// 再套用手动折扣/积分折抵的比例分摊，不能直接拿商品原价加总（不然套餐省下来的钱也会被算进积分）。
 function refreshPosPointsEstimate() {
   if(!_posPointsCustomer || _posPointsMode !== 'earn') return;
   const nameEl = document.getElementById('pos-points-selected-name');
   if(!nameEl) return;
-  const eligibleTotal = instoreCart.reduce((s,c2) => itemEarnsPoints(c2.item) ? s + getInstoreItemPricing(c2).totalPrice : s, 0);
-  const pts = Math.max(0, Math.floor(eligibleTotal));
-  const skipCount = instoreCart.filter(c2 => !itemEarnsPoints(c2.item)).length;
+  const { itemFinalTotals } = applyBundleRulesToCart(instoreCart);
+  const brFinalTotals = itemFinalTotals && itemFinalTotals.size > 0 ? itemFinalTotals : (instoreCart._bundleItemFinalTotals || new Map());
+  const itemTotal = (c) => (c.item.is_service && c.item.service_tiers && c.item.service_tiers.length)
+    ? getInstoreItemPricing(c).totalPrice
+    : (brFinalTotals.has(c.item.id) ? brFinalTotals.get(c.item.id) : getInstoreItemPricing(c).totalPrice);
+  const grossTotal = instoreCart.reduce((s,c) => s + itemTotal(c), 0);
+  const discount = getPosDiscount(grossTotal);
+  const total = Math.max(0, grossTotal - discount);
+  const discountRatio = grossTotal > 0 ? (total / grossTotal) : 1;
+  const eligibleGrossTotal = instoreCart.reduce((s,c) => itemEarnsPoints(c.item) ? s + itemTotal(c) : s, 0);
+  const pts = Math.max(0, Math.floor(eligibleGrossTotal * discountRatio));
+  const skipCount = instoreCart.filter(c => !itemEarnsPoints(c.item)).length;
   nameEl.innerHTML = `✓ 帮 ${_posPointsCustomer.name} 加分（预估 +${pts} 分）` + (skipCount ? `<br><small style="font-weight:400;color:#7c3aed">${skipCount} 项不算积分的商品不计入</small>` : '');
 }
 
