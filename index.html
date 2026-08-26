@@ -2650,6 +2650,15 @@ async function init() {
     subscribeRealtime();
     document.getElementById('loading').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
+    // #app 从 display:none 切到可见的这一刻，iOS Safari 有时候图层合成
+    // 会来不及正确处理登入遮罩的层级，导致背后内容露出一小条。
+    // 强制登入遮罩重新刷新一次，确保合成顺序正确。
+    const ls = document.getElementById('login-screen');
+    if (ls && ls.style.display !== 'none') {
+      ls.style.display = 'none';
+      void ls.offsetHeight; // 强制触发重排
+      ls.style.display = '';
+    }
     setSync('ok','已同步');
     setPayStatus('unpaid'); // set initial button state
   } catch(e) {
