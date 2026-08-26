@@ -2732,11 +2732,19 @@ async function restoreOrderStock(order) {
   }
 }
 
+const ORDERS_LOAD_DAYS = 90; // 日常载入只抓最近这么多天，避免记忆体随时间无限增长
+
 async function loadOrders() {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - ORDERS_LOAD_DAYS);
+  const cutoffISO = cutoff.toISOString();
   async function fetchAll(table, extraMap) {
     let all = [], from = 0, pageSize = 1000;
     while(true) {
-      const res = await sb.from(table).select('*').order('created_at', {ascending:false}).range(from, from + pageSize - 1);
+      // 最近90天的全部订单 + 不管多旧的待处理订单(还没完成的一定要看得到)
+      const res = await sb.from(table).select('*')
+        .or(`created_at.gte.${cutoffISO},status.eq.pending`)
+        .order('created_at', {ascending:false})
+        .range(from, from + pageSize - 1);
       if(res.error) throw res.error;
       const rows = (res.data || []).map(x => ({ ...x, ...extraMap }));
       all = all.concat(rows);
@@ -2754,6 +2762,35 @@ async function loadOrders() {
   renderInstoreHistory();
   renderDashboard();
   renderOrdDashboard();
+}
+
+// 给需要查「超出日常载入范围」的旧日期区间的地方用（目前是总部报表选旧月份）。
+// 如果要查的区间在最近90天以内，直接用已经在记忆体里的 orders，不用另外问 Supabase。
+// 如果区间比较旧，才临时单独去抓那段时间的资料，用完不会留在记忆体里，不会让日常载入变大。
+async function getOrdersForRange(startDate, endDate) {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - ORDERS_LOAD_DAYS);
+  if(startDate >= cutoff) return orders; // 已经涵盖在日常载入范围内
+  async function fetchRange(table, extraMap) {
+    let all = [], from = 0, pageSize = 1000;
+    while(true) {
+      const res = await sb.from(table).select('*')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .order('created_at', {ascending:false})
+        .range(from, from + pageSize - 1);
+      if(res.error) throw res.error;
+      const rows = (res.data || []).map(x => ({ ...x, ...extraMap }));
+      all = all.concat(rows);
+      if(rows.length < pageSize) break;
+      from += pageSize;
+    }
+    return all;
+  }
+  const [aOrds, kOrds] = await Promise.all([
+    fetchRange('orders',   { business: 'A'   }),
+    fetchRange('g_orders', { business: 'K19' }),
+  ]);
+  return [...aOrds, ...kOrds].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
 function subscribeRealtime() {
@@ -8519,6 +8556,12 @@ async function renderHqDashboard() {
     }
   }
 
+  // 如果选的日期区间比日常载入(最近90天)还旧，这里会自动另外单独去问 Supabase 要那段资料，
+  // 不会影响、也不会累加进日常那份常驻的订单清单。区间在90天以内则直接用现成的，没有额外等待。
+  setSync('busy','查询中...');
+  const orders = await getOrdersForRange(startDate, endDate);
+  setSync('ok','');
+
   // 1. 门市收银 — status='instore', exclude credit, exclude delivery fee
   const instoreOrders = orders.filter(o => {
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
@@ -11537,8 +11580,8 @@ const LHDN_CA = {
 // Meta      : Supabase `lhdn_meta` table (opening stock / accountant-adjusted sales, per year)
 
 // Shared real-sales calculator — mirrors HQ dashboard revenue logic exactly
-function computeRealSalesInRange(startDate, endDate) {
-  const src = typeof orders !== 'undefined' ? orders : [];
+async function computeRealSalesInRange(startDate, endDate, preloadedOrders) {
+  const src = preloadedOrders || await getOrdersForRange(startDate, endDate);
   const instoreOrders = src.filter(o => {
     const pm = o.pay_method || o.payment_method || o.payment_status || '';
     if(pm === 'credit' || pm === 'credit_qr' || pm === 'credit_cash') return false;
@@ -11725,10 +11768,10 @@ function setLhdnTab(t) {
 const lFmt = v => 'RM ' + Number(v||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 
 // Get total annual sales — real POS orders/g_orders + debt repayments
-function lhdnGetPosSales(year) {
+async function lhdnGetPosSales(year) {
   const startDate = new Date(year, 0, 1);
   const endDate = new Date(year, 11, 31, 23, 59, 59);
-  return computeRealSalesInRange(startDate, endDate);
+  return await computeRealSalesInRange(startDate, endDate);
 }
 
 // Get closing stock value from items (quantity × cost_price)
@@ -11769,10 +11812,10 @@ function lhdnGetCA(year) {
 }
 
 // ── Summary ───────────────────────────────────────────────
-function renderLhdnSummary() {
+async function renderLhdnSummary() {
   const year = _lhdnYear;
   const meta = lhdnGetMeta(year);
-  const posSales    = lhdnGetPosSales(year);
+  const posSales    = await lhdnGetPosSales(year);
   const adjSales    = meta.adjSales || null;
   const sales       = adjSales !== null ? adjSales : posSales;
   const openStock   = Number(meta.openingStock || 0);
@@ -11841,20 +11884,26 @@ function renderLhdnSummary() {
 }
 
 // ── Sales ─────────────────────────────────────────────────
-function renderLhdnSales() {
+async function renderLhdnSales() {
   const year = _lhdnYear;
   const meta = lhdnGetMeta(year);
   document.getElementById('lhdn-adj-sales').value = meta.adjSales || '';
   document.getElementById('lhdn-adj-sales-note').value = meta.adjSalesNote || '';
 
   // Monthly breakdown — real POS sales
+  // 先一次把整年的订单抓好，12个月各自算的时候直接复用，不用查询12次
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year, 11, 31, 23, 59, 59);
+  setSync('busy','查询中...');
+  const yearOrders = await getOrdersForRange(yearStart, yearEnd);
+  setSync('ok','');
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const rows = monthNames.map((mn,i) => {
+  const rows = await Promise.all(monthNames.map(async (mn,i) => {
     const start = new Date(year, i, 1);
     const end = new Date(year, i+1, 0, 23,59,59);
-    const amt = computeRealSalesInRange(start, end);
+    const amt = await computeRealSalesInRange(start, end, yearOrders);
     return { month: mn, amt };
-  });
+  }));
   const total = rows.reduce((s,r)=>s+r.amt,0);
   const el = document.getElementById('lhdn-sales-table');
   if (!el) return;
@@ -11881,7 +11930,7 @@ async function saveLhdnAdjSales() {
   meta.adjSalesNote = document.getElementById('lhdn-adj-sales-note').value.trim();
   await lhdnSetMeta(_lhdnYear, meta);
   showPosToast('✅ Sales 调整已保存');
-  renderLhdnSales();
+  await renderLhdnSales();
 }
 
 // ── Stock ─────────────────────────────────────────────────
@@ -12079,10 +12128,10 @@ function deleteLhdnAsset(id) {
 }
 
 // ── PDF Report ────────────────────────────────────────────
-function lhdnGeneratePdf() {
+async function lhdnGeneratePdf() {
   const year   = _lhdnYear;
   const meta   = lhdnGetMeta(year);
-  const posSales   = lhdnGetPosSales(year);
+  const posSales   = await lhdnGetPosSales(year);
   const sales      = meta.adjSales !== null && meta.adjSales !== undefined ? meta.adjSales : posSales;
   const openStock  = Number(meta.openingStock||0);
   const closeStock = lhdnGetClosingStock().total;
