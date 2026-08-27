@@ -770,6 +770,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn" id="navbtn-lhdn" onclick="posSwitchTab('lhdn')" style="display:none">
         <span class="nav-icon">🗂️</span> 税务 LHDN
       </button>
+      <button class="nav-btn" id="navbtn-owner" onclick="posSwitchTab('owner')" style="display:none">
+        <span class="nav-icon">💰</span> 老板总览
+      </button>
       <div class="nav-divider" id="nav-divider-clock" style="display:none"></div>
       <button class="nav-btn" id="navbtn-clock" onclick="openClockModal()" style="display:none">
         <span class="nav-icon">⏱</span> 打卡
@@ -1365,6 +1368,39 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <button class="btn btn-success" onclick="openLhdnAssetModal()">+ 新增资产</button>
           </div>
           <div id="lhdn-asset-list"></div>
+        </div>
+      </div>
+
+      <!-- ══ OWNER OVERVIEW PAGE (老板总览) ══════════════════════ -->
+      <div id="page-owner" class="page">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:20px;font-weight:700">💰 老板总览</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">这段时间赚了多少、亏了多少、钱去哪了——一眼看懂</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="owner-year" onchange="renderOwnerPage()" style="padding:7px 12px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:700"></select>
+            <select id="owner-month-from" onchange="renderOwnerSummary()" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif"></select>
+            <span style="color:var(--text3);font-size:12px">至</span>
+            <select id="owner-month-to" onchange="renderOwnerSummary()" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif"></select>
+          </div>
+        </div>
+
+        <div id="owner-summary-cards" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px"></div>
+        <div id="owner-flow-table" style="margin-bottom:20px"></div>
+
+        <div style="font-size:11px;color:var(--text3);margin:4px 0 10px">👇 以下是"现在这一刻"的实际数字，不受上面选的时间段影响</div>
+        <div id="owner-snapshot-cards" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px"></div>
+
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">🏦 银行 / 现金余额（手动记录）</div>
+          <div id="owner-balance-latest" style="margin-bottom:12px"></div>
+          <div class="form-row"><label style="font-size:12px">日期</label><input type="date" id="owner-bal-date" style="flex:1"></div>
+          <div class="form-row"><label style="font-size:12px">银行余额 (RM)</label><input type="number" id="owner-bal-bank" step="0.01" placeholder="不确定可留空" style="flex:1"></div>
+          <div class="form-row"><label style="font-size:12px">现金余额 (RM)</label><input type="number" id="owner-bal-cash" step="0.01" placeholder="不确定可留空" style="flex:1"></div>
+          <div class="form-row"><label style="font-size:12px">备注</label><input type="text" id="owner-bal-note" placeholder="选填" style="flex:1"></div>
+          <button class="btn btn-success" onclick="ownerSaveBalance()">💾 记录一笔</button>
+          <div id="owner-balance-history" style="margin-top:14px"></div>
         </div>
       </div>
 
@@ -8311,6 +8347,7 @@ function posSwitchTab(t) {
   else if(t === 'lhdn') { renderLhdnPage(); }
   else if(t === 'holidays') { renderCalPage(); }
   else if(t === 'ledger') { renderLedgerPage(); }
+  else if(t === 'owner') { renderOwnerPage(); }
 }
 
 function posOpenBundle() { openBundleRulesModal(); }
@@ -8513,7 +8550,7 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-debtors',
-     'navbtn-hq','navbtn-payroll','navbtn-lhdn'].forEach(id => {
+     'navbtn-hq','navbtn-payroll','navbtn-lhdn','navbtn-owner'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
@@ -11724,6 +11761,187 @@ async function lhdnSetMeta(year, obj) {
   };
   await sb.from('lhdn_meta').upsert(payload, { onConflict: 'year' });
   _lhdnMetaCache[year] = payload;
+}
+
+// ══════════════════════════════════════════════════════════
+// ── 老板总览 (Owner Overview) ──
+// ══════════════════════════════════════════════════════════
+let _ownerBalanceLog = [];
+
+async function loadOwnerBalanceLog() {
+  const { data, error } = await sb.from('owner_balance_log').select('*').order('entry_date', { ascending: false });
+  if (error) { console.error('owner_balance_log load error:', error); _ownerBalanceLog = []; return; }
+  _ownerBalanceLog = data || [];
+}
+
+async function renderOwnerPage() {
+  await Promise.all([
+    loadLhdnData(),           // 资产 + 顺带确保 _ledgerEntries 也载入
+    loadOwnerBalanceLog(),
+  ]);
+
+  const yearSel = document.getElementById('owner-year');
+  if (yearSel && !yearSel.options.length) {
+    const cur = new Date().getFullYear();
+    for (let y = cur; y >= cur - 5; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      if (y === cur) opt.selected = true;
+      yearSel.appendChild(opt);
+    }
+  }
+  const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const fromSel = document.getElementById('owner-month-from');
+  const toSel = document.getElementById('owner-month-to');
+  if (fromSel && !fromSel.options.length) {
+    fromSel.innerHTML = monthNames.map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
+    fromSel.value = 1;
+  }
+  if (toSel && !toSel.options.length) {
+    toSel.innerHTML = monthNames.map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
+    toSel.value = new Date().getMonth() + 1; // 默认到本月
+  }
+
+  await renderOwnerSummary();
+  renderOwnerSnapshot();
+  renderOwnerBalanceSection();
+}
+
+async function renderOwnerSummary() {
+  const year = parseInt(document.getElementById('owner-year')?.value) || new Date().getFullYear();
+  const fromM = parseInt(document.getElementById('owner-month-from')?.value) || 1;
+  const toM = parseInt(document.getElementById('owner-month-to')?.value) || 12;
+  const startDate = new Date(year, fromM - 1, 1);
+  const endDate = new Date(year, toM, 0, 23, 59, 59);
+
+  setSync('busy', '查询中...');
+  const sales = await computeRealSalesInRange(startDate, endDate);
+  setSync('ok', '');
+
+  const entries = (typeof _ledgerEntries !== 'undefined' ? _ledgerEntries : []).filter(e => {
+    if (!e.entry_date) return false;
+    const d = new Date(e.entry_date);
+    return d >= startDate && d <= endDate;
+  });
+  const purchases = entries.filter(e => e.entry_type === 'out' && e.category === 'purchase').reduce((s,e) => s + Number(e.amount||0), 0);
+  const otherExp  = entries.filter(e => e.entry_type === 'out' && e.category !== 'purchase').reduce((s,e) => s + Number(e.amount||0), 0);
+  const manualIn  = entries.filter(e => e.entry_type === 'in').reduce((s,e) => s + Number(e.amount||0), 0);
+  const totalIn   = sales + manualIn;
+  const totalOut  = purchases + otherExp;
+  const net       = totalIn - totalOut;
+
+  const cards = document.getElementById('owner-summary-cards');
+  if (cards) cards.innerHTML = [
+    { label: '销售收入 Sales', val: lFmt(sales), color: 'var(--green)' },
+    { label: '进货 Purchases', val: lFmt(purchases), color: 'var(--red)' },
+    { label: '其他支出 Expenses', val: lFmt(otherExp), color: 'var(--red)' },
+    { label: '净额 Net', val: lFmt(net), color: net >= 0 ? 'var(--green)' : 'var(--red)' },
+  ].map(c => `
+    <div class="card" style="padding:14px">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;color:var(--text3)">${c.label}</div>
+      <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace;color:${c.color}">${c.val}</div>
+    </div>`).join('');
+
+  const flowEl = document.getElementById('owner-flow-table');
+  if (flowEl) flowEl.innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px">📋 这段时间的钱是怎么进出的</div>
+      ${[
+        ['销售收入', sales, 'var(--green)', false],
+        ['其他进账（每日记账手动记的）', manualIn, 'var(--text2)', true],
+        ['── 总进账 ──', totalIn, 'var(--green)', false],
+        ['进货 Purchases', -purchases, 'var(--text2)', true],
+        ['其他支出 Expenses', -otherExp, 'var(--text2)', true],
+        ['── 总支出 ──', -totalOut, 'var(--red)', false],
+        ['净额 Net（赚/亏）', net, net >= 0 ? 'var(--green)' : 'var(--red)', false],
+      ].map(([label,val,color,indent]) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);${indent?'':'font-weight:700'}">
+          <span style="font-size:12px;color:var(--text2);${indent?'padding-left:14px;font-size:11px':''}">${label}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${color}">${lFmt(Math.abs(val))}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderOwnerSnapshot() {
+  const debtorsOwed = (typeof _debtors !== 'undefined' ? _debtors : [])
+    .filter(d => d.status === 'unpaid').reduce((s,d) => s + Number(d.amount||0), 0);
+  const stockVal = lhdnGetClosingStock().total;
+  const assetsVal = lhdnGetAssets().reduce((s,a) => s + Number(a.cost||0), 0);
+
+  const el = document.getElementById('owner-snapshot-cards');
+  if (!el) return;
+  el.innerHTML = [
+    { label: '顾客欠你多少 Debtors', val: lFmt(debtorsOwed), color: 'var(--amber)' },
+    { label: '库存价值 Stock Value', val: lFmt(stockVal), color: 'var(--text)' },
+    { label: '资产总值 Assets', val: lFmt(assetsVal), color: 'var(--text)' },
+    { label: '供应商欠款 Payables', val: '待建立', color: 'var(--text3)' },
+  ].map(c => `
+    <div class="card" style="padding:14px;background:var(--surface2)">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;color:var(--text3)">${c.label}</div>
+      <div style="font-size:18px;font-weight:800;font-family:'DM Mono',monospace;color:${c.color}">${c.val}</div>
+    </div>`).join('');
+}
+
+function renderOwnerBalanceSection() {
+  const dateEl = document.getElementById('owner-bal-date');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0,10);
+
+  const latestEl = document.getElementById('owner-balance-latest');
+  if (latestEl) {
+    if (!_ownerBalanceLog.length) {
+      latestEl.innerHTML = `<div style="font-size:12px;color:var(--text3)">还没记录过，下面填一笔吧</div>`;
+    } else {
+      const latest = _ownerBalanceLog[0];
+      const total = Number(latest.bank_balance||0) + Number(latest.cash_balance||0);
+      latestEl.innerHTML = `
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:100px"><div style="font-size:9px;color:var(--text3);font-weight:700">银行</div><div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace">${lFmt(latest.bank_balance)}</div></div>
+          <div style="flex:1;min-width:100px"><div style="font-size:9px;color:var(--text3);font-weight:700">现金</div><div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace">${lFmt(latest.cash_balance)}</div></div>
+          <div style="flex:1;min-width:100px"><div style="font-size:9px;color:var(--text3);font-weight:700">合计</div><div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace;color:var(--green)">${lFmt(total)}</div></div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">最后记录于 ${latest.entry_date}${latest.note?' · '+latest.note:''}</div>`;
+    }
+  }
+
+  const histEl = document.getElementById('owner-balance-history');
+  if (histEl) {
+    histEl.innerHTML = _ownerBalanceLog.slice(0, 10).map(r => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:12px;font-weight:600">${r.entry_date}</div>
+          ${r.note ? `<div style="font-size:11px;color:var(--text3)">${r.note}</div>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;font-family:'DM Mono',monospace">银行 ${lFmt(r.bank_balance)} · 现金 ${lFmt(r.cash_balance)}</span>
+          <button onclick="ownerDeleteBalance('${r.id}')" style="border:none;background:none;color:var(--text3);cursor:pointer;font-size:13px">🗑️</button>
+        </div>
+      </div>`).join('');
+  }
+}
+
+async function ownerSaveBalance() {
+  const date = document.getElementById('owner-bal-date').value;
+  const bank = parseFloat(document.getElementById('owner-bal-bank').value) || 0;
+  const cash = parseFloat(document.getElementById('owner-bal-cash').value) || 0;
+  const note = document.getElementById('owner-bal-note').value.trim();
+  if (!date) { alert('请选日期'); return; }
+  const { error } = await sb.from('owner_balance_log').insert({
+    entry_date: date, bank_balance: bank, cash_balance: cash, note: note || null
+  });
+  if (error) { alert('保存失败：' + error.message); return; }
+  document.getElementById('owner-bal-bank').value = '';
+  document.getElementById('owner-bal-cash').value = '';
+  document.getElementById('owner-bal-note').value = '';
+  showPosToast('✅ 已记录');
+  await loadOwnerBalanceLog();
+  renderOwnerBalanceSection();
+}
+
+async function ownerDeleteBalance(id) {
+  if (!confirm('删除这笔记录？')) return;
+  await sb.from('owner_balance_log').delete().eq('id', id);
+  await loadOwnerBalanceLog();
+  renderOwnerBalanceSection();
 }
 
 // ── One-time migration: old browser-only localStorage data → Supabase ──
