@@ -7289,8 +7289,14 @@ function togglePanel(panelId) {
   if(!body) return;
   const isOpen = body.style.display !== 'none';
   body.style.display = isOpen ? 'none' : 'block';
-  if(isOpen) arrow.classList.remove('open');
-  else arrow.classList.add('open');
+  if(isOpen) {
+    arrow.classList.remove('open');
+  } else {
+    arrow.classList.add('open');
+    // 面板展开的这一刻才画清单内容，收着的时候不用白算（这两份清单没分页，商品一多会有感）
+    if(panelId === 'panel-bulk-price' && typeof renderBulkPriceList === 'function') renderBulkPriceList();
+    else if(panelId === 'panel-cost' && typeof renderCostEditor === 'function') renderCostEditor();
+  }
 }
 
 // ── TRANSFER STOCK / 每日拣货清单 (cart-style, multi-item) ──────────
@@ -8426,20 +8432,8 @@ function posSwitchTab(t) {
   }
   else if(t === 'stock') {
     renderItems(); // 后台同步现在不会自动重画这页了，切进来的时候补一次，确保看到的是最新的
-    setTimeout(() => {
-      if(typeof renderBulkPriceList === 'function') renderBulkPriceList();
-      if(typeof renderCostEditor === 'function') renderCostEditor();
-      const catEl = document.getElementById('cost-cat-filter');
-      if(catEl && catEl.options.length <= 1) {
-        const cats = [...new Set(items.map(i=>i.category).filter(Boolean))].sort();
-        catEl.innerHTML = '<option value="">全部类别</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
-      }
-      const bpCat = document.getElementById('bulk-price-cat');
-      if(bpCat && bpCat.options.length <= 1) {
-        const cats = [...new Set(items.map(i=>i.category).filter(Boolean))].sort();
-        bpCat.innerHTML = '<option value="">全部类别</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
-      }
-    }, 100);
+    // 批量改价／成本价设置这两个面板默认是收起的，内容改成面板展开时才画（见 togglePanel），
+    // 不在这里无条件预渲染——这两份清单没分页，商品一多、每次切页都重算会很卡。
   }
   else if(t === 'orders') {
     loadOrders();
