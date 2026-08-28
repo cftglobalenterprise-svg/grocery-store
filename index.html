@@ -8419,6 +8419,17 @@ function showPosToast(msg) {
 }
 
 function posSwitchTab(t) {
+  const _dbgT0 = performance.now();
+  _posSwitchTabInner(t);
+  const _dbgT1 = performance.now();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const _dbgT2 = performance.now();
+      console.log('[perf]', t, '| sync JS:', (_dbgT1-_dbgT0).toFixed(1)+'ms', '| JS-end→next paint:', (_dbgT2-_dbgT1).toFixed(1)+'ms', '| total to paint:', (_dbgT2-_dbgT0).toFixed(1)+'ms');
+    });
+  });
+}
+function _posSwitchTabInner(t) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const activeBtn = document.getElementById('navbtn-' + t);
   if(activeBtn) activeBtn.classList.add('active');
