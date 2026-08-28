@@ -1061,7 +1061,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                   <option value="K19">杂货店</option>
                 </select>
                 <form onsubmit="return false" autocomplete="off" style="flex:1;min-width:0;display:contents">
-                <input type="search" id="stock-search" placeholder="🔍 搜索..." oninput="_stockPage=1;renderItems()" autocomplete="off" style="flex:1;min-width:0">
+                <input type="search" id="stock-search" placeholder="🔍 搜索..." oninput="stockSearchDebounced()" autocomplete="off" style="flex:1;min-width:0">
                 </form>
                 <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="toggleSelectAll()">全选</button>
                 <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="openCatModal()">🏷</button>
@@ -2725,6 +2725,7 @@ async function loadItems() {
   const aItems = (resA.data || []).map(x => ({ ...x, business: x.business || 'A', _table: 'items' }));
   const kItems = (resK.data || []).map(x => ({ ...x, business: x.business || 'K19', _table: 'g_items' }));
   items = [...aItems, ...kItems];
+  _catDropdownsDirty = true; // 商品数据变了，下次画库存列表时需要重建分类下拉选单
   // 只有真的在库存管理页面上的时候，才重画这几百行清单——
   // 不然分店随便调一下库存，所有设备不管在看哪一页都会被迫重绘一次，很卡。
   const stockPage = document.getElementById('page-stock');
@@ -3081,6 +3082,15 @@ function toggleNewCategoryInput() {
 
 let _stockPage = 1;
 const STOCK_PAGE_SIZE = 100;
+let _catDropdownsDirty = true; // items 数据真的变了才需要重建分类下拉选单
+
+// 打字的时候不要每敲一个字就整个重画一次列表（100 条卡片一起重算很吃力）——
+// 停顿 250ms 没再按键才真正去刷新，敲字本身不会卡
+let _stockSearchTimer = null;
+function stockSearchDebounced() {
+  clearTimeout(_stockSearchTimer);
+  _stockSearchTimer = setTimeout(() => { _stockPage = 1; renderItems(); }, 250);
+}
 
 function renderItems() {
   updateMetrics();
@@ -3088,9 +3098,12 @@ function renderItems() {
   const filterCat = document.getElementById('filter-category');
   const savedCat = filterCat ? filterCat.value : '';
   const filterBiz = document.getElementById('filter-business')?.value || '';
-  updateCategoryDropdowns();
-  // Restore selection after dropdown was rebuilt
-  if(filterCat && savedCat) filterCat.value = savedCat;
+  if(_catDropdownsDirty) {
+    updateCategoryDropdowns();
+    _catDropdownsDirty = false;
+    // Restore selection after dropdown was rebuilt
+    if(filterCat && savedCat) filterCat.value = savedCat;
+  }
   const selectedCat = filterCat ? filterCat.value : '';
   const searchEl = document.getElementById('stock-search');
   const searchQuery = searchEl ? searchEl.value.trim().toLowerCase() : '';
