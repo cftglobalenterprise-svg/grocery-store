@@ -800,6 +800,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             </div>
             <div class="pos-grid-wrap">
               <div class="pos-grid" id="pos-grid"></div>
+              <div id="pos-grid-pager" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:14px 0;"></div>
             </div>
           </div>
 
@@ -1043,13 +1044,13 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <div class="card">
               <div class="card-title">库存列表</div>
               <div class="filter-bar">
-                <select id="filter-category" onchange="renderItems()"><option value="">全部 Category</option></select>
-                <select id="filter-business" onchange="renderItems()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:13px">
+                <select id="filter-category" onchange="_stockPage=1;renderItems()"><option value="">全部 Category</option></select>
+                <select id="filter-business" onchange="_stockPage=1;renderItems()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:13px">
                   <option value="">两个生意</option>
                   <option value="A">电子烟</option>
                   <option value="K19">杂货店</option>
                 </select>
-                <input type="text" id="stock-search" placeholder="🔍 搜索..." oninput="renderItems()" style="flex:1;min-width:0">
+                <input type="text" id="stock-search" placeholder="🔍 搜索..." oninput="_stockPage=1;renderItems()" style="flex:1;min-width:0">
                 <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="toggleSelectAll()">全选</button>
                 <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="openCatModal()">🏷</button>
               </div>
@@ -3066,6 +3067,9 @@ function toggleNewCategoryInput() {
   }
 }
 
+let _stockPage = 1;
+const STOCK_PAGE_SIZE = 100;
+
 function renderItems() {
   updateMetrics();
   // Save current filter selection before dropdown refresh
@@ -3079,12 +3083,20 @@ function renderItems() {
   const searchEl = document.getElementById('stock-search');
   const searchQuery = searchEl ? searchEl.value.trim().toLowerCase() : '';
   const el = document.getElementById('item-list');
-  if(!items.length) { el.innerHTML='<div class="empty">还没有商品，先添加吧</div>'; return; }
+  if(!items.length) { el.innerHTML='<div class="empty">还没有商品，先添加吧</div>'; renderStockPager(0,0); return; }
   let filtered = selectedCat ? items.filter(i=>i.category===selectedCat) : items;
   if(searchQuery) filtered = filtered.filter(i=>i.name.toLowerCase().includes(searchQuery));
   if(filterBiz) filtered = filtered.filter(i=>(i.business||'A')===filterBiz);
-  if(!filtered.length) { el.innerHTML='<div class="empty">没有找到符合的商品</div>'; return; }
-  el.innerHTML = filtered.map(it => {
+  if(!filtered.length) { el.innerHTML='<div class="empty">没有找到符合的商品</div>'; renderStockPager(0,0); return; }
+
+  // 商品可能有上千样，一次性全部塞进 DOM 会让浏览器算排版算到卡死——分页，一次只画一批
+  const totalPages = Math.max(1, Math.ceil(filtered.length / STOCK_PAGE_SIZE));
+  if(_stockPage > totalPages) _stockPage = totalPages;
+  if(_stockPage < 1) _stockPage = 1;
+  const pageStart = (_stockPage - 1) * STOCK_PAGE_SIZE;
+  const pageItems = filtered.slice(pageStart, pageStart + STOCK_PAGE_SIZE);
+
+  el.innerHTML = pageItems.map(it => {
     const total = it.home_qty + it.shop_qty;
     const warn = it.is_service ? '' :
       (!it.bundle_components && it.shop_qty < 2) ? '<span class="badge badge-warn">⚠ 店里不足</span>'
@@ -3126,6 +3138,30 @@ function renderItems() {
   }).join('');
   updateBulkBar();
   initReorderCategories();
+  renderStockPager(filtered.length, totalPages);
+}
+
+function renderStockPager(totalCount, totalPages) {
+  let pagerEl = document.getElementById('stock-pager');
+  if(!pagerEl) {
+    const listEl = document.getElementById('item-list');
+    if(!listEl || !listEl.parentNode) return;
+    pagerEl = document.createElement('div');
+    pagerEl.id = 'stock-pager';
+    pagerEl.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:12px;padding:14px 0;';
+    listEl.parentNode.insertBefore(pagerEl, listEl.nextSibling);
+  }
+  if(totalCount === 0) { pagerEl.innerHTML = ''; return; }
+  pagerEl.innerHTML = `
+    <button class="btn" style="font-size:12px;padding:6px 12px" ${_stockPage<=1?'disabled':''} onclick="stockGoPage(_stockPage-1)">‹ 上一页</button>
+    <span style="font-size:12px;color:var(--text3)">第 ${_stockPage} / ${totalPages} 页 · 共 ${totalCount} 样</span>
+    <button class="btn" style="font-size:12px;padding:6px 12px" ${_stockPage>=totalPages?'disabled':''} onclick="stockGoPage(_stockPage+1)">下一页 ›</button>`;
+}
+
+function stockGoPage(p) {
+  _stockPage = p;
+  renderItems();
+  document.getElementById('item-list')?.scrollIntoView({behavior:'instant', block:'start'});
 }
 
 function updateMetrics() {
@@ -7647,6 +7683,7 @@ function renderPosCats() {
 
 function setPoscat(c) {
   _posCat = c;
+  _posGridPage = 1;
   // sync dropdown
   const sel = document.getElementById('pos-cat-select');
   if(sel) sel.value = c;
@@ -7670,6 +7707,7 @@ function posSearchInput(val) {
     }, 150);
   } else {
     // Normal text search - immediate render
+    _posGridPage = 1;
     renderPosGrid();
   }
 }
@@ -7709,6 +7747,9 @@ function handleBarcodeInput(barcode) {
   }
 }
 
+let _posGridPage = 1;
+const POS_GRID_PAGE_SIZE = 120;
+
 function renderPosGrid() {
   const grid = document.getElementById('pos-grid');
   if(!grid) return;
@@ -7723,9 +7764,16 @@ function renderPosGrid() {
   });
   if(!list.length) {
     grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:2rem 0;font-size:13px">没有找到商品</div>';
+    renderPosGridPager(0,0);
     return;
   }
-  grid.innerHTML = list.map(it => {
+  // 商品可能上千样，一次性全部做成卡片会让浏览器算排版算到卡死——分页，一次只画一批
+  const totalPages = Math.max(1, Math.ceil(list.length / POS_GRID_PAGE_SIZE));
+  if(_posGridPage > totalPages) _posGridPage = totalPages;
+  if(_posGridPage < 1) _posGridPage = 1;
+  const pageStart = (_posGridPage - 1) * POS_GRID_PAGE_SIZE;
+  const pageList = list.slice(pageStart, pageStart + POS_GRID_PAGE_SIZE);
+  grid.innerHTML = pageList.map(it => {
     // For bundle items, effective stock = min(battery.shop_qty, cartridge.shop_qty)
     let effectiveStock = it.shop_qty;
     let isBundle = false;
@@ -7759,6 +7807,23 @@ function renderPosGrid() {
       ${bundleBadge}
     </div>`;
   }).join('');
+  renderPosGridPager(list.length, totalPages);
+}
+
+function renderPosGridPager(totalCount, totalPages) {
+  const pagerEl = document.getElementById('pos-grid-pager');
+  if(!pagerEl) return;
+  if(totalCount === 0) { pagerEl.innerHTML = ''; return; }
+  pagerEl.innerHTML = `
+    <button class="btn" style="font-size:12px;padding:6px 12px" ${_posGridPage<=1?'disabled':''} onclick="posGridGoPage(_posGridPage-1)">‹ 上一页</button>
+    <span style="font-size:12px;color:var(--text3)">第 ${_posGridPage} / ${totalPages} 页 · 共 ${totalCount} 样</span>
+    <button class="btn" style="font-size:12px;padding:6px 12px" ${_posGridPage>=totalPages?'disabled':''} onclick="posGridGoPage(_posGridPage+1)">下一页 ›</button>`;
+}
+
+function posGridGoPage(p) {
+  _posGridPage = p;
+  renderPosGrid();
+  document.querySelector('.pos-grid-wrap')?.scrollTo({top:0, behavior:'instant'});
 }
 
 function posAddItem(id) {
