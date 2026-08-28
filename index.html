@@ -910,7 +910,8 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </div>
 
       <!-- ══ STOCK ════════════════════════════════════ -->
-      <div id="page-stock" class="page">
+      <div id="page-stock" class="page"></div>
+      <template id="tpl-page-stock">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
           <div class="metrics" style="margin-bottom:0;flex:1">
             <div class="metric"><div class="metric-val" id="m-total">0</div><div class="metric-lbl">商品种类</div></div>
@@ -1072,7 +1073,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           </div>
         </div>
 
-      </div>
+      </template>
 
       <!-- ══ ORDERS ════════════════════════════════════ -->
       <div id="page-orders" class="page">
@@ -8402,9 +8403,23 @@ function posSwitchTab(t) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const activeBtn = document.getElementById('navbtn-' + t);
   if(activeBtn) activeBtn.classList.add('active');
+
+  // 懒加载页面内容：有对应 <template id="tpl-页面id"> 的页面，离开时清空、进入时才 clone 进来，
+  // 目的是让 Safari 的表单扫描器扫不到没在用的页面（它只扫活跃文档树，template 里的内容不算）。
+  // page-instore 是常驻首页，不参与懒加载。还没转成 template 的页面 tpl 元素不存在，下面两步自动跳过、行为不变。
+  const prevPage = document.querySelector('.page.active');
+  if(prevPage && prevPage.id !== 'page-instore' && document.getElementById('tpl-' + prevPage.id)) {
+    prevPage.innerHTML = '';
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const page = document.getElementById('page-' + t);
-  if(page) page.classList.add('active');
+  if(page) {
+    if(page.id !== 'page-instore' && page.childElementCount === 0) {
+      const tpl = document.getElementById('tpl-' + page.id);
+      if(tpl) page.appendChild(tpl.content.cloneNode(true));
+    }
+    page.classList.add('active');
+  }
   if(t === 'instore') {
     renderPosCats(); renderPosGrid(); updatePosCartUI(); renderDashboard();
     setTimeout(() => { document.getElementById('pos-search-input')?.focus(); }, 50);
