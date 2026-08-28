@@ -8433,6 +8433,32 @@ function posOpenBundle() { openBundleRulesModal(); }
 function posOpenCustomer() { openCustomerMode(); }
 
 
+// Safari 点进输入框的时候会自动跑一次 AutoFill 表单分析，这个分析要扫描整个网页的 DOM——
+// 这个系统是塞在同一个文件里的巨大单页应用（很多页面/弹窗都常驻在 DOM 里，只是隐藏着），
+// DOM 太大太复杂，Safari 这个扫描一碰到就直接卡死整个页面好几秒。
+// 关掉所有输入框的自动填充分析，从根本上不让 Safari 触发这个扫描。
+// 用 MutationObserver 顺便把之后弹窗里动态生成的新输入框也一起处理掉，不用每次手动加。
+function disableAutofillScan(root) {
+  (root || document).querySelectorAll('input:not([data-noaf]), select:not([data-noaf]), textarea:not([data-noaf])').forEach(applyNoAutofillAttrs);
+}
+function applyNoAutofillAttrs(el) {
+  el.setAttribute('autocomplete', 'off');
+  el.setAttribute('autocorrect', 'off');
+  el.setAttribute('autocapitalize', 'off');
+  el.setAttribute('spellcheck', 'false');
+  el.setAttribute('data-noaf', '1');
+}
+disableAutofillScan();
+new MutationObserver((mutations) => {
+  for(const m of mutations) {
+    for(const node of m.addedNodes) {
+      if(node.nodeType !== 1) continue;
+      if(node.matches && node.matches('input:not([data-noaf]),select:not([data-noaf]),textarea:not([data-noaf])')) applyNoAutofillAttrs(node);
+      if(node.querySelectorAll) node.querySelectorAll('input:not([data-noaf]),select:not([data-noaf]),textarea:not([data-noaf])').forEach(applyNoAutofillAttrs);
+    }
+  }
+}).observe(document.body, { childList: true, subtree: true });
+
 init();
 setTimeout(() => { renderPosCats(); renderPosGrid(); updatePosCartUI(); loadCustomers(); loadDraftIfAny(); }, 300);
 
