@@ -3094,25 +3094,31 @@ function stockSearchDebounced() {
 }
 
 function renderItems() {
+  console.time('[perf]   updateMetrics');
   updateMetrics();
+  console.timeEnd('[perf]   updateMetrics');
   // Save current filter selection before dropdown refresh
   const filterCat = document.getElementById('filter-category');
   const savedCat = filterCat ? filterCat.value : '';
   const filterBiz = document.getElementById('filter-business')?.value || '';
+  console.time('[perf]   category dropdowns (dirty=' + _catDropdownsDirty + ')');
   if(_catDropdownsDirty) {
     updateCategoryDropdowns();
     _catDropdownsDirty = false;
     // Restore selection after dropdown was rebuilt
     if(filterCat && savedCat) filterCat.value = savedCat;
   }
+  console.timeEnd('[perf]   category dropdowns (dirty=' + _catDropdownsDirty + ')');
   const selectedCat = filterCat ? filterCat.value : '';
   const searchEl = document.getElementById('stock-search');
   const searchQuery = searchEl ? searchEl.value.trim().toLowerCase() : '';
   const el = document.getElementById('item-list');
   if(!items.length) { el.innerHTML='<div class="empty">还没有商品，先添加吧</div>'; renderStockPager(0,0); return; }
+  console.time('[perf]   filter items (total=' + items.length + ')');
   let filtered = selectedCat ? items.filter(i=>i.category===selectedCat) : items;
   if(searchQuery) filtered = filtered.filter(i=>i.name.toLowerCase().includes(searchQuery));
   if(filterBiz) filtered = filtered.filter(i=>(i.business||'A')===filterBiz);
+  console.timeEnd('[perf]   filter items (total=' + items.length + ')');
   if(!filtered.length) { el.innerHTML='<div class="empty">没有找到符合的商品</div>'; renderStockPager(0,0); return; }
 
   // 商品可能有上千样，一次性全部塞进 DOM 会让浏览器算排版算到卡死——分页，一次只画一批
@@ -3122,6 +3128,7 @@ function renderItems() {
   const pageStart = (_stockPage - 1) * STOCK_PAGE_SIZE;
   const pageItems = filtered.slice(pageStart, pageStart + STOCK_PAGE_SIZE);
 
+  console.time('[perf]   build+insert HTML (pageItems=' + pageItems.length + ')');
   el.innerHTML = pageItems.map(it => {
     const total = it.home_qty + it.shop_qty;
     const warn = it.is_service ? '' :
@@ -3162,9 +3169,12 @@ function renderItems() {
       </div>
     </div>`;
   }).join('');
+  console.timeEnd('[perf]   build+insert HTML (pageItems=' + pageItems.length + ')');
+  console.time('[perf]   updateBulkBar+initReorderCategories+pager');
   updateBulkBar();
   initReorderCategories();
   renderStockPager(filtered.length, totalPages);
+  console.timeEnd('[perf]   updateBulkBar+initReorderCategories+pager');
 }
 
 function renderStockPager(totalCount, totalPages) {
@@ -8406,6 +8416,7 @@ function showPosToast(msg) {
 }
 
 function posSwitchTab(t) {
+  console.time('[perf] posSwitchTab total: ' + t);
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const activeBtn = document.getElementById('navbtn-' + t);
   if(activeBtn) activeBtn.classList.add('active');
@@ -8413,16 +8424,20 @@ function posSwitchTab(t) {
   // 懒加载页面内容：有对应 <template id="tpl-页面id"> 的页面，离开时清空、进入时才 clone 进来，
   // 目的是让 Safari 的表单扫描器扫不到没在用的页面（它只扫活跃文档树，template 里的内容不算）。
   // page-instore 是常驻首页，不参与懒加载。还没转成 template 的页面 tpl 元素不存在，下面两步自动跳过、行为不变。
+  console.time('[perf] unload prev page');
   const prevPage = document.querySelector('.page.active');
   if(prevPage && prevPage.id !== 'page-instore' && document.getElementById('tpl-' + prevPage.id)) {
     prevPage.innerHTML = '';
   }
+  console.timeEnd('[perf] unload prev page');
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const page = document.getElementById('page-' + t);
   if(page) {
     if(page.id !== 'page-instore' && page.childElementCount === 0) {
+      console.time('[perf] clone template');
       const tpl = document.getElementById('tpl-' + page.id);
       if(tpl) page.appendChild(tpl.content.cloneNode(true));
+      console.timeEnd('[perf] clone template');
     }
     page.classList.add('active');
   }
@@ -8431,7 +8446,9 @@ function posSwitchTab(t) {
     setTimeout(() => { document.getElementById('pos-search-input')?.focus(); }, 50);
   }
   else if(t === 'stock') {
+    console.time('[perf] renderItems');
     renderItems(); // 后台同步现在不会自动重画这页了，切进来的时候补一次，确保看到的是最新的
+    console.timeEnd('[perf] renderItems');
     // 批量改价／成本价设置这两个面板默认是收起的，内容改成面板展开时才画（见 togglePanel），
     // 不在这里无条件预渲染——这两份清单没分页，商品一多、每次切页都重算会很卡。
   }
@@ -8465,6 +8482,7 @@ function posSwitchTab(t) {
   else if(t === 'holidays') { renderCalPage(); }
   else if(t === 'ledger') { renderLedgerPage(); }
   else if(t === 'owner') { renderOwnerPage(); }
+  console.timeEnd('[perf] posSwitchTab total: ' + t);
 }
 
 function posOpenBundle() { openBundleRulesModal(); }
