@@ -675,6 +675,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     }));
 
     function draw() {
+      // 登入页面一旦被隐藏（登入成功），这个动画就该停了——不然会永远占着 CPU 一直画下去
+      const screen = document.getElementById('login-screen');
+      if (!screen || screen.style.display === 'none') return;
       ctx.clearRect(0, 0, W, H);
       flocks.forEach(f => {
         f.x += f.vx;
@@ -699,6 +702,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       requestAnimationFrame(draw);
     }
     draw();
+    window._restartLoginBirds = draw; // 登出重新显示登入页时用来把动画重新启动
   }
 
   if (document.readyState === 'loading') {
@@ -9616,6 +9620,7 @@ function doLogout() {
   if(logo) logo.innerHTML = '🛒 杂货店 POS';
   document.getElementById('btn-logout').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
+  if (typeof window._restartLoginBirds === 'function') window._restartLoginBirds();
   const errEl = document.getElementById('login-error');
   if(errEl) errEl.textContent = '';
   // Reset to instore tab
