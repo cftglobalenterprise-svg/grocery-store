@@ -793,7 +793,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           <!-- Product browser -->
           <div class="pos-products">
             <div class="pos-topbar">
-              <input class="pos-search" id="pos-search-input" placeholder="🔍 搜索商品..." oninput="posSearchInput(this.value)">
+              <form onsubmit="return false" autocomplete="off" style="display:contents">
+              <input class="pos-search" type="search" id="pos-search-input" placeholder="🔍 搜索商品..." oninput="posSearchInput(this.value)" autocomplete="off">
+              </form>
               <button class="btn btn-scan" onclick="openScanModal('instore')" style="padding:10px 14px">📷</button>
             </div>
             <div class="pos-cat-row" id="pos-cat-row">
@@ -1054,7 +1056,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                   <option value="A">电子烟</option>
                   <option value="K19">杂货店</option>
                 </select>
-                <input type="text" id="stock-search" placeholder="🔍 搜索..." oninput="_stockPage=1;renderItems()" style="flex:1;min-width:0">
+                <form onsubmit="return false" autocomplete="off" style="flex:1;min-width:0;display:contents">
+                <input type="search" id="stock-search" placeholder="🔍 搜索..." oninput="_stockPage=1;renderItems()" autocomplete="off" style="flex:1;min-width:0">
+                </form>
                 <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="toggleSelectAll()">全选</button>
                 <button class="btn" style="font-size:12px;padding:7px 10px;flex-shrink:0" onclick="openCatModal()">🏷</button>
               </div>
