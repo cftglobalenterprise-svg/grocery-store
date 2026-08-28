@@ -1076,7 +1076,8 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       </template>
 
       <!-- ══ ORDERS ════════════════════════════════════ -->
-      <div id="page-orders" class="page">
+      <div id="page-orders" class="page"></div>
+      <template id="tpl-page-orders">
         <div class="orders-layout">
           <div class="orders-right">
             <div class="card">
@@ -1152,18 +1153,20 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             </div>
           </div>
         </div>
-      </div>
+      </template>
 
       <!-- ══ OVERVIEW ══════════════════════════════════ -->
-      <div id="page-overview" class="page">
+      <div id="page-overview" class="page"></div>
+      <template id="tpl-page-overview">
         <div id="ov-health-bar" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap"><div style="flex:1;min-width:160px"><div style="font-size:11px;color:var(--text3);margin-bottom:5px">店里达标</div><div class="progress" style="height:6px"><div id="ov-bar-shop" class="progress-bar" style="height:6px"></div></div><div style="font-size:11px;color:var(--text2);margin-top:4px"><span id="ov-txt-shop"></span></div></div><div style="width:1px;height:36px;background:var(--border);flex-shrink:0"></div><div style="flex:1;min-width:160px"><div style="font-size:11px;color:var(--text3);margin-bottom:5px">总量达标</div><div class="progress" style="height:6px"><div id="ov-bar-total" class="progress-bar" style="height:6px"></div></div><div style="font-size:11px;color:var(--text2);margin-top:4px"><span id="ov-txt-total"></span></div></div><div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0" id="ov-total-val"></div></div>
         <div class="card" style="margin-bottom:14px;padding:0;overflow:visible"><div id="ov-sec-shop-hdr" onclick="toggleOvSection('shop')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:14px;font-weight:600">🏪 补店里</span><span id="ov-shop-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600"></span></div><span id="ov-arr-shop" style="font-size:13px;color:var(--text3);transition:transform 0.2s;transform:rotate(-90deg)">▼</span></div><div id="ov-sec-shop-body" style="display:none;border-top:1px solid var(--border);max-height:340px;overflow-y:auto"><div id="warn-shop" style="padding:0 16px"></div></div></div>
         <div class="card" style="margin-bottom:14px;padding:0;overflow:visible"><div id="ov-sec-order-hdr" onclick="toggleOvSection('order')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:14px;font-weight:600">📋 需订货</span><span id="ov-order-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600"></span></div><span id="ov-arr-order" style="font-size:13px;color:var(--text3);transition:transform 0.2s;transform:rotate(-90deg)">▼</span></div><div id="ov-sec-order-body" style="display:none;border-top:1px solid var(--border);max-height:340px;overflow-y:auto"><div id="warn-order" style="padding:0 16px"></div></div></div>
         <div class="card" style="padding:0;overflow:visible"><div onclick="toggleOvSection('inv')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none"><span style="font-size:14px;font-weight:600">📦 全部库存</span><span id="ov-arr-inv" style="font-size:13px;color:var(--text3);transition:transform 0.2s;transform:rotate(-90deg)">▼</span></div><div id="ov-sec-inv-body" style="display:none;border-top:1px solid var(--border)"><div id="ov-list" style="padding:0 16px 8px"></div></div></div>
-      </div>
+      </template>
 
       <!-- ══ HQ TOTAL PAGE ══════════════════════════════ -->
-      <div id="page-hq" class="page">
+      <div id="page-hq" class="page"></div>
+      <template id="tpl-page-hq">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <div>
             <div style="font-size:20px;font-weight:700;color:var(--text)">🏢 总部报表</div>
@@ -1285,11 +1288,12 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         </div>
 
 
-      </div>
+      </template>
 
 
       <!-- ══ PAYROLL PAGE ═══════════════════════════════ -->
-      <div id="page-payroll" class="page">
+      <div id="page-payroll" class="page"></div>
+      <template id="tpl-page-payroll">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <div>
             <div style="font-size:20px;font-weight:700;color:var(--text)">💼 员工薪资管理</div>
@@ -1306,11 +1310,12 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         <div id="payroll-employee-list"></div>
 
         <div class="empty" id="payroll-empty" style="display:none">暂无员工，请点击「新增员工」添加</div>
-      </div>
+      </template>
 
 
             <!-- ══ LHDN PAGE ══════════════════════════════════ -->
-      <div id="page-lhdn" class="page">
+      <div id="page-lhdn" class="page"></div>
+      <template id="tpl-page-lhdn">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:20px;font-weight:700">🗂️ 税务 / LHDN 报账</div>
@@ -1382,10 +1387,11 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           </div>
           <div id="lhdn-asset-list"></div>
         </div>
-      </div>
+      </template>
 
       <!-- ══ OWNER OVERVIEW PAGE (老板总览) ══════════════════════ -->
-      <div id="page-owner" class="page">
+      <div id="page-owner" class="page"></div>
+      <template id="tpl-page-owner">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:20px;font-weight:700">💰 老板总览</div>
@@ -1415,11 +1421,12 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           <button class="btn btn-success" onclick="ownerSaveBalance()">💾 记录一笔</button>
           <div id="owner-balance-history" style="margin-top:14px"></div>
         </div>
-      </div>
+      </template>
 
       <!-- ══ CUSTOMERS PAGE ════════════════════════════ -->
       <!-- HOLIDAYS / MEMO PAGE -->
-      <div id="page-holidays" class="page">
+      <div id="page-holidays" class="page"></div>
+      <template id="tpl-page-holidays">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
           <div>
             <button onclick="posSwitchTab('payroll')" style="font-size:12px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0;margin-bottom:6px">‹ 返回员工薪资</button>
@@ -1492,10 +1499,11 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             </div>
           </div>
         </div>
-      </div>
+      </template>
 
       <!-- ══ DAILY LEDGER CALENDAR PAGE ══════════════════════════════════ -->
-      <div id="page-ledger" class="page">
+      <div id="page-ledger" class="page"></div>
+      <template id="tpl-page-ledger">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:20px;font-weight:700">📅 每日记账</div>
@@ -1750,9 +1758,10 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             </div>
           </div>
         </div>
-      </div>
+      </template>
 
-      <div id="page-debtors" class="page">
+      <div id="page-debtors" class="page"></div>
+      <template id="tpl-page-debtors">
         <div style="max-width:700px;margin:0 auto;padding:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
             <div style="font-size:20px;font-weight:700">📒 欠款记录</div>
@@ -1772,8 +1781,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           </div>
           <div id="debtor-list"></div>
         </div>
-      </div>
-      <div id="page-customers" class="page">
+      </template>
+      <div id="page-customers" class="page"></div>
+      <template id="tpl-page-customers">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:20px;font-weight:700;color:var(--text)">👥 顾客名单</div>
@@ -1795,7 +1805,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           </div>
           <div id="customer-list"><div class="empty" style="padding:2rem">暂无顾客，点右上角新增</div></div>
         </div>
-      </div>
+      </template>
 
     </div><!-- end pages -->
   </div><!-- end app-body -->
@@ -2823,7 +2833,10 @@ async function loadOrders() {
     fetchAll('g_orders', { business: 'K19' }),
   ]);
   orders = [...aOrds, ...kOrds].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-  renderOrders();
+  // renderOrders() 会往 page-orders 里面的元素写数据；这个函数会被后台 realtime 同步无条件调用，
+  // 不在订单页的时候页面内容是空的（懒加载），元素不存在就跳过，等切回订单页时 posSwitchTab 自己会重新载入。
+  const ordersPage = document.getElementById('page-orders');
+  if(ordersPage && ordersPage.classList.contains('active')) renderOrders();
   renderInstoreHistory();
   renderDashboard();
   renderOrdDashboard();
