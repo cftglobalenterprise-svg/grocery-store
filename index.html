@@ -2712,7 +2712,10 @@ async function loadItems() {
   const aItems = (resA.data || []).map(x => ({ ...x, business: x.business || 'A', _table: 'items' }));
   const kItems = (resK.data || []).map(x => ({ ...x, business: x.business || 'K19', _table: 'g_items' }));
   items = [...aItems, ...kItems];
-  renderItems();
+  // 只有真的在库存管理页面上的时候，才重画这几百行清单——
+  // 不然分店随便调一下库存，所有设备不管在看哪一页都会被迫重绘一次，很卡。
+  const stockPage = document.getElementById('page-stock');
+  if(stockPage && stockPage.classList.contains('active')) renderItems();
   const ovPage = document.getElementById('page-overview');
   if(ovPage && ovPage.classList.contains('active')) renderOverview();
 }
@@ -8293,6 +8296,7 @@ function posSwitchTab(t) {
     setTimeout(() => { document.getElementById('pos-search-input')?.focus(); }, 50);
   }
   else if(t === 'stock') {
+    renderItems(); // 后台同步现在不会自动重画这页了，切进来的时候补一次，确保看到的是最新的
     setTimeout(() => {
       if(typeof renderBulkPriceList === 'function') renderBulkPriceList();
       if(typeof renderCostEditor === 'function') renderCostEditor();
