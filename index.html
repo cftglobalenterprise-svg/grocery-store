@@ -762,9 +762,6 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn" id="navbtn-overview" onclick="posSwitchTab('overview')">
         <span class="nav-icon">📊</span> 总览
       </button>
-      <button class="nav-btn" id="navbtn-ledger" onclick="posSwitchTab('ledger')">
-        <span class="nav-icon">📅</span> 每日记账
-      </button>
       <button class="nav-btn" id="navbtn-hq" onclick="posSwitchTab('hq')" style="display:none">
         <span class="nav-icon">🏢</span> 总部报表
       </button>
@@ -1372,8 +1369,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         <!-- Expenses tab -->
         <div id="lpage-expenses" style="display:none">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap">
-            <div style="font-size:11px;color:var(--text3)">支出记录直接来自「每日记账」，这里只显示汇总（进货成本已算入 COGS，不在此重复显示）</div>
-            <button class="btn btn-success" style="flex-shrink:0" onclick="posSwitchTab('ledger')">📅 前往每日记账</button>
+            <div style="font-size:11px;color:var(--text3)">支出记录来自「每日记账」历史数据（该功能已下线，等供应商收据追踪功能做好后会接回来；进货成本已算入 COGS，不在此重复显示）</div>
           </div>
           <div id="lhdn-exp-list"></div>
           <div id="lhdn-exp-summary" style="margin-top:12px"></div>
