@@ -3816,6 +3816,10 @@ function renderInstoreCart() {
 async function instoreCheckout(payMethod, creditName, discountAmt) {
   if(!instoreCart.length) { alert('购物车是空的，请先扫描商品'); return; }
 
+  // 结账时如果选了顾客（不管是要给积分还是用积分折抵），收据上就显示那位顾客的名字；
+  // 没选顾客的话，照旧显示「门市现场」（收据上会转成 Walk-in Customer）
+  const receiptCustomerName = _posPointsCustomer && _posPointsCustomer.name ? _posPointsCustomer.name : '门市现场';
+
   // ── 结账前强制拉最新库存，防止订单已预留但本地未更新 ──
   setSync('busy','检查库存...');
   await loadItems(); // 拉最新数据
@@ -3894,7 +3898,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
     const isK19 = (oTbl === 'g_orders');
     const itemDiscountAmt = +(rawItemTotal - itemTotal).toFixed(4);
     const insertPayload = isK19 ? {
-      customer: '门市现场', item_id: item.id, item_name: item.name,
+      customer: receiptCustomerName, item_id: item.id, item_name: item.name,
       qty: c.qty, unit_price: getInstoreItemPricing(c).unitPrice || +(item.price||0),
       cost_price: +(item.cost_price||0),
       location: '门市', deduct_from: 'shop', status: 'instore',
@@ -3906,7 +3910,7 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
       paid_at: _checkoutTs,
       business: item.business || 'A'
     } : {
-      customer: '门市现场', item_id: item.id, item_name: item.name,
+      customer: receiptCustomerName, item_id: item.id, item_name: item.name,
       qty: c.qty, unit_price: getInstoreItemPricing(c).unitPrice || +(item.price||0),
       location: '门市', deduct_from: 'shop', status: 'instore',
       total_price: itemTotal,
