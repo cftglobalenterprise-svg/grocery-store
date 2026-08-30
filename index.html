@@ -777,6 +777,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn" id="navbtn-owner" onclick="posSwitchTab('owner')" style="display:none">
         <span class="nav-icon">💰</span> 老板总览
       </button>
+      <button class="nav-btn" id="navbtn-suppliers" onclick="posSwitchTab('suppliers')" style="display:none">
+        <span class="nav-icon">📦</span> 供应商收据
+      </button>
       <div class="nav-divider" id="nav-divider-clock" style="display:none"></div>
       <button class="nav-btn" id="navbtn-clock" onclick="openClockModal()" style="display:none">
         <span class="nav-icon">⏱</span> 打卡
@@ -1419,6 +1422,19 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         </div>
       </template>
 
+      <!-- ══ SUPPLIER RECEIPTS PAGE (供应商收据追踪) ══════════════ -->
+      <div id="page-suppliers" class="page"></div>
+      <template id="tpl-page-suppliers">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:20px;font-weight:700">📦 供应商收据</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">按供应商记录进货发票，点开看明细项目</div>
+          </div>
+          <button class="btn btn-success" onclick="openSupplierAddModal()">+ 新增供应商</button>
+        </div>
+        <div id="suppliers-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px"></div>
+      </template>
+
       <!-- ══ CUSTOMERS PAGE ════════════════════════════ -->
       <!-- HOLIDAYS / MEMO PAGE -->
       <div id="page-holidays" class="page"></div>
@@ -1811,6 +1827,86 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             </div>
             <div style="text-align:right;margin-top:14px">
               <button onclick="closePaymentModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">关闭</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add/Edit Supplier Modal -->
+        <div id="supplier-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;align-items:center;justify-content:center">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:380px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+            <div style="font-size:16px;font-weight:700;margin-bottom:16px" id="supplier-add-title">新增供应商</div>
+            <input type="hidden" id="supplier-edit-id">
+            <div style="margin-bottom:12px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">供应商名称</div>
+              <input type="text" id="supplier-name-input" placeholder="例：ABC Trading" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            </div>
+            <button class="btn btn-block" style="background:var(--blue);border-color:var(--blue);color:#fff" onclick="saveSupplier()">保存</button>
+            <div style="text-align:right;margin-top:10px">
+              <button onclick="closeSupplierAddModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px">取消</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Supplier Invoices Modal -->
+        <div id="supplier-invoices-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;align-items:center;justify-content:center">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:480px;max-width:95vw;max-height:88vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+              <div>
+                <div style="font-size:16px;font-weight:700" id="supplier-invoices-title">供应商</div>
+                <div style="font-size:11px;color:var(--text3)" id="supplier-invoices-sub"></div>
+              </div>
+              <button onclick="closeSupplierInvoicesModal()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>
+            </div>
+            <input type="hidden" id="siv-supplier-id">
+            <div style="display:flex;gap:8px;margin:14px 0" id="supplier-invoices-summary"></div>
+            <button class="btn btn-success btn-block" style="margin-bottom:12px" onclick="openInvoiceAddForm()">+ 新增发票</button>
+            <div id="invoice-add-form" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px;margin-bottom:14px">
+              <input type="hidden" id="invoice-edit-id">
+              <div style="display:flex;gap:8px;margin-bottom:8px">
+                <div style="flex:1"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">发票号（可选）</div><input type="text" id="invoice-number-input" placeholder="INV-001" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box"></div>
+                <div style="flex:1"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">日期</div><input type="date" id="invoice-date-input" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box"></div>
+              </div>
+              <div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">总金额 (RM)</div><input type="number" id="invoice-total-input" step="0.01" placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box"></div>
+              <div style="margin-bottom:10px"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">备注（可选）</div><input type="text" id="invoice-note-input" placeholder="备注..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box"></div>
+              <div style="margin-bottom:10px">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">收据照片（可选）</div>
+                <input type="file" id="invoice-receipt-file" accept="image/*,.pdf" style="width:100%;font-size:12px;color:var(--text2)">
+                <div id="invoice-receipt-existing" style="margin-top:6px;font-size:12px"></div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-success" style="flex:1" onclick="saveInvoice()">保存</button>
+                <button style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:none;cursor:pointer;font-size:13px" onclick="closeInvoiceAddForm()">取消</button>
+              </div>
+            </div>
+            <div id="supplier-invoice-list"></div>
+          </div>
+        </div>
+
+        <!-- Invoice Line Items Modal -->
+        <div id="invoice-items-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2100;align-items:center;justify-content:center">
+          <div style="background:var(--bg);border-radius:var(--radius);padding:24px;width:480px;max-width:95vw;max-height:88vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+              <div>
+                <div style="font-size:16px;font-weight:700" id="invoice-items-title">发票明细</div>
+                <div style="font-size:11px;color:var(--text3)" id="invoice-items-sub"></div>
+              </div>
+              <button onclick="closeInvoiceItemsModal()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>
+            </div>
+            <div id="invoice-items-receipt" style="margin-top:8px"></div>
+            <div id="invoice-items-list" style="margin:14px 0"></div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--border);margin-bottom:12px;font-weight:700">
+              <span style="font-size:12px;color:var(--text2)">明细总和</span>
+              <span id="invoice-items-sum" style="font-family:'DM Mono',monospace"></span>
+            </div>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px">
+              <div style="font-size:11px;font-weight:700;margin-bottom:8px">➕ 新增项目</div>
+              <input type="hidden" id="item-edit-id">
+              <div style="margin-bottom:8px"><input type="text" id="item-name-input" placeholder="品名" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box"></div>
+              <div style="display:flex;gap:8px;margin-bottom:8px">
+                <input type="number" id="item-qty-input" placeholder="数量" step="0.01" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+                <input type="number" id="item-price-input" placeholder="单价" step="0.01" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+              </div>
+              <button class="btn btn-success btn-block" onclick="saveInvoiceItem()">添加</button>
             </div>
           </div>
         </div>
@@ -8494,6 +8590,7 @@ function _posSwitchTabInner(t) {
   else if(t === 'holidays') { renderCalPage(); }
   else if(t === 'ledger') { renderLedgerPage(); }
   else if(t === 'owner') { renderOwnerPage(); }
+  else if(t === 'suppliers') { renderSuppliersPage(); }
 }
 
 function posOpenBundle() { openBundleRulesModal(); }
@@ -8722,7 +8819,7 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-debtors',
-     'navbtn-hq','navbtn-payroll','navbtn-lhdn','navbtn-owner'].forEach(id => {
+     'navbtn-hq','navbtn-payroll','navbtn-lhdn','navbtn-owner','navbtn-suppliers'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
@@ -11937,6 +12034,274 @@ async function lhdnSetMeta(year, obj) {
 }
 
 // ══════════════════════════════════════════════════════════
+// ── 供应商收据追踪 (Supplier Receipt Tracking) ──
+// ══════════════════════════════════════════════════════════
+let _suppliers = [];
+let _supplierInvoices = [];        // all invoices (lightweight), for list totals
+let _currentSupplierId = null;
+let _currentSupplierInvoices = []; // invoices for the currently open supplier modal
+let _currentInvoiceId = null;
+let _currentInvoiceItems = [];     // line items for the currently open invoice modal
+const SUPPLIER_RECEIPT_BUCKET = 'supplier-receipts';
+
+async function renderSuppliersPage() {
+  await loadSuppliersWithTotals();
+  renderSuppliersList();
+}
+
+async function loadSuppliersWithTotals() {
+  const [{ data: sups, error: e1 }, { data: invs, error: e2 }] = await Promise.all([
+    sb.from('suppliers').select('*').order('name'),
+    sb.from('supplier_invoices').select('id,supplier_id,total_amount,invoice_date')
+  ]);
+  if (e1) console.error('suppliers load error:', e1);
+  if (e2) console.error('supplier_invoices load error:', e2);
+  _suppliers = sups || [];
+  _supplierInvoices = invs || [];
+}
+
+function renderSuppliersList() {
+  const el = document.getElementById('suppliers-list');
+  if (!el) return;
+  if (!_suppliers.length) {
+    el.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3);font-size:13px">还没有供应商，点右上角新增</div>`;
+    return;
+  }
+  el.innerHTML = _suppliers.map(s => {
+    const invs = _supplierInvoices.filter(i => i.supplier_id === s.id);
+    const total = invs.reduce((sum,i) => sum + Number(i.total_amount||0), 0);
+    const last = invs.length ? invs.reduce((a,b)=> new Date(a.invoice_date) > new Date(b.invoice_date) ? a : b).invoice_date : null;
+    return `
+    <div class="card" style="padding:14px;cursor:pointer" onclick="openSupplierInvoicesModal('${s.id}')">
+      <div style="font-size:14px;font-weight:700;margin-bottom:8px">${s.name}</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end">
+        <div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">${invs.length} 张发票</div>
+          <div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace">${lFmt(total)}</div>
+        </div>
+        ${last ? `<div style="font-size:10px;color:var(--text3)">最近 ${last}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openSupplierAddModal(id) {
+  document.getElementById('supplier-edit-id').value = id || '';
+  document.getElementById('supplier-add-title').textContent = id ? '编辑供应商' : '新增供应商';
+  if (id) {
+    const s = _suppliers.find(x => x.id === id);
+    document.getElementById('supplier-name-input').value = s?.name || '';
+  } else {
+    document.getElementById('supplier-name-input').value = '';
+  }
+  document.getElementById('supplier-add-modal').style.display = 'flex';
+}
+function closeSupplierAddModal() { document.getElementById('supplier-add-modal').style.display = 'none'; }
+
+async function saveSupplier() {
+  const id = document.getElementById('supplier-edit-id').value;
+  const name = document.getElementById('supplier-name-input').value.trim();
+  if (!name) { alert('请填写供应商名称'); return; }
+  const payload = { name };
+  setSync('busy','保存中...');
+  if (id) await sb.from('suppliers').update(payload).eq('id', id);
+  else await sb.from('suppliers').insert(payload);
+  setSync('ok','已保存');
+  closeSupplierAddModal();
+  await renderSuppliersPage();
+}
+
+async function openSupplierInvoicesModal(id) {
+  _currentSupplierId = id;
+  const s = _suppliers.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('siv-supplier-id').value = id;
+  document.getElementById('supplier-invoices-title').textContent = s.name;
+  document.getElementById('supplier-invoices-sub').textContent = '';
+  closeInvoiceAddForm();
+  await loadSupplierInvoiceList(id);
+  document.getElementById('supplier-invoices-modal').style.display = 'flex';
+}
+function closeSupplierInvoicesModal() {
+  document.getElementById('supplier-invoices-modal').style.display = 'none';
+  _currentSupplierId = null;
+}
+
+async function loadSupplierInvoiceList(supplierId) {
+  const { data, error } = await sb.from('supplier_invoices').select('*').eq('supplier_id', supplierId).order('invoice_date', { ascending: false });
+  if (error) { console.error(error); _currentSupplierInvoices = []; }
+  else _currentSupplierInvoices = data || [];
+  renderSupplierInvoiceList();
+}
+
+function renderSupplierInvoiceList() {
+  const el = document.getElementById('supplier-invoice-list');
+  const sumEl = document.getElementById('supplier-invoices-summary');
+  if (sumEl) {
+    const total = _currentSupplierInvoices.reduce((s,i) => s + Number(i.total_amount||0), 0);
+    sumEl.innerHTML = `
+      <div class="card" style="flex:1;padding:10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">发票数</div><div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace">${_currentSupplierInvoices.length}</div></div>
+      <div class="card" style="flex:1;padding:10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">总金额</div><div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace">${lFmt(total)}</div></div>`;
+  }
+  if (!el) return;
+  if (!_currentSupplierInvoices.length) {
+    el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">还没有发票记录</div>`;
+    return;
+  }
+  el.innerHTML = _currentSupplierInvoices.map(inv => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:6px;cursor:pointer" onclick="openInvoiceItemsModal('${inv.id}')">
+      <div>
+        <div style="font-size:13px;font-weight:700">${inv.invoice_number || '（无发票号）'}${inv.receipt_image_url ? ' 📷' : ''}</div>
+        <div style="font-size:11px;color:var(--text3)">${inv.invoice_date}${inv.note ? ' · ' + inv.note : ''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-family:'DM Mono',monospace;font-weight:700">${lFmt(Number(inv.total_amount||0))}</div>
+        <button onclick="event.stopPropagation();editInvoice('${inv.id}')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:14px">✎</button>
+        <button onclick="event.stopPropagation();deleteInvoice('${inv.id}')" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+function openInvoiceAddForm() {
+  document.getElementById('invoice-edit-id').value = '';
+  document.getElementById('invoice-number-input').value = '';
+  document.getElementById('invoice-date-input').value = new Date().toISOString().slice(0,10);
+  document.getElementById('invoice-total-input').value = '';
+  document.getElementById('invoice-note-input').value = '';
+  document.getElementById('invoice-receipt-file').value = '';
+  document.getElementById('invoice-receipt-existing').innerHTML = '';
+  document.getElementById('invoice-add-form').style.display = 'block';
+}
+function closeInvoiceAddForm() { const f = document.getElementById('invoice-add-form'); if (f) f.style.display = 'none'; }
+
+function editInvoice(id) {
+  const inv = _currentSupplierInvoices.find(i => i.id === id);
+  if (!inv) return;
+  document.getElementById('invoice-edit-id').value = inv.id;
+  document.getElementById('invoice-number-input').value = inv.invoice_number || '';
+  document.getElementById('invoice-date-input').value = inv.invoice_date;
+  document.getElementById('invoice-total-input').value = inv.total_amount;
+  document.getElementById('invoice-note-input').value = inv.note || '';
+  document.getElementById('invoice-receipt-file').value = '';
+  document.getElementById('invoice-receipt-existing').innerHTML = inv.receipt_image_url
+    ? `<a href="${inv.receipt_image_url}" target="_blank" style="color:var(--blue)">📷 查看已上传的收据</a>` : '';
+  document.getElementById('invoice-add-form').style.display = 'block';
+}
+
+async function uploadReceiptFile(file) {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const { error } = await sb.storage.from(SUPPLIER_RECEIPT_BUCKET).upload(path, file, { upsert: false });
+  if (error) { console.error('receipt upload error:', error); alert('收据上传失败：' + error.message); return null; }
+  const { data } = sb.storage.from(SUPPLIER_RECEIPT_BUCKET).getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
+async function saveInvoice() {
+  const id = document.getElementById('invoice-edit-id').value;
+  const invoice_number = document.getElementById('invoice-number-input').value.trim();
+  const invoice_date = document.getElementById('invoice-date-input').value;
+  const total_amount = parseFloat(document.getElementById('invoice-total-input').value) || 0;
+  const note = document.getElementById('invoice-note-input').value.trim();
+  const file = document.getElementById('invoice-receipt-file').files[0];
+  if (!invoice_date || total_amount <= 0) { alert('请填写日期和金额'); return; }
+  setSync('busy','保存中...');
+  let receipt_image_url;
+  if (file) {
+    receipt_image_url = await uploadReceiptFile(file);
+    if (receipt_image_url === null) { setSync('err','上传失败'); return; }
+  }
+  const payload = { supplier_id: _currentSupplierId, invoice_number: invoice_number || null, invoice_date, total_amount, note: note || null };
+  if (receipt_image_url) payload.receipt_image_url = receipt_image_url;
+  if (id) await sb.from('supplier_invoices').update(payload).eq('id', id);
+  else await sb.from('supplier_invoices').insert(payload);
+  setSync('ok','已保存');
+  closeInvoiceAddForm();
+  await loadSupplierInvoiceList(_currentSupplierId);
+  await loadSuppliersWithTotals(); renderSuppliersList();
+}
+
+async function deleteInvoice(id) {
+  if (!confirm('确定删除这张发票？明细项目也会一起删除')) return;
+  setSync('busy','删除中...');
+  await sb.from('supplier_invoices').delete().eq('id', id);
+  setSync('ok','已删除');
+  await loadSupplierInvoiceList(_currentSupplierId);
+  await loadSuppliersWithTotals(); renderSuppliersList();
+}
+
+// ── Invoice line items drill-in ──
+async function openInvoiceItemsModal(invoiceId) {
+  _currentInvoiceId = invoiceId;
+  const inv = _currentSupplierInvoices.find(i => i.id === invoiceId);
+  document.getElementById('invoice-items-title').textContent = inv ? (inv.invoice_number || '发票明细') : '发票明细';
+  document.getElementById('invoice-items-sub').textContent = inv ? `${inv.invoice_date} · 总额 ${lFmt(Number(inv.total_amount||0))}` : '';
+  document.getElementById('invoice-items-receipt').innerHTML = inv?.receipt_image_url
+    ? `<a href="${inv.receipt_image_url}" target="_blank" style="font-size:12px;color:var(--blue)">📷 查看收据原图</a>` : '';
+  await loadInvoiceItems(invoiceId);
+  document.getElementById('invoice-items-modal').style.display = 'flex';
+}
+function closeInvoiceItemsModal() {
+  document.getElementById('invoice-items-modal').style.display = 'none';
+  _currentInvoiceId = null;
+}
+
+async function loadInvoiceItems(invoiceId) {
+  const { data, error } = await sb.from('supplier_invoice_items').select('*').eq('invoice_id', invoiceId).order('created_at');
+  if (error) { console.error(error); _currentInvoiceItems = []; }
+  else _currentInvoiceItems = data || [];
+  renderInvoiceItemsList();
+}
+
+function renderInvoiceItemsList() {
+  const el = document.getElementById('invoice-items-list');
+  const sumEl = document.getElementById('invoice-items-sum');
+  const sum = _currentInvoiceItems.reduce((s,i) => s + Number(i.line_total||0), 0);
+  if (sumEl) sumEl.textContent = lFmt(sum);
+  if (!el) return;
+  if (!_currentInvoiceItems.length) {
+    el.innerHTML = `<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">还没有明细项目</div>`;
+    return;
+  }
+  el.innerHTML = _currentInvoiceItems.map(it => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:13px;font-weight:600">${it.item_name}</div>
+        <div style="font-size:11px;color:var(--text3)">${it.quantity != null ? it.quantity : ''}${it.unit_price != null ? ' × ' + lFmt(Number(it.unit_price)) : ''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-family:'DM Mono',monospace;font-weight:700">${lFmt(Number(it.line_total||0))}</div>
+        <button onclick="deleteInvoiceItem('${it.id}')" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+async function saveInvoiceItem() {
+  const name = document.getElementById('item-name-input').value.trim();
+  const qty = parseFloat(document.getElementById('item-qty-input').value);
+  const price = parseFloat(document.getElementById('item-price-input').value);
+  if (!name) { alert('请填写品名'); return; }
+  const quantity = isNaN(qty) ? null : qty;
+  const unit_price = isNaN(price) ? null : price;
+  const line_total = (quantity != null && unit_price != null) ? quantity * unit_price : (unit_price != null ? unit_price : 0);
+  setSync('busy','保存中...');
+  await sb.from('supplier_invoice_items').insert({ invoice_id: _currentInvoiceId, item_name: name, quantity, unit_price, line_total });
+  setSync('ok','已添加');
+  document.getElementById('item-name-input').value = '';
+  document.getElementById('item-qty-input').value = '';
+  document.getElementById('item-price-input').value = '';
+  await loadInvoiceItems(_currentInvoiceId);
+}
+
+async function deleteInvoiceItem(id) {
+  if (!confirm('删除这个项目？')) return;
+  setSync('busy','删除中...');
+  await sb.from('supplier_invoice_items').delete().eq('id', id);
+  setSync('ok','已删除');
+  await loadInvoiceItems(_currentInvoiceId);
+}
+
+// ══════════════════════════════════════════════════════════
 // ── 老板总览 (Owner Overview) ──
 // ══════════════════════════════════════════════════════════
 let _ownerBalanceLog = [];
@@ -11996,7 +12361,10 @@ async function renderOwnerSummary() {
     const d = new Date(e.entry_date);
     return d >= startDate && d <= endDate;
   });
-  const purchases = entries.filter(e => e.entry_type === 'out' && e.category === 'purchase').reduce((s,e) => s + Number(e.amount||0), 0);
+  const fmtD = d => d.toISOString().slice(0,10);
+  const { data: supInvsRange } = await sb.from('supplier_invoices').select('total_amount,invoice_date')
+    .gte('invoice_date', fmtD(startDate)).lte('invoice_date', fmtD(endDate));
+  const purchases = (supInvsRange || []).reduce((s,i) => s + Number(i.total_amount||0), 0);
   const otherExp  = entries.filter(e => e.entry_type === 'out' && e.category !== 'purchase').reduce((s,e) => s + Number(e.amount||0), 0);
   const manualIn  = entries.filter(e => e.entry_type === 'in').reduce((s,e) => s + Number(e.amount||0), 0);
   const totalIn   = sales + manualIn;
