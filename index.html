@@ -12092,9 +12092,9 @@ function renderSuppliersTotalSummary() {
     { label: '🧾 费用总额', val: lFmt(expenseTotal), color: 'var(--text)' },
     { label: `未还款 (${unpaid.length} 张)`, val: lFmt(unpaidTotal), color: unpaid.length ? 'var(--red)' : 'var(--green)' },
   ].map(c => `
-    <div class="card" style="padding:14px">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;color:var(--text3)">${c.label}</div>
-      <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace;color:${c.color}">${c.val}</div>
+    <div class="card" style="padding:14px;min-width:0;overflow:hidden">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.label}</div>
+      <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace;color:${c.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.val}</div>
     </div>`).join('');
 }
 
