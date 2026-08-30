@@ -1432,7 +1432,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
           </div>
           <button class="btn btn-success" onclick="openSupplierAddModal()">+ 新增供应商</button>
         </div>
-        <div id="suppliers-total-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px"></div>
+        <div id="suppliers-total-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px"></div>
         <div id="suppliers-accordion"></div>
       </template>
 
@@ -12082,12 +12082,14 @@ function invoicesFor(supplierId) {
 function renderSuppliersTotalSummary() {
   const el = document.getElementById('suppliers-total-summary');
   if (!el) return;
-  const total = _allInvoices.reduce((s,i) => s + Number(i.total_amount||0), 0);
+  const purchaseTotal = _allInvoices.filter(i => i.category !== 'expense').reduce((s,i) => s + Number(i.total_amount||0), 0);
+  const expenseTotal = _allInvoices.filter(i => i.category === 'expense').reduce((s,i) => s + Number(i.total_amount||0), 0);
   const unpaid = _allInvoices.filter(i => !i.payment_proof_url);
   const unpaidTotal = unpaid.reduce((s,i) => s + Number(i.total_amount||0), 0);
   el.innerHTML = [
     { label: '供应商数量', val: _suppliers.length, color: 'var(--text)' },
-    { label: '发票总金额', val: lFmt(total), color: 'var(--text)' },
+    { label: '📦 进货总额', val: lFmt(purchaseTotal), color: 'var(--text)' },
+    { label: '🧾 费用总额', val: lFmt(expenseTotal), color: 'var(--text)' },
     { label: `未还款 (${unpaid.length} 张)`, val: lFmt(unpaidTotal), color: unpaid.length ? 'var(--red)' : 'var(--green)' },
   ].map(c => `
     <div class="card" style="padding:14px">
