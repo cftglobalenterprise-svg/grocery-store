@@ -12441,7 +12441,7 @@ async function renderOwnerSummary() {
   const purchases = (supInvsRange || []).filter(i => i.category === 'purchase').reduce((s,i) => s + Number(i.total_amount||0), 0);
   const supExpenses = (supInvsRange || []).filter(i => i.category === 'expense').reduce((s,i) => s + Number(i.total_amount||0), 0);
   const otherExp  = supExpenses;
-  const manualIn  = entries.filter(e => e.entry_type === 'in').reduce((s,e) => s + Number(e.amount||0), 0);
+  const manualIn  = 0; // 旧「每日记账」手动进账数据已清除（Aug 30 决定），Net 只算销售收入，以后有其他进账再手动加
   const totalIn   = sales + manualIn;
   const totalOut  = purchases + otherExp;
   const net       = totalIn - totalOut;
@@ -12463,9 +12463,7 @@ async function renderOwnerSummary() {
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:14px">
       <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px">📋 这段时间的钱是怎么进出的</div>
       ${[
-        ['销售收入', sales, 'var(--green)', false],
-        ['其他进账（每日记账手动记的）', manualIn, 'var(--text2)', true],
-        ['── 总进账 ──', totalIn, 'var(--green)', false],
+        ['销售收入 Sales', sales, 'var(--green)', false],
         ['进货 Purchases', -purchases, 'var(--text2)', true],
         ['其他支出 Expenses', -otherExp, 'var(--text2)', true],
         ['── 总支出 ──', -totalOut, 'var(--red)', false],
