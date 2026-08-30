@@ -12438,7 +12438,7 @@ async function renderOwnerSummary() {
     .gte('invoice_date', fmtD(startDate)).lte('invoice_date', fmtD(endDate));
   const purchases = (supInvsRange || []).filter(i => i.category === 'purchase').reduce((s,i) => s + Number(i.total_amount||0), 0);
   const supExpenses = (supInvsRange || []).filter(i => i.category === 'expense').reduce((s,i) => s + Number(i.total_amount||0), 0);
-  const otherExp  = entries.filter(e => e.entry_type === 'out' && e.category !== 'purchase').reduce((s,e) => s + Number(e.amount||0), 0) + supExpenses;
+  const otherExp  = supExpenses;
   const manualIn  = entries.filter(e => e.entry_type === 'in').reduce((s,e) => s + Number(e.amount||0), 0);
   const totalIn   = sales + manualIn;
   const totalOut  = purchases + otherExp;
