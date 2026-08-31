@@ -12455,6 +12455,11 @@ async function renderOwnerSummary() {
     </div>`;
 }
 
+function goToAssetsPage() {
+  _lhdnTab = 'assets';
+  posSwitchTab('lhdn');
+}
+
 function renderOwnerSnapshot() {
   const debtorsOwed = (typeof _debtors !== 'undefined' ? _debtors : [])
     .filter(d => d.status === 'unpaid').reduce((s,d) => s + Number(d.amount||0), 0);
@@ -12466,12 +12471,13 @@ function renderOwnerSnapshot() {
   el.innerHTML = [
     { label: '顾客欠你多少 Debtors', val: lFmt(debtorsOwed), color: 'var(--amber)' },
     { label: '库存价值 Stock Value', val: lFmt(stockVal), color: 'var(--text)' },
-    { label: '资产总值 Assets', val: lFmt(assetsVal), color: 'var(--text)' },
+    { label: '资产总值 Assets', val: lFmt(assetsVal), color: 'var(--text)', action: `<div style="margin-top:6px"><span onclick="goToAssetsPage()" style="font-size:11px;color:var(--blue);cursor:pointer;font-weight:600">+ 新增资产 →</span></div>` },
     { label: '供应商欠款 Payables', val: '待建立', color: 'var(--text3)' },
   ].map(c => `
     <div class="card" style="padding:14px;background:var(--surface2)">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;color:var(--text3)">${c.label}</div>
       <div style="font-size:18px;font-weight:800;font-family:'DM Mono',monospace;color:${c.color}">${c.val}</div>
+      ${c.action || ''}
     </div>`).join('');
 }
 
