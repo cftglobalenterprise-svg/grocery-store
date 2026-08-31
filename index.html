@@ -2495,6 +2495,13 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
     <div class="form-row"><label>购买日期</label><input type="date" id="la-date" style="flex:1"></div>
     <div class="form-row"><label>购买价格 (RM)</label><input type="number" id="la-cost" step="0.01" placeholder="0.00" style="flex:1" oninput="updateLhdnAllowanceCalc()"></div>
     <div class="form-row"><label>Invoice / 备注</label><input type="text" id="la-note" placeholder="Invoice no." style="flex:1"></div>
+    <div class="form-row" style="align-items:flex-start">
+      <label>收据文件</label>
+      <div style="flex:1">
+        <input type="file" id="la-receipt-file" accept="image/*,.pdf" style="width:100%;font-size:12px;color:var(--text2)">
+        <div id="la-receipt-existing" style="margin-top:6px;font-size:12px"></div>
+      </div>
+    </div>
     <div id="la-allowance-preview" style="background:var(--green-bg);border:1px solid var(--green-border);border-radius:var(--radius-xs);padding:10px;font-size:12px;color:var(--green);margin-top:8px;display:none"></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeLhdnAssetModal()">取消</button>
@@ -12034,11 +12041,12 @@ function lhdnGetExp(year) {
 function lhdnGetAssets() {
   return _lhdnAssets.map(a => ({
     id: a.id, name: a.name, cat: a.category, date: a.purchase_date,
-    cost: Number(a.cost||0), note: a.note || '',
+    cost: Number(a.cost||0), note: a.note || '', receipt_url: a.receipt_url || null,
   }));
 }
-async function lhdnSaveAssetRow({ id, name, cat, date, cost, note }) {
+async function lhdnSaveAssetRow({ id, name, cat, date, cost, note, receipt_url }) {
   const payload = { name, category: cat, purchase_date: date, cost, note: note || null };
+  if (receipt_url !== undefined) payload.receipt_url = receipt_url;
   if (id) await sb.from('lhdn_assets').update(payload).eq('id', id);
   else    await sb.from('lhdn_assets').insert(payload);
   await loadLhdnData();
@@ -12909,7 +12917,7 @@ function renderLhdnAssets() {
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
             <div>
               <div style="font-size:13px;font-weight:700">${a.name}</div>
-              <div style="font-size:11px;color:var(--text3)">${rate.label} · ${a.date||'—'} · ${lFmt(cost)}</div>
+              <div style="font-size:11px;color:var(--text3)">${rate.label} · ${a.date||'—'} · ${lFmt(cost)}${a.receipt_url ? ` · <a href="${a.receipt_url}" target="_blank" style="color:var(--blue)">📄 收据</a>` : ''}</div>
             </div>
             <div style="display:flex;gap:5px">
               <button class="btn" style="font-size:10px;padding:3px 6px" onclick="openLhdnAssetModal('${a.id}')">✏️</button>
@@ -12941,6 +12949,9 @@ function openLhdnAssetModal(id) {
   document.getElementById('la-date').value = a?.date || new Date().toISOString().slice(0,10);
   document.getElementById('la-cost').value = a?.cost || '';
   document.getElementById('la-note').value = a?.note || '';
+  document.getElementById('la-receipt-file').value = '';
+  document.getElementById('la-receipt-existing').innerHTML = a?.receipt_url
+    ? `<a href="${a.receipt_url}" target="_blank" style="color:var(--blue)">📄 查看已上传的收据</a>` : '';
   document.getElementById('la-allowance-preview').style.display = 'none';
   updateLhdnAllowanceCalc();
   document.getElementById('lhdn-asset-modal').classList.add('open');
@@ -12969,8 +12980,14 @@ async function saveLhdnAsset() {
   const date = document.getElementById('la-date').value;
   const cost = parseFloat(document.getElementById('la-cost').value);
   const note = document.getElementById('la-note').value.trim();
+  const file = document.getElementById('la-receipt-file').files[0];
   if (!name || !cost || !date) { alert('请填写名称、日期和金额'); return; }
-  await lhdnSaveAssetRow({ id: _lhdnEditAssetId, name, cat, date, cost, note });
+  let receipt_url;
+  if (file) {
+    receipt_url = await uploadReceiptFile(file);
+    if (receipt_url === null) return; // uploadReceiptFile already alerted the error
+  }
+  await lhdnSaveAssetRow({ id: _lhdnEditAssetId, name, cat, date, cost, note, receipt_url });
   closeLhdnAssetModal();
   renderLhdnAssets();
   showPosToast('✅ 资产已保存');
