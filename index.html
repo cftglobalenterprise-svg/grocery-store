@@ -5951,6 +5951,12 @@ function renderBulkQtyEditor() {
             style="width:100%;padding:7px 6px;font-size:14px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace;color:var(--purple,#6d28d9);font-weight:600;box-sizing:border-box"
             onchange="saveBulkQtyField('${it.id}','target_stock',this.value)">
         </div>
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--orange,#c2410c);margin-bottom:2px;font-weight:600">📦每包</div>
+          <input type="number" min="1" value="${it.pack_size??1}" placeholder="1"
+            style="width:100%;padding:7px 6px;font-size:14px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace;color:var(--orange,#c2410c);font-weight:600;box-sizing:border-box"
+            onchange="saveBulkQtyField('${it.id}','pack_size',this.value)">
+        </div>
       </div>
       <label style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer">
         <input type="checkbox" ${earnsPts?'checked':''} onchange="saveBulkQtyField('${it.id}','earns_points',this.checked)">
@@ -5967,6 +5973,8 @@ async function saveBulkQtyField(itemId, field, val) {
   if(field === 'target_stock') {
     const trimmed = String(val).trim();
     newVal = trimmed === '' ? null : (+trimmed || 0);
+  } else if(field === 'pack_size') {
+    newVal = Math.max(1, parseInt(val) || 1);
   } else if(field === 'earns_points') {
     newVal = !!val;
   } else {
@@ -7484,7 +7492,7 @@ function removeFromTransferCart(id) { id = String(id);
   scheduleSaveDraft();
 }
 
-function updateTransferQty(id, val) {
+function updateTransferQty(id, val, commit) {
   id = String(id);
   const entry = transferCart.find(r => String(r.itemId) === id);
   if(entry) {
@@ -7492,8 +7500,11 @@ function updateTransferQty(id, val) {
     const max = it ? it.home_qty : 999;
     entry.qty = Math.min(max, Math.max(1, parseInt(val) || 1));
   }
-  renderTransferCart();
   scheduleSaveDraft();
+  // 只在失焦/按Enter提交时才整个重新渲染清单（刷新缺口提示等）。
+  // 打字过程中(oninput)绝对不能重新渲染——那样每敲一个字整个列表的
+  // <input> 都会被销毁重建，输入框会掉焦点，清单也会跳回最上面。
+  if(commit) renderTransferCart();
 }
 
 // 从商品名字第一个词取出brand（例如 "KOHS BLACKCURRANT LYCHEE" → "KOHS"）
@@ -7531,10 +7542,13 @@ function renderTransferCart() {
     }
     // 有目标库存的品项，显示缺口资讯（是否只能部分补足）
     let gapNote = '';
+    const packSize = Math.max(1, +it.pack_size || 1);
     if(it.target_stock !== null && it.target_stock !== undefined) {
       const demand = Math.max(0, (+it.target_stock) - (+it.shop_qty||0));
       if(demand > r.qty) {
         gapNote = `<br><small style="color:var(--orange);font-weight:600">⚠️ 目标需要 ${demand} 个，家里不够，只能带 ${r.qty} 个（还缺 ${demand - r.qty}）</small>`;
+      } else if(packSize > 1 && r.qty > demand) {
+        gapNote = `<br><small style="color:var(--text3);font-weight:400">目标库存 ${it.target_stock} · 📦 每包 ${packSize} 个，已凑整包多带 ${r.qty - demand} 个</small>`;
       } else if(demand > 0) {
         gapNote = `<br><small style="color:var(--text3);font-weight:400">目标库存 ${it.target_stock}</small>`;
       }
@@ -7548,7 +7562,7 @@ function renderTransferCart() {
         <label>数量</label>
         <input type="number" min="1" max="${it.home_qty}" value="${r.qty}"
           oninput="updateTransferQty('${it.id}', this.value)"
-          onchange="updateTransferQty('${it.id}', this.value)">
+          onchange="updateTransferQty('${it.id}', this.value, true)">
       </div>
       <button onclick="toggleTransferDone('${it.id}')" title="标记已拿"
         style="width:34px;height:34px;flex-shrink:0;border-radius:8px;border:1px solid ${done?'var(--green)':'var(--border)'};background:${done?'var(--green)':'var(--bg)'};color:${done?'#fff':'var(--text3)'};font-size:16px;cursor:pointer">✓</button>
@@ -7619,7 +7633,12 @@ function generateTransferList() {
     const demand = target - shop;
     if(demand <= 0) return; // 店里已经足够，不用带
     if(home <= 0) return;   // 家里也没货，这个交给「缺货提醒」按钮处理
-    const bring = Math.min(home, demand);
+    let bring = Math.min(home, demand);
+    const packSize = Math.max(1, +it.pack_size || 1);
+    if(packSize > 1 && bring > 0) {
+      // 供应商是整包(3个/4个一盒)来货的品项，不足一包也要拿整包，凑到包数的倍数(但不超过家里现有)
+      bring = Math.min(home, Math.ceil(bring / packSize) * packSize);
+    }
     newCart.push({ itemId: String(it.id), qty: bring, target_stock: target, auto: true });
   });
   transferCart = newCart;
