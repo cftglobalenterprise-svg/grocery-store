@@ -12963,28 +12963,21 @@ function updateLhdnAllowanceCalc() {
   prev.innerHTML = `<strong>购买当年 Claim：</strong> IA ${lFmt(ia)} + AA ${lFmt(aa)} = <strong>${lFmt(ia+aa)}</strong><br>
     <strong>之后每年 AA：</strong> ${lFmt(aa)} / 年`;
 }
-function saveLhdnAsset() {
+async function saveLhdnAsset() {
   const name = document.getElementById('la-name').value.trim();
   const cat  = document.getElementById('la-cat').value;
   const date = document.getElementById('la-date').value;
   const cost = parseFloat(document.getElementById('la-cost').value);
   const note = document.getElementById('la-note').value.trim();
   if (!name || !cost || !date) { alert('请填写名称、日期和金额'); return; }
-  const assets = lhdnGetAssets();
-  if (_lhdnEditAssetId) {
-    const idx = assets.findIndex(x=>x.id===_lhdnEditAssetId);
-    if (idx>=0) assets[idx] = { ...assets[idx], name, cat, date, cost, note };
-  } else {
-    assets.push({ id: Date.now().toString(), name, cat, date, cost, note });
-  }
-  lhdnSetAssets(assets);
+  await lhdnSaveAssetRow({ id: _lhdnEditAssetId, name, cat, date, cost, note });
   closeLhdnAssetModal();
   renderLhdnAssets();
   showPosToast('✅ 资产已保存');
 }
-function deleteLhdnAsset(id) {
+async function deleteLhdnAsset(id) {
   if (!confirm('删除此资产记录？')) return;
-  lhdnSetAssets(lhdnGetAssets().filter(x=>x.id!==id));
+  await lhdnDeleteAssetRow(id);
   renderLhdnAssets();
   showPosToast('✅ 已删除');
 }
