@@ -2963,7 +2963,8 @@ async function loadOrders() {
     fetchAll('orders',   { business: 'A'   }),
     fetchAll('g_orders', { business: 'K19' }),
   ]);
-  orders = [...aOrds, ...kOrds].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  // 作废(voided)的订单一律排除——当作没卖过，不进任何列表/报表/销售总额
+  orders = [...aOrds, ...kOrds].filter(o => !o.voided).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
   // renderOrders() 会往 page-orders 里面的元素写数据；这个函数会被后台 realtime 同步无条件调用，
   // 不在订单页的时候页面内容是空的（懒加载），元素不存在就跳过，等切回订单页时 posSwitchTab 自己会重新载入。
   const ordersPage = document.getElementById('page-orders');
@@ -2999,7 +3000,8 @@ async function getOrdersForRange(startDate, endDate) {
     fetchRange('orders',   { business: 'A'   }),
     fetchRange('g_orders', { business: 'K19' }),
   ]);
-  return [...aOrds, ...kOrds].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  // 作废(voided)的订单一律排除，跟 loadOrders() 的日常载入保持一致
+  return [...aOrds, ...kOrds].filter(o => !o.voided).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
 // 网络不稳、实时连接一直断线重连的时候，事件会一波一波涌进来——
