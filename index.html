@@ -1441,7 +1441,13 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <div style="font-size:20px;font-weight:700">📦 供应商收据</div>
             <div style="font-size:12px;color:var(--text3);margin-top:3px">按供应商记录进货发票</div>
           </div>
-          <button class="btn btn-success" onclick="openSupplierAddModal()">+ 新增供应商</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="supplier-year" onchange="renderSuppliersPage()" style="padding:7px 12px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:700"></select>
+            <select id="supplier-month-from" onchange="renderSuppliersFilteredView()" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif"></select>
+            <span style="color:var(--text3);font-size:12px">至</span>
+            <select id="supplier-month-to" onchange="renderSuppliersFilteredView()" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif"></select>
+            <button class="btn btn-success" onclick="openSupplierAddModal()">+ 新增供应商</button>
+          </div>
         </div>
         <div id="suppliers-total-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px"></div>
         <div id="suppliers-accordion"></div>
@@ -12081,7 +12087,8 @@ async function lhdnSetMeta(year, obj) {
 // ── 供应商收据追踪 (Supplier Receipt Tracking) ──
 // ══════════════════════════════════════════════════════════
 let _suppliers = [];
-let _allInvoices = [];             // all invoices (full rows), for accordion + viewer
+let _allInvoices = [];             // all invoices (full rows), unfiltered
+let _filteredInvoices = [];        // invoices within the selected date range (accordion + totals use this)
 let _expandedSuppliers = new Set();
 let _currentInvoiceId = null;
 let _currentInvoiceItems = [];     // line items for the currently open invoice viewer
@@ -12089,6 +12096,43 @@ const SUPPLIER_RECEIPT_BUCKET = 'supplier-receipts';
 
 async function renderSuppliersPage() {
   await loadSuppliersWithTotals();
+
+  const yearSel = document.getElementById('supplier-year');
+  if (yearSel && !yearSel.options.length) {
+    const cur = new Date().getFullYear();
+    for (let y = cur; y >= cur - 5; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      if (y === cur) opt.selected = true;
+      yearSel.appendChild(opt);
+    }
+  }
+  const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const fromSel = document.getElementById('supplier-month-from');
+  const toSel = document.getElementById('supplier-month-to');
+  if (fromSel && !fromSel.options.length) {
+    fromSel.innerHTML = monthNames.map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
+    fromSel.value = 1;
+  }
+  if (toSel && !toSel.options.length) {
+    toSel.innerHTML = monthNames.map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
+    toSel.value = new Date().getMonth() + 1; // 默认到本月
+  }
+
+  renderSuppliersFilteredView();
+}
+
+function renderSuppliersFilteredView() {
+  const year = parseInt(document.getElementById('supplier-year')?.value) || new Date().getFullYear();
+  const fromM = parseInt(document.getElementById('supplier-month-from')?.value) || 1;
+  const toM = parseInt(document.getElementById('supplier-month-to')?.value) || 12;
+  const startDate = new Date(year, fromM - 1, 1);
+  const endDate = new Date(year, toM, 0, 23, 59, 59);
+  _filteredInvoices = _allInvoices.filter(i => {
+    if (!i.invoice_date) return false;
+    const d = new Date(i.invoice_date);
+    return d >= startDate && d <= endDate;
+  });
   renderSuppliersTotalSummary();
   renderSuppliersAccordion();
 }
@@ -12102,10 +12146,11 @@ async function loadSuppliersWithTotals() {
   if (e2) console.error('supplier_invoices load error:', e2);
   _suppliers = sups || [];
   _allInvoices = invs || [];
+  _filteredInvoices = invs || [];
 }
 
 function invoicesFor(supplierId) {
-  return _allInvoices.filter(i => i.supplier_id === supplierId);
+  return _filteredInvoices.filter(i => i.supplier_id === supplierId);
 }
 
 function invoicePaid(inv) {
@@ -12115,8 +12160,8 @@ function invoicePaid(inv) {
 function renderSuppliersTotalSummary() {
   const el = document.getElementById('suppliers-total-summary');
   if (!el) return;
-  const purchaseTotal = _allInvoices.filter(i => i.category !== 'expense').reduce((s,i) => s + Number(i.total_amount||0), 0);
-  const expenseTotal = _allInvoices.filter(i => i.category === 'expense').reduce((s,i) => s + Number(i.total_amount||0), 0);
+  const purchaseTotal = _filteredInvoices.filter(i => i.category !== 'expense').reduce((s,i) => s + Number(i.total_amount||0), 0);
+  const expenseTotal = _filteredInvoices.filter(i => i.category === 'expense').reduce((s,i) => s + Number(i.total_amount||0), 0);
   el.innerHTML = [
     { label: '供应商数量', val: _suppliers.length, color: 'var(--text)' },
     { label: '📦 进货总额', val: lFmt(purchaseTotal), color: 'var(--text)' },
