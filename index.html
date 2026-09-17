@@ -4230,14 +4230,32 @@ async function instoreCheckout(payMethod, creditName, discountAmt) {
 }
 
 
-function printReceipt(ordersData) {
+async function printReceipt(ordersData) {
   const orders = typeof ordersData === 'string' ? JSON.parse(ordersData) : ordersData;
   if(!orders || !orders.length) return;
   const o = orders[0];
+  // 立刻同步开窗，避免浏览器把后面 await 完才开的弹窗当成popup拦掉
+  const win = window.open('', '_blank', 'width=800,height=950');
   const now = new Date(o.paid_at || o.created_at || Date.now());
   const dateTag = now.getFullYear().toString().slice(2) + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
-  const seq = String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0') + String(now.getSeconds()).padStart(2,'0');
-  const receiptNo = 'INV-' + dateTag + '-' + seq;
+
+  let receiptNo = o.receipt_no;
+  if(!receiptNo) {
+    // 这笔交易还没分配过发票号——按日期领一个当天的流水号(001,002,...)，
+    // 然后写回这个receipt所有订单行，之后重印同一笔交易号码不会变。
+    const isoDate = now.toISOString().slice(0,10);
+    const { data: existingCounter } = await sb.from('receipt_counters').select('counter').eq('receipt_date', isoDate).maybeSingle();
+    const nextCount = (existingCounter?.counter || 0) + 1;
+    if(existingCounter) await sb.from('receipt_counters').update({counter: nextCount}).eq('receipt_date', isoDate);
+    else await sb.from('receipt_counters').insert({receipt_date: isoDate, counter: nextCount});
+    receiptNo = 'INV-' + dateTag + '-' + String(nextCount).padStart(3,'0');
+    // 一笔交易的订单行可能横跨 orders(A) 和 g_orders(K19) 两个表，分开写回
+    const aIds = orders.filter(x => x.business !== 'K19').map(x => x.id);
+    const kIds = orders.filter(x => x.business === 'K19').map(x => x.id);
+    if(aIds.length) await sb.from('orders').update({receipt_no: receiptNo}).in('id', aIds);
+    if(kIds.length) await sb.from('g_orders').update({receipt_no: receiptNo}).in('id', kIds);
+    orders.forEach(x => { x.receipt_no = receiptNo; });
+  }
   const payM = o.pay_method || o.payment_method || o.payment_status || '';
   const payLabel = payM.includes('qr') ? 'QR PAY' : payM.includes('cash') ? 'CASH' : payM.includes('credit') ? 'CREDIT' : payM.toUpperCase();
   const total = orders.reduce((s,x)=>s+(+(x.total_price||x.total||0)),0);
@@ -4278,7 +4296,6 @@ function printReceipt(ordersData) {
              .replace('##TOTAL##', total.toFixed(2))
              .replace('PAYLABEL', payLabel);
 
-  const win = window.open('', '_blank', 'width=800,height=950');
   if(win) { win.document.write(html); win.document.close(); }
   else { alert('Please allow pop-ups to print receipts.'); }
 }
