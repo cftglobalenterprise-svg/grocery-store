@@ -9272,7 +9272,7 @@ function renderHqProductSearch() {
     return;
   }
 
-  // Group by exact item name
+  // Group by exact item name for the summary totals
   const grouped = {};
   matched.forEach(o => {
     const key = o.item_name || 'Unknown';
@@ -9284,11 +9284,17 @@ function renderHqProductSearch() {
     grouped[key].txns++;
   });
 
-  const rows = Object.entries(grouped).sort((a,b) => b[1].rev - a[1].rev);
-  const totalRev = rows.reduce((s,[,d]) => s+d.rev, 0);
-  const totalCost = rows.reduce((s,[,d]) => s+d.cost, 0);
-  const totalQty = rows.reduce((s,[,d]) => s+d.qty, 0);
+  const totalRev = matched.reduce((s,o) => s + (+(o.total_price||o.total||0)), 0);
+  const totalQty = matched.reduce((s,o) => s + (+(o.qty||1)), 0);
+  const totalCost = matched.reduce((s,o) => {
+    const it = items.find(i => i.id === o.item_id);
+    return s + (it && it.cost_price ? +(it.cost_price)*(+(o.qty||1)) : 0);
+  }, 0);
   const totalProfit = totalRev - totalCost;
+
+  // 按时间排序（最新的在最上面）——直接列出每一笔卖出记录，回答「几时卖出去的」这个问题
+  const sortedTxns = [...matched].sort((a,b) => new Date(b.paid_at||b.created_at) - new Date(a.paid_at||a.created_at));
+  const productNames = Object.keys(grouped);
 
   el.innerHTML = `
     <div style="background:var(--surface2);border-radius:var(--radius-xs);padding:10px 12px;margin-bottom:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
@@ -9297,22 +9303,28 @@ function renderHqProductSearch() {
       <div><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px">Cost</div><div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace;color:var(--red)">RM ${totalCost.toFixed(2)}</div></div>
       <div><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px">Profit</div><div style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace;color:${totalProfit>=0?'var(--blue)':'var(--red)'}">RM ${totalProfit.toFixed(2)}</div></div>
     </div>
-    <div style="border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden">
-      <div style="display:grid;grid-template-columns:1fr 60px 90px 90px 90px;gap:0;background:var(--surface2);padding:6px 10px">
+    ${productNames.length > 1 ? `<div style="font-size:11px;color:var(--text3);margin-bottom:6px">符合的商品：${productNames.join('、')}</div>` : ''}
+    <div style="border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden;max-height:420px;overflow-y:auto">
+      <div style="display:grid;grid-template-columns:130px 1fr 50px 80px 70px;gap:0;background:var(--surface2);padding:6px 10px;position:sticky;top:0">
+        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Date &amp; Time</div>
         <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Product</div>
         <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;text-align:right">Qty</div>
-        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;text-align:right">Revenue</div>
-        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;text-align:right">Cost</div>
-        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;text-align:right">Profit</div>
+        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;text-align:right">Amount</div>
+        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;text-align:right">Pay</div>
       </div>
-      ${rows.map(([name,d]) => `
-        <div style="display:grid;grid-template-columns:1fr 60px 90px 90px 90px;gap:0;padding:7px 10px;border-top:1px solid var(--border);background:var(--surface)">
-          <div style="font-size:12px;font-weight:600">${name}</div>
-          <div style="font-size:12px;font-family:'DM Mono',monospace;text-align:right">${d.qty}</div>
-          <div style="font-size:12px;font-family:'DM Mono',monospace;text-align:right;color:var(--green)">RM ${d.rev.toFixed(2)}</div>
-          <div style="font-size:12px;font-family:'DM Mono',monospace;text-align:right;color:var(--red)">RM ${d.cost.toFixed(2)}</div>
-          <div style="font-size:12px;font-family:'DM Mono',monospace;text-align:right;font-weight:700;color:${(d.rev-d.cost)>=0?'var(--blue)':'var(--red)'}">RM ${(d.rev-d.cost).toFixed(2)}</div>
-        </div>`).join('')}
+      ${sortedTxns.map(o => {
+        const d = new Date(o.paid_at||o.created_at);
+        const dateStr = d.toLocaleDateString('en-MY',{day:'2-digit',month:'short',year:'numeric'}) + ' ' + d.toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit',hour12:true});
+        const pm = (o.pay_method||o.payment_method||o.payment_status||'').replace('paid_','');
+        return `
+        <div style="display:grid;grid-template-columns:130px 1fr 50px 80px 70px;gap:0;padding:7px 10px;border-top:1px solid var(--border);background:var(--surface)">
+          <div style="font-size:11px;color:var(--text2);font-family:'DM Mono',monospace">${dateStr}</div>
+          <div style="font-size:12px;font-weight:600">${o.item_name||'-'}${o.business==='K19'?' <span style="font-size:9px;background:#6d28d9;color:#fff;padding:1px 4px;border-radius:3px">杂货</span>':''}</div>
+          <div style="font-size:12px;font-family:'DM Mono',monospace;text-align:right">${o.qty||1}</div>
+          <div style="font-size:12px;font-family:'DM Mono',monospace;text-align:right;color:var(--green)">RM ${(+(o.total_price||o.total||0)).toFixed(2)}</div>
+          <div style="font-size:10px;color:var(--text3);text-align:right;text-transform:uppercase">${pm}</div>
+        </div>`;
+      }).join('')}
     </div>`;
 }
 
