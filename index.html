@@ -4273,11 +4273,29 @@ async function printReceipt(ordersData) {
     const itemDisc = +(x.discount_amount||0);
     const origSubtotal = itemTotal + itemDisc;
     const unitPrice = qty > 0 ? origSubtotal / qty : origSubtotal;
+
+    // 阶梯价检测：跟商品的第一档(基本)价格比较，如果这次实际单价更低，代表吃到量大更便宜的阶梯价
+    const it = items.find(i => String(i.id) === String(x.item_id));
+    let tierNote = '';
+    let tierSavings = 0;
+    if (it && it.service_tiers && it.service_tiers.length) {
+      const basePrice = +(it.price||0);
+      if (unitPrice < basePrice - 0.001) {
+        tierSavings = (basePrice - unitPrice) * qty;
+        tierNote = '<br><span style="font-size:10px;color:#2563eb">阶梯价 RM' + basePrice.toFixed(2) + ' → RM' + unitPrice.toFixed(2) + '/张</span>';
+      }
+    }
+
     const discPct = origSubtotal > 0 ? (itemDisc/origSubtotal*100) : 0;
-    const discCell = itemDisc > 0.005
-      ? '<span style="color:#dc2626">- RM ' + itemDisc.toFixed(2) + '</span><br><span style="font-size:10px;color:#dc2626">(' + discPct.toFixed(1) + '%)</span>'
-      : '<span style="color:#9ca3af">—</span>';
-    return '<tr><td style="padding:9px 0;border-bottom:1px solid #e5e7eb;font-size:13px;font-weight:500">' + (x.item_name||'-') + '</td>'
+    let discCell;
+    if (itemDisc > 0.005) {
+      discCell = '<span style="color:#dc2626">- RM ' + itemDisc.toFixed(2) + '</span><br><span style="font-size:10px;color:#dc2626">(' + discPct.toFixed(1) + '%)</span>';
+    } else if (tierSavings > 0.005) {
+      discCell = '<span style="color:#2563eb">- RM ' + tierSavings.toFixed(2) + '</span><br><span style="font-size:10px;color:#2563eb">阶梯价</span>';
+    } else {
+      discCell = '<span style="color:#9ca3af">—</span>';
+    }
+    return '<tr><td style="padding:9px 0;border-bottom:1px solid #e5e7eb;font-size:13px;font-weight:500">' + (x.item_name||'-') + tierNote + '</td>'
       + '<td style="padding:9px 4px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:13px">' + qty + '</td>'
       + '<td style="padding:9px 4px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px">RM ' + unitPrice.toFixed(2) + '</td>'
       + '<td style="padding:9px 4px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:12px">' + discCell + '</td>'
