@@ -4282,7 +4282,7 @@ async function printReceipt(ordersData) {
       const basePrice = +(it.price||0);
       if (unitPrice < basePrice - 0.001) {
         tierSavings = (basePrice - unitPrice) * qty;
-        tierNote = '<br><span style="font-size:10px;color:#2563eb">阶梯价 RM' + basePrice.toFixed(2) + ' → RM' + unitPrice.toFixed(2) + '/张</span>';
+        tierNote = '<br><span style="font-size:10px;color:#2563eb">Tier price RM' + basePrice.toFixed(2) + ' \u2192 RM' + unitPrice.toFixed(2) + '/pc</span>';
       }
     }
 
@@ -4291,7 +4291,7 @@ async function printReceipt(ordersData) {
     if (itemDisc > 0.005) {
       discCell = '<span style="color:#dc2626">- RM ' + itemDisc.toFixed(2) + '</span><br><span style="font-size:10px;color:#dc2626">(' + discPct.toFixed(1) + '%)</span>';
     } else if (tierSavings > 0.005) {
-      discCell = '<span style="color:#2563eb">- RM ' + tierSavings.toFixed(2) + '</span><br><span style="font-size:10px;color:#2563eb">阶梯价</span>';
+      discCell = '<span style="color:#2563eb">- RM ' + tierSavings.toFixed(2) + '</span><br><span style="font-size:10px;color:#2563eb">Tier Price</span>';
     } else {
       discCell = '<span style="color:#9ca3af">—</span>';
     }
