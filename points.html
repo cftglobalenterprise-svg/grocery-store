@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#7c3aed">
+<title>会员积分查询 · Semak Mata</title>
+<style>
+:root{
+  --bg:#f0ede8; --card:#fff; --text:#1c1b19; --text2:#6b665e; --border:#e2ddd5;
+  --accent:#7c3aed; --accent-bg:#ede9fe; --accent-text:#5b21b6;
+  --ok:#15803d; --warn:#b45309; --err:#b91c1c;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#141311; --card:#1f1d1a; --text:#f3f0ea; --text2:#a39d92; --border:#34312c;
+    --accent:#a78bfa; --accent-bg:#2a2146; --accent-text:#c4b5fd;
+    --ok:#4ade80; --warn:#fbbf24; --err:#f87171;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Noto Sans SC",Roboto,sans-serif;
+  min-height:100vh; line-height:1.5;
+  padding:calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+}
+.wrap{max-width:440px;margin:0 auto}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.brand{font-weight:800;font-size:15px;letter-spacing:.3px}
+.langs{display:flex;gap:4px}
+.langs button{
+  border:1px solid var(--border); background:var(--card); color:var(--text2);
+  font-size:12px; font-weight:600; padding:5px 10px; border-radius:999px; cursor:pointer;
+}
+.langs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+h1{font-size:24px;margin:0 0 4px}
+.sub{color:var(--text2);font-size:14px;margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px}
+label.field{display:block;font-size:13px;color:var(--text2);margin-bottom:6px}
+input[type=tel]{
+  width:100%; font-size:18px; padding:13px 14px; border-radius:12px;
+  border:1.5px solid var(--border); background:var(--bg); color:var(--text);
+  font-family:ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:.5px; outline:none;
+}
+input[type=tel]:focus{border-color:var(--accent)}
+.row{display:flex;align-items:center;gap:8px;margin:12px 0 14px;font-size:13px;color:var(--text2)}
+.row input{width:18px;height:18px;accent-color:var(--accent)}
+.go{
+  width:100%; border:none; border-radius:12px; padding:14px; font-size:16px; font-weight:700;
+  background:var(--accent); color:#fff; cursor:pointer;
+}
+.go:disabled{opacity:.6;cursor:default}
+.msg{font-size:14px;margin-top:12px;padding:10px 12px;border-radius:10px;display:none}
+.msg.show{display:block}
+.msg.err{background:rgba(185,28,28,.1);color:var(--err)}
+.msg.warn{background:rgba(180,83,9,.1);color:var(--warn)}
+#result{display:none}
+#result.show{display:block}
+.who{font-size:14px;color:var(--text2);margin-bottom:2px}
+.who b{color:var(--text)}
+.big{display:flex;align-items:baseline;gap:8px}
+.big .num{font-size:56px;font-weight:800;color:var(--accent);line-height:1.1;font-variant-numeric:tabular-nums}
+.big .unit{font-size:16px;color:var(--text2);font-weight:600}
+.worth{font-size:14px;color:var(--text2);margin-top:2px}
+.bar{height:10px;background:var(--accent-bg);border-radius:999px;overflow:hidden;margin:16px 0 8px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:999px;width:0;transition:width .5s ease}
+.status{font-size:14px;font-weight:600}
+.status.ok{color:var(--ok)}
+.status.more{color:var(--accent-text)}
+.exp{font-size:13px;color:var(--text2);margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+.again{background:none;border:none;color:var(--text2);font-size:13px;text-decoration:underline;cursor:pointer;padding:0;margin-top:12px}
+details{font-size:13px;color:var(--text2)}
+summary{cursor:pointer;font-weight:600;color:var(--text)}
+details ul{padding-left:18px;margin:10px 0 0}
+details li{margin-bottom:4px}
+.foot{text-align:center;font-size:11px;color:var(--text2);margin-top:18px;opacity:.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">🎁 CFT</div>
+    <div class="langs">
+      <button data-l="zh">中文</button>
+      <button data-l="ms">BM</button>
+      <button data-l="en">EN</button>
+    </div>
+  </div>
+
+  <h1 id="t-title"></h1>
+  <p class="sub" id="t-sub"></p>
+
+  <div class="card" id="form-card">
+    <label class="field" for="phone" id="t-label"></label>
+    <input id="phone" type="tel" inputmode="numeric" autocomplete="tel" maxlength="20">
+    <div class="row">
+      <input type="checkbox" id="remember" checked>
+      <label for="remember" id="t-remember"></label>
+    </div>
+    <button class="go" id="go"></button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="card" id="result">
+    <div class="who" id="r-who"></div>
+    <div class="big"><span class="num" id="r-num">0</span><span class="unit" id="t-unit"></span></div>
+    <div class="worth" id="r-worth"></div>
+    <div class="bar"><i id="r-bar"></i></div>
+    <div class="status" id="r-status"></div>
+    <div class="exp" id="r-exp"></div>
+    <button class="again" id="again"></button>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary id="t-rules-title"></summary>
+      <ul id="t-rules"></ul>
+    </details>
+  </div>
+
+  <div class="foot">CFT Global Enterprise</div>
+</div>
+
+<script>
+// 跟 POS 里的积分规则保持一致（index.html 里的 POINTS_REDEEM_MIN / POINTS_REDEEM_VALUE）。
+// 以后 POS 的规则改了，这里两个数字也要跟着改。
+const REDEEM_MIN = 100;
+const REDEEM_VALUE = 0.03;
+
+const SUPABASE_URL = 'https://zyeyhyfdjtgmoocdjgcg.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5ZXloeWZkanRnbW9vY2RqZ2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3NTAxMjIsImV4cCI6MjA5MDMyNjEyMn0.9W1f4KWxj82J8cgD1oPEmMfpqcFe11an9v9-ybjV-Sw';
+const LS_PHONE = 'cft_points_phone';
+const LS_LANG = 'cft_points_lang';
+
+const T = {
+  zh: {
+    title:'会员积分查询', sub:'输入注册会员的电话号码，随时查看自己的积分',
+    label:'电话号码', ph:'例如 0123456789', remember:'记住我的号码（只保存在这部手机里）',
+    go:'查询', loading:'查询中…', unit:'分',
+    who:'会员：{n}', worth:'约可折抵 RM{v}',
+    can:'✅ 已达兑换门槛——结账时告诉店员，就能用积分折抵',
+    more:'再累积 {n} 分就可以兑换',
+    exp:'积分有效至 {d}（一年内再消费，有效期会自动延后）',
+    expired:'你的积分已过期（超过一年没有消费）。再次消费就会重新累积。',
+    zero:'目前还没有积分。下次消费时告诉店员你的号码，就会开始累积。',
+    again:'查询其他号码',
+    nf:'找不到这个号码。请确认号码是否正确，或下次结账时请店员帮你登记成会员。',
+    bad:'请输入完整的电话号码。',
+    err:'暂时查不到，请稍后再试。',
+    rulesTitle:'积分规则',
+    rules:['每消费 RM1 得 1 分（部分商品不计分）','满 '+REDEEM_MIN+' 分可兑换，1 分 = RM'+REDEEM_VALUE.toFixed(2),'单笔最多可折抵消费金额的 50%','从最后一次赚分算起，满一年没有再消费，积分会过期'],
+    dl:'zh-CN'
+  },
+  ms: {
+    title:'Semak Mata Ahli', sub:'Masukkan nombor telefon ahli berdaftar untuk semak mata anda',
+    label:'Nombor telefon', ph:'cth. 0123456789', remember:'Ingat nombor saya (disimpan dalam telefon ini sahaja)',
+    go:'Semak', loading:'Menyemak…', unit:'mata',
+    who:'Ahli: {n}', worth:'Bernilai kira-kira RM{v}',
+    can:'✅ Mata anda cukup untuk ditebus — beritahu juruwang semasa bayaran',
+    more:'Kumpul {n} mata lagi untuk menebus',
+    exp:'Mata sah sehingga {d} (dilanjutkan secara automatik jika anda membeli lagi dalam setahun)',
+    expired:'Mata anda telah tamat tempoh (tiada pembelian lebih setahun). Mula mengumpul semula dengan pembelian seterusnya.',
+    zero:'Belum ada mata. Beritahu nombor anda kepada juruwang pada pembelian seterusnya untuk mula mengumpul.',
+    again:'Semak nombor lain',
+    nf:'Nombor tidak dijumpai. Sila semak nombor anda, atau minta juruwang daftarkan anda sebagai ahli.',
+    bad:'Sila masukkan nombor telefon penuh.',
+    err:'Tidak dapat semak buat masa ini. Sila cuba sebentar lagi.',
+    rulesTitle:'Peraturan mata',
+    rules:['Setiap RM1 belanja = 1 mata (sesetengah barang tidak layak)','Boleh tebus bermula '+REDEEM_MIN+' mata; 1 mata = RM'+REDEEM_VALUE.toFixed(2),'Maksimum 50% daripada jumlah bil boleh ditebus','Mata tamat tempoh jika tiada pembelian selama setahun selepas mata terakhir diperoleh'],
+    dl:'ms-MY'
+  },
+  en: {
+    title:'Check Your Points', sub:'Enter your registered phone number to see your member points anytime',
+    label:'Phone number', ph:'e.g. 0123456789', remember:'Remember my number (saved on this phone only)',
+    go:'Check', loading:'Checking…', unit:'pts',
+    who:'Member: {n}', worth:'Worth about RM{v}',
+    can:'✅ You can redeem now — just tell the cashier at checkout',
+    more:'Earn {n} more points to redeem',
+    exp:'Points valid until {d} (extended automatically when you purchase again within the year)',
+    expired:'Your points have expired (no purchase in over a year). They will start building again with your next purchase.',
+    zero:'No points yet. Give the cashier your number on your next purchase to start earning.',
+    again:'Check another number',
+    nf:'Number not found. Please double-check it, or ask the cashier to register you as a member.',
+    bad:'Please enter your full phone number.',
+    err:'Unable to check right now. Please try again shortly.',
+    rulesTitle:'Points rules',
+    rules:['Every RM1 spent = 1 point (some items are excluded)','Redeem from '+REDEEM_MIN+' points; 1 point = RM'+REDEEM_VALUE.toFixed(2),'Up to 50% of a bill can be paid with points','Points expire if there is no purchase for one year after your last earn'],
+    dl:'en-GB'
+  }
+};
+
+const $ = id => document.getElementById(id);
+let lang = 'zh';
+let current = null; // 最近一次查询结果，切换语言时用来重画
+
+function store(k, v){ try{ if(v===null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){} }
+function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+
+function detectLang(){
+  const saved = load(LS_LANG);
+  if(saved && T[saved]) return saved;
+  const n = (navigator.language||'').toLowerCase();
+  if(n.startsWith('ms')) return 'ms';
+  if(n.startsWith('zh')) return 'zh';
+  if(n.startsWith('en')) return 'en';
+  return 'zh';
+}
+
+function applyLang(){
+  const t = T[lang];
+  document.documentElement.lang = lang === 'zh' ? 'zh' : lang;
+  document.title = t.title;
+  $('t-title').textContent = t.title;
+  $('t-sub').textContent = t.sub;
+  $('t-label').textContent = t.label;
+  $('phone').placeholder = t.ph;
+  $('t-remember').textContent = t.remember;
+  $('go').textContent = t.go;
+  $('t-unit').textContent = t.unit;
+  $('again').textContent = t.again;
+  $('t-rules-title').textContent = t.rulesTitle;
+  const ul = $('t-rules'); ul.textContent = '';
+  t.rules.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
+  document.querySelectorAll('.langs button').forEach(b => b.classList.toggle('on', b.dataset.l === lang));
+  if(current) renderResult(current);
+}
+
+function showMsg(text, kind){
+  const m = $('msg');
+  m.textContent = text || '';
+  m.className = 'msg' + (text ? ' show ' + kind : '');
+}
+
+function renderResult(r){
+  const t = T[lang];
+  const pts = Math.max(0, Math.floor(+r.points || 0));
+  $('r-who').textContent = t.who.replace('{n}', r.name || '');
+  $('r-num').textContent = pts.toLocaleString(t.dl);
+  $('r-worth').textContent = pts > 0 ? t.worth.replace('{v}', (pts * REDEEM_VALUE).toFixed(2)) : '';
+  $('r-bar').style.width = Math.min(100, (pts / REDEEM_MIN) * 100) + '%';
+
+  const st = $('r-status');
+  if(pts >= REDEEM_MIN){ st.textContent = t.can; st.className = 'status ok'; }
+  else if(pts > 0){ st.textContent = t.more.replace('{n}', REDEEM_MIN - pts); st.className = 'status more'; }
+  else { st.textContent = r.expired ? t.expired : t.zero; st.className = 'status'; }
+
+  const exp = $('r-exp');
+  if(r.expires_at && pts > 0){
+    const d = new Date(r.expires_at + 'T00:00:00');
+    exp.textContent = t.exp.replace('{d}', d.toLocaleDateString(t.dl, {year:'numeric', month:'long', day:'numeric'}));
+    exp.style.display = '';
+  } else { exp.style.display = 'none'; }
+
+  $('result').classList.add('show');
+}
+
+async function lookup(phone){
+  const t = T[lang];
+  const digits = phone.replace(/\D/g, '');
+  if(digits.length < 9){ showMsg(t.bad, 'warn'); return; }
+
+  const btn = $('go');
+  btn.disabled = true; btn.textContent = t.loading; showMsg('');
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  try{
+    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/get_customer_points', {
+      method:'POST',
+      headers:{ 'apikey':SUPABASE_ANON_KEY, 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'Content-Type':'application/json' },
+      body: JSON.stringify({ p_phone: phone }),
+      signal: ctrl.signal
+    });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if(!data || !data.found){
+      current = null; $('result').classList.remove('show');
+      showMsg(T[lang].nf, 'warn');
+      return;
+    }
+    current = data;
+    if($('remember').checked) store(LS_PHONE, phone); else store(LS_PHONE, null);
+    $('form-card').style.display = 'none';
+    renderResult(data);
+  }catch(e){
+    showMsg(T[lang].err, 'err');
+  }finally{
+    clearTimeout(timer);
+    btn.disabled = false; btn.textContent = T[lang].go;
+  }
+}
+
+$('go').addEventListener('click', () => lookup($('phone').value.trim()));
+$('phone').addEventListener('keydown', e => { if(e.key === 'Enter') lookup($('phone').value.trim()); });
+$('again').addEventListener('click', () => {
+  current = null; store(LS_PHONE, null);
+  $('result').classList.remove('show');
+  $('form-card').style.display = '';
+  $('phone').value = ''; showMsg('');
+  $('phone').focus();
+});
+document.querySelectorAll('.langs button').forEach(b => b.addEventListener('click', () => {
+  lang = b.dataset.l; store(LS_LANG, lang); applyLang();
+}));
+
+lang = detectLang();
+applyLang();
+const saved = load(LS_PHONE);
+if(saved){ $('phone').value = saved; lookup(saved); }
+</script>
+</body>
+</html>
