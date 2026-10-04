@@ -71,6 +71,16 @@ input[type=tel]:focus{border-color:var(--accent)}
 .status.ok{color:var(--ok)}
 .status.more{color:var(--accent-text)}
 .exp{font-size:13px;color:var(--text2);margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+.hist{margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)}
+.hist h3{font-size:13px;margin:0 0 8px;color:var(--text2);font-weight:700}
+.h-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.h-row:last-child{border-bottom:none}
+.h-main{min-width:0}
+.h-label{color:var(--text);font-weight:600}
+.h-date{color:var(--text2);font-size:12px}
+.h-delta{font-weight:800;font-variant-numeric:tabular-nums;flex-shrink:0}
+.h-delta.pos{color:var(--ok)}
+.h-delta.neg{color:var(--accent-text)}
 .again{background:none;border:none;color:var(--text2);font-size:13px;text-decoration:underline;cursor:pointer;padding:0;margin-top:12px}
 details{font-size:13px;color:var(--text2)}
 summary{cursor:pointer;font-weight:600;color:var(--text)}
@@ -111,6 +121,7 @@ details li{margin-bottom:4px}
     <div class="bar"><i id="r-bar"></i></div>
     <div class="status" id="r-status"></div>
     <div class="exp" id="r-exp"></div>
+    <div class="hist" id="hist" style="display:none"><h3 id="t-hist"></h3><div id="hist-list"></div></div>
     <button class="again" id="again"></button>
   </div>
 
@@ -152,6 +163,9 @@ const T = {
     err:'暂时查不到，请稍后再试。',
     rulesTitle:'积分规则',
     rules:['每消费 RM1 得 1 分（部分商品不计分）','满 '+REDEEM_MIN+' 分可兑换，1 分 = RM'+REDEEM_VALUE.toFixed(2),'单笔最多可折抵消费金额的 50%','从最后一次赚分算起，满一年没有再消费，积分会过期'],
+    histTitle:'积分记录（最近 30 笔）',
+    hEarn:'消费赚分', hRedeem:'折抵消费', hManual:'店家调整',
+    hVoidNeg:'订单取消，扣回积分', hVoidPos:'订单取消，退回积分',
     dl:'zh-CN'
   },
   ms: {
@@ -170,6 +184,9 @@ const T = {
     err:'Tidak dapat semak buat masa ini. Sila cuba sebentar lagi.',
     rulesTitle:'Peraturan mata',
     rules:['Setiap RM1 belanja = 1 mata (sesetengah barang tidak layak)','Boleh tebus bermula '+REDEEM_MIN+' mata; 1 mata = RM'+REDEEM_VALUE.toFixed(2),'Maksimum 50% daripada jumlah bil boleh ditebus','Mata tamat tempoh jika tiada pembelian selama setahun selepas mata terakhir diperoleh'],
+    histTitle:'Rekod mata (30 terkini)',
+    hEarn:'Mata diperoleh', hRedeem:'Mata ditebus', hManual:'Pelarasan kedai',
+    hVoidNeg:'Pesanan dibatalkan, mata ditolak', hVoidPos:'Pesanan dibatalkan, mata dipulangkan',
     dl:'ms-MY'
   },
   en: {
@@ -188,6 +205,9 @@ const T = {
     err:'Unable to check right now. Please try again shortly.',
     rulesTitle:'Points rules',
     rules:['Every RM1 spent = 1 point (some items are excluded)','Redeem from '+REDEEM_MIN+' points; 1 point = RM'+REDEEM_VALUE.toFixed(2),'Up to 50% of a bill can be paid with points','Points expire if there is no purchase for one year after your last earn'],
+    histTitle:'Points history (latest 30)',
+    hEarn:'Earned', hRedeem:'Redeemed', hManual:'Shop adjustment',
+    hVoidNeg:'Order cancelled, points removed', hVoidPos:'Order cancelled, points returned',
     dl:'en-GB'
   }
 };
@@ -222,6 +242,7 @@ function applyLang(){
   $('t-unit').textContent = t.unit;
   $('again').textContent = t.again;
   $('t-rules-title').textContent = t.rulesTitle;
+  $('t-hist').textContent = t.histTitle;
   const ul = $('t-rules'); ul.textContent = '';
   t.rules.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
   document.querySelectorAll('.langs button').forEach(b => b.classList.toggle('on', b.dataset.l === lang));
@@ -239,7 +260,8 @@ function renderResult(r){
   const pts = Math.max(0, Math.floor(+r.points || 0));
   $('r-who').textContent = t.who.replace('{n}', r.name || '');
   $('r-num').textContent = pts.toLocaleString(t.dl);
-  $('r-worth').textContent = pts > 0 ? t.worth.replace('{v}', (pts * REDEEM_VALUE).toFixed(2)) : '';
+  const worthInt = Math.floor(Math.round(pts * REDEEM_VALUE * 100) / 100);
+  $('r-worth').textContent = worthInt >= 1 ? t.worth.replace('{v}', worthInt) : '';
   $('r-bar').style.width = Math.min(100, (pts / REDEEM_MIN) * 100) + '%';
 
   const st = $('r-status');
@@ -254,7 +276,36 @@ function renderResult(r){
     exp.style.display = '';
   } else { exp.style.display = 'none'; }
 
+  renderHistory(r.history || []);
   $('result').classList.add('show');
+}
+
+function renderHistory(rows){
+  const t = T[lang];
+  const box = $('hist'), list = $('hist-list');
+  list.textContent = '';
+  if(!rows.length){ box.style.display = 'none'; return; }
+  rows.forEach(h => {
+    const delta = +h.delta || 0;
+    let label = '';
+    if(h.kind === 'earn') label = t.hEarn;
+    else if(h.kind === 'redeem') label = t.hRedeem;
+    else if(h.kind === 'void') label = delta < 0 ? t.hVoidNeg : t.hVoidPos;
+    else label = t.hManual;
+
+    const row = document.createElement('div'); row.className = 'h-row';
+    const main = document.createElement('div'); main.className = 'h-main';
+    const l = document.createElement('div'); l.className = 'h-label'; l.textContent = label;
+    const d = document.createElement('div'); d.className = 'h-date';
+    d.textContent = new Date(h.d + 'T00:00:00').toLocaleDateString(t.dl, {year:'numeric', month:'short', day:'numeric'});
+    main.appendChild(l); main.appendChild(d);
+    const dv = document.createElement('div');
+    dv.className = 'h-delta ' + (delta >= 0 ? 'pos' : 'neg');
+    dv.textContent = (delta > 0 ? '+' : '') + delta.toLocaleString(t.dl);
+    row.appendChild(main); row.appendChild(dv);
+    list.appendChild(row);
+  });
+  box.style.display = '';
 }
 
 async function lookup(phone){
