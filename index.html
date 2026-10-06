@@ -3858,6 +3858,102 @@ function getServiceTierPrice(item, qty) {
   return tier ? +tier.price : +(item.price||0);
 }
 
+// ── SERVICE TIER PRICING ──────────────────────────────────
+let _tierItemId = null;
+
+function openTierModal(itemId) {
+  _tierItemId = String(itemId);
+  const it = items.find(i => String(i.id) === _tierItemId);
+  if (!it) return;
+  document.getElementById('tier-item-name').textContent = it.name;
+  const tiers = it.service_tiers || (it.price ? [{min_qty:1, price:+(it.price)}] : [{min_qty:1, price:0}]);
+  renderTierRows(tiers);
+  document.getElementById('tier-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+
+function openTierModalFromAdj() {
+  const id = adjId;
+  closeAdj();
+  setTimeout(() => openTierModal(id), 100);
+}
+
+function closeTierModal() {
+  document.getElementById('tier-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+  _tierItemId = null;
+}
+
+function renderTierRows(tiers) {
+  const el = document.getElementById('tier-rows');
+  if (!el) return;
+  el.innerHTML = tiers.map((t,i) => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:3px">${i===0?'基础（最少张数）':'超过 N 张时'}</div>
+        <input type="number" min="1" value="${t.min_qty}" placeholder="最少张数"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)"
+          oninput="updateTierRow(${i},'min_qty',this.value)">
+      </div>
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:3px">每张价格 (RM)</div>
+        <input type="number" min="0" step="0.01" value="${t.price}" placeholder="0.00"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--bg);color:var(--text)"
+          oninput="updateTierRow(${i},'price',this.value)">
+      </div>
+      ${tiers.length > 1 ? `<button onclick="removeTierRow(${i})" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:12px;margin-top:14px">✕</button>` : '<div style="width:34px"></div>'}
+    </div>`).join('');
+}
+
+function _getTierRowsData() {
+  const tiers = [];
+  document.querySelectorAll('#tier-rows > div').forEach((row, i) => {
+    const inputs = row.querySelectorAll('input');
+    const min_qty = parseInt(inputs[0]?.value) || 1;
+    const price   = parseFloat(inputs[1]?.value) || 0;
+    tiers.push({ min_qty, price });
+  });
+  return tiers;
+}
+
+function updateTierRow(i, field, val) { /* live update handled by reading DOM on save */ }
+
+function addTierRow() {
+  const tiers = _getTierRowsData();
+  const lastMin = tiers.length ? tiers[tiers.length-1].min_qty : 1;
+  tiers.push({ min_qty: lastMin + 10, price: 0 });
+  renderTierRows(tiers);
+}
+
+function removeTierRow(i) {
+  const tiers = _getTierRowsData();
+  tiers.splice(i, 1);
+  renderTierRows(tiers);
+}
+
+async function saveTiers() {
+  const tiers = _getTierRowsData();
+  if (!tiers.length || tiers.some(t => t.price <= 0)) {
+    alert('请填写所有阶梯的价格'); return;
+  }
+  // Sort by min_qty asc
+  tiers.sort((a,b) => a.min_qty - b.min_qty);
+  const it = items.find(i => String(i.id) === _tierItemId);
+  if (!it) return;
+  const tbl = itemTable(it);
+  // Save to Supabase and update base price to first tier price
+  const { error } = await sb.from(tbl).update({
+    service_tiers: tiers,
+    price: tiers[0].price  // base price = first tier
+  }).eq('id', it.id);
+  if (error) { alert('保存失败: ' + error.message); return; }
+  it.service_tiers = tiers;
+  it.price = tiers[0].price;
+  closeTierModal();
+  showPosToast('✅ 阶梯定价已保存');
+  await loadItems();
+}
+
 function getInstoreItemPricing(c) {
   if (c.item.is_service && c.item.service_tiers && c.item.service_tiers.length) {
     const unitPrice = getServiceTierPrice(c.item, c.qty);
