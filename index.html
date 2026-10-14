@@ -879,6 +879,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
                   <span style="font-size:12px;color:#5b21b6;font-weight:600" id="pos-points-selected-name"></span>
                   <button onclick="clearPosPointsCustomer()" style="padding:3px 8px;background:none;border:1px solid #5b21b6;border-radius:6px;font-size:11px;color:#5b21b6;cursor:pointer">✕ 取消</button>
                 </div>
+                <div id="pos-points-current-line" style="display:none;margin-top:6px;padding:6px 10px;border-radius:8px;background:var(--surface2);font-size:12px;line-height:1.5"></div>
                 <div id="pos-points-redeem-area" style="display:none;margin-top:8px">
                   <div style="font-size:11px;color:var(--text3);margin-bottom:6px" id="pos-points-balance-line"></div>
                   <div id="pos-redeem-input-row" style="display:flex;align-items:center;gap:6px">
@@ -8578,6 +8579,7 @@ async function selectPosPointsCustomer(id) {
 
   if(_posPointsMode === 'earn') {
     refreshPosPointsEstimate();
+    showPosPointsCurrent(c.id); // 选了顾客就让收银员看到他目前有多少积分、够不够兑换
   } else {
     document.getElementById('pos-points-selected-name').textContent = '✓ ' + c.name;
   }
@@ -8601,8 +8603,38 @@ async function selectPosPointsCustomer(id) {
   }
 }
 
+function renderPosPointsCurrent() {
+  const el = document.getElementById('pos-points-current-line');
+  if(!el || !_posPointsCustomer || _posPointsMode !== 'earn') return;
+  const bal = customerPointsMap[_posPointsCustomer.id] || 0;
+  let html;
+  if(bal >= POINTS_REDEEM_MIN) {
+    html = `💰 目前积分 <b style="color:#7c3aed;font-family:'DM Mono',monospace">${bal}</b> 分（约 RM ${(bal * POINTS_REDEEM_VALUE).toFixed(2)}）<span style="color:#15803d;font-weight:700"> ✅ 可兑换</span>`;
+  } else {
+    html = `💰 目前积分 <b style="color:#7c3aed;font-family:'DM Mono',monospace">${bal}</b> 分 <span style="color:var(--text3)">· 满 ${POINTS_REDEEM_MIN} 分才能兑换${bal > 0 ? '，还差 ' + (POINTS_REDEEM_MIN - bal) + ' 分' : ''}</span>`;
+  }
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+
+async function showPosPointsCurrent(customerId) {
+  const el = document.getElementById('pos-points-current-line');
+  if(!el) return;
+  if(_customerPointsLoaded) {
+    renderPosPointsCurrent();
+  } else {
+    el.innerHTML = '<span style="color:var(--text3)">💰 查询积分中…</span>';
+    el.style.display = 'block';
+  }
+  await loadCustomerPoints(); // 再抓一次最新的，防止别的设备刚加/扣过分
+  // 等的这段时间如果收银员已经换了顾客或取消了，就不要再画上去
+  if(_posPointsCustomer && String(_posPointsCustomer.id) === String(customerId)) renderPosPointsCurrent();
+}
+
 function clearPosPointsCustomer() {
   _posPointsCustomer = null;
+  const curLine = document.getElementById('pos-points-current-line');
+  if(curLine) { curLine.style.display = 'none'; curLine.innerHTML = ''; }
   const sel = document.getElementById('pos-points-selected');
   if(sel) sel.style.display = 'none';
   const search = document.getElementById('pos-points-search');
