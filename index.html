@@ -3563,6 +3563,25 @@ async function saveAdj() {
   setSync('ok','已保存 · '+timeNow());
 }
 
+// 「调整」弹窗里按 Enter = 按「保存」（改完库存/价格直接 Enter 就存）
+// - 打中文时用 Enter 确认选字，不能当成保存（isComposing / keyCode 229）
+// - Barcode 栏除外：条码枪扫完会自动送一个 Enter，不能因此直接存档关掉弹窗
+// - 保存进行中再按 Enter 不会重复保存
+let _adjEnterSaving = false;
+document.addEventListener('keydown', async function(e) {
+  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+  if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+  const modal = document.getElementById('adj-modal');
+  if (!modal || !modal.classList.contains('open')) return;
+  const t = e.target;
+  if (!t || t.tagName !== 'INPUT' || !modal.contains(t)) return; // 按钮/下拉选单按 Enter 维持原本行为
+  if (t.id === 'adj-barcode') return;
+  e.preventDefault();
+  if (_adjEnterSaving) return;
+  _adjEnterSaving = true;
+  try { await saveAdj(); } finally { _adjEnterSaving = false; }
+});
+
 // ── CART ───────────────────────────────────────────────────────────
 function addToCartById(id) {
   const item = items.find(i => String(i.id) === String(id));
