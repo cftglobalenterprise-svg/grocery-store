@@ -2256,8 +2256,10 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         <button class="btn" style="font-size:12px;padding:4px 10px" onclick="closeQuickRestock()">✕ 关闭</button>
       </div>
     </div>
-    <div id="qr-cats" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;flex-shrink:0"></div>
-    <input type="text" id="qr-search" placeholder="🔍 在这个类别里搜索..." oninput="renderQuickRestockList()" style="width:100%;box-sizing:border-box;margin-bottom:8px;flex-shrink:0">
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-shrink:0;align-items:center">
+      <select id="qr-cats" onchange="selectQuickRestockCat(this.value)" style="flex:1;min-width:0;padding:7px 8px;font-size:14px;font-weight:600"></select>
+      <input type="text" id="qr-search" placeholder="🔍 搜索" oninput="renderQuickRestockList()" style="width:96px;flex-shrink:0;padding:7px 8px;font-size:13px;box-sizing:border-box">
+    </div>
     <div id="qr-list" style="flex:1;overflow-y:auto;min-height:0"></div>
     <div style="flex-shrink:0;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--text2)">
@@ -6110,6 +6112,10 @@ function closeQuickRestock() {
   qrQty = {};
 }
 
+function qrCatLabel(c, count, filled) {
+  return (c===QR_NO_CAT?'未分类':c) + ' (' + count + ')' + (filled ? '  ✓已填 ' + filled : '');
+}
+
 function renderQuickRestockCats() {
   const el = document.getElementById('qr-cats');
   if(!el) return;
@@ -6118,11 +6124,8 @@ function renderQuickRestockCats() {
   all.forEach(it => { const c = qrCatOf(it); counts[c] = (counts[c]||0)+1; if(qrQty[it.id]) filled[c] = (filled[c]||0)+1; });
   const cats = Object.keys(counts).sort((a,b)=> a===QR_NO_CAT ? 1 : b===QR_NO_CAT ? -1 : a.localeCompare(b));
   if(!qrCat || !counts[qrCat]) qrCat = cats[0] || '';
-  el.innerHTML = cats.map(c => {
-    const active = c === qrCat;
-    const f = filled[c] ? ` <span style="background:${active?'#fff':'var(--green)'};color:${active?'var(--green)':'#fff'};border-radius:10px;padding:0 6px;font-size:10px;font-weight:700">${filled[c]}</span>` : '';
-    return `<button class="btn" data-qrcat="${qrEsc(c)}" onclick="selectQuickRestockCat(this.dataset.qrcat)" style="flex-shrink:0;white-space:nowrap;font-size:12px;padding:6px 12px;${active?'background:var(--green);border-color:var(--green);color:#fff;font-weight:700':''}">${qrEsc(c===QR_NO_CAT?'未分类':c)} <span style="opacity:.7;font-size:10px">${counts[c]}</span>${f}</button>`;
-  }).join('');
+  el.innerHTML = cats.map(c => `<option value="${qrEsc(c)}"${c===qrCat?' selected':''}>${qrEsc(qrCatLabel(c, counts[c], filled[c]))}</option>`).join('');
+  el.value = qrCat;
 }
 
 function selectQuickRestockCat(c) {
@@ -6171,22 +6174,13 @@ function setQuickRestockQty(id, val) {
   renderQuickRestockCatBadges();
 }
 
-// 只更新 category 上的「已填」数字，不重画列表（避免输入时失去焦点）
+// 只更新下拉选单里的「已填」数字，不重画列表（避免输入时失去焦点）
 function renderQuickRestockCatBadges() {
   const el = document.getElementById('qr-cats');
   if(!el) return;
-  const filled = {};
-  qrStockItems().forEach(it => { if(qrQty[it.id]) { const c = qrCatOf(it); filled[c] = (filled[c]||0)+1; } });
-  el.querySelectorAll('button[data-qrcat]').forEach(b => {
-    const c = b.dataset.qrcat, active = c === qrCat;
-    let badge = b.querySelector('.qr-badge');
-    if(filled[c]) {
-      if(!badge) { badge = document.createElement('span'); badge.className = 'qr-badge'; badge.style.cssText = 'border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;margin-left:4px'; b.appendChild(badge); }
-      badge.textContent = filled[c];
-      badge.style.background = active ? '#fff' : 'var(--green)';
-      badge.style.color = active ? 'var(--green)' : '#fff';
-    } else if(badge) badge.remove();
-  });
+  const counts = {}, filled = {};
+  qrStockItems().forEach(it => { const c = qrCatOf(it); counts[c] = (counts[c]||0)+1; if(qrQty[it.id]) filled[c] = (filled[c]||0)+1; });
+  [...el.options].forEach(o => { o.textContent = qrCatLabel(o.value, counts[o.value]||0, filled[o.value]); });
 }
 
 function updateQuickRestockSummary() {
