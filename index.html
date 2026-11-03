@@ -935,6 +935,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
             <button onclick="generateInventoryExcel()" style="padding:7px 16px;border:1px solid #1a6640;border-radius:var(--radius-xs);background:#fff;color:#1a6640;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">📊 Export Excel</button>
           </div>
         </div>
+        <button class="btn btn-block" style="background:var(--green);border-color:var(--green);color:#fff;font-weight:700;margin-bottom:12px" onclick="openQuickRestock()">📦 批量进货（按 Category 一次过进）</button>
         <!-- Reorder Tool -->
         <div class="collapse-card" id="panel-reorder" style="margin-bottom:12px">
           <div class="collapse-header" onclick="togglePanel('panel-reorder')">
@@ -2243,6 +2244,28 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <select id="bulk-qty-cat" onchange="renderBulkQtyEditor()" style="max-width:130px"><option value="">全部类别</option></select>
     </div>
     <div id="bulk-qty-list" style="flex:1;overflow-y:auto"></div>
+  </div>
+</div>
+<!-- QUICK RESTOCK MODAL (批量进货) -->
+<div class="modal-overlay" id="quick-restock-modal">
+  <div class="modal" style="max-width:560px;height:90vh;max-height:90vh;display:flex;flex-direction:column" onwheel="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px">
+      <h3 style="margin:0">📦 批量进货</h3>
+      <div style="display:flex;align-items:center;gap:6px">
+        <select id="qr-location" style="padding:5px 8px;font-size:13px"><option value="home">补到 家里</option><option value="shop">补到 店里</option></select>
+        <button class="btn" style="font-size:12px;padding:4px 10px" onclick="closeQuickRestock()">✕ 关闭</button>
+      </div>
+    </div>
+    <div id="qr-cats" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;flex-shrink:0"></div>
+    <input type="text" id="qr-search" placeholder="🔍 在这个类别里搜索..." oninput="renderQuickRestockList()" style="width:100%;box-sizing:border-box;margin-bottom:8px;flex-shrink:0">
+    <div id="qr-list" style="flex:1;overflow-y:auto;min-height:0"></div>
+    <div style="flex-shrink:0;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--text2)">
+        <span id="qr-summary">已填 0 项</span>
+        <button class="btn" style="font-size:11px;padding:3px 10px" onclick="clearQuickRestock()">🗑 清空已填</button>
+      </div>
+      <button class="btn btn-block" id="qr-submit" style="margin:0;background:var(--green);border-color:var(--green);color:#fff;font-weight:700" onclick="submitQuickRestock()">✅ 全部进货</button>
+    </div>
   </div>
 </div>
 <!-- BUNDLE RULES MODAL -->
@@ -6056,6 +6079,168 @@ async function confirmRestock() {
   }
   setSync('ok', `已进货 ${restockCart.length} 项 → ${locName} · ${timeNow()}`);
   clearRestock();
+  await loadItems();
+}
+
+// ── 批量进货（按 Category 列出全部商品，填数量，一键全部进货）────────
+let qrQty = {};          // itemId -> 进货数量（跨 category 保留）
+let qrCat = '';          // 当前选中的 category
+let qrBusy = false;
+const QR_NO_CAT = '__none__';
+function qrEsc(t){ return String(t==null?'':t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function qrStockItems(){ return items.filter(i => !i.is_service); }
+function qrCatOf(it){ return it.category || QR_NO_CAT; }
+
+function openQuickRestock() {
+  qrQty = {};
+  qrCat = '';
+  const s = document.getElementById('qr-search'); if(s) s.value = '';
+  document.getElementById('quick-restock-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+  renderQuickRestockCats();
+  renderQuickRestockList();
+  updateQuickRestockSummary();
+}
+
+function closeQuickRestock() {
+  const n = Object.keys(qrQty).length;
+  if(n && !confirm('已填了 ' + n + ' 项还没进货，确定关闭？（填的数量会清掉）')) return;
+  document.getElementById('quick-restock-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+  qrQty = {};
+}
+
+function renderQuickRestockCats() {
+  const el = document.getElementById('qr-cats');
+  if(!el) return;
+  const all = qrStockItems();
+  const counts = {}, filled = {};
+  all.forEach(it => { const c = qrCatOf(it); counts[c] = (counts[c]||0)+1; if(qrQty[it.id]) filled[c] = (filled[c]||0)+1; });
+  const cats = Object.keys(counts).sort((a,b)=> a===QR_NO_CAT ? 1 : b===QR_NO_CAT ? -1 : a.localeCompare(b));
+  if(!qrCat || !counts[qrCat]) qrCat = cats[0] || '';
+  el.innerHTML = cats.map(c => {
+    const active = c === qrCat;
+    const f = filled[c] ? ` <span style="background:${active?'#fff':'var(--green)'};color:${active?'var(--green)':'#fff'};border-radius:10px;padding:0 6px;font-size:10px;font-weight:700">${filled[c]}</span>` : '';
+    return `<button class="btn" data-qrcat="${qrEsc(c)}" onclick="selectQuickRestockCat(this.dataset.qrcat)" style="flex-shrink:0;white-space:nowrap;font-size:12px;padding:6px 12px;${active?'background:var(--green);border-color:var(--green);color:#fff;font-weight:700':''}">${qrEsc(c===QR_NO_CAT?'未分类':c)} <span style="opacity:.7;font-size:10px">${counts[c]}</span>${f}</button>`;
+  }).join('');
+}
+
+function selectQuickRestockCat(c) {
+  qrCat = c;
+  const s = document.getElementById('qr-search'); if(s) s.value = '';
+  renderQuickRestockCats();
+  renderQuickRestockList();
+  const l = document.getElementById('qr-list'); if(l) l.scrollTop = 0;
+}
+
+function renderQuickRestockList() {
+  const el = document.getElementById('qr-list');
+  if(!el) return;
+  const q = (document.getElementById('qr-search')?.value || '').trim().toLowerCase();
+  const list = qrStockItems()
+    .filter(it => qrCatOf(it) === qrCat && (!q || it.name.toLowerCase().includes(q)))
+    .sort((a,b) => a.name.localeCompare(b.name));
+  if(!list.length) { el.innerHTML = '<div class="empty">没有商品</div>'; return; }
+  el.innerHTML = list.map(it => {
+    const k19 = (it._table === 'g_items' || it.business === 'K19');
+    const v = qrQty[it.id] || '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:normal;word-break:break-word">${k19?'<span style="display:inline-block;background:#6d28d9;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:4px">杂货</span>':''}${qrEsc(it.name)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">家里 ${it.home_qty??0} · 店里 ${it.shop_qty??0}</div>
+      </div>
+      <input type="number" inputmode="numeric" min="0" step="1" value="${v}" placeholder="0" data-qrid="${qrEsc(it.id)}"
+        style="width:78px;padding:8px 6px;font-size:15px;border:1px solid var(--border);border-radius:6px;background:var(--bg);text-align:center;font-family:'DM Mono',monospace;box-sizing:border-box;flex-shrink:0"
+        oninput="setQuickRestockQty(this.dataset.qrid,this.value)"
+        onfocus="this.select()"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();qrFocusNext(this)}">
+    </div>`;
+  }).join('');
+}
+
+function qrFocusNext(inp) {
+  const all = [...document.querySelectorAll('#qr-list input[data-qrid]')];
+  const i = all.indexOf(inp);
+  if(all[i+1]) all[i+1].focus(); else inp.blur();
+}
+
+function setQuickRestockQty(id, val) {
+  const n = parseInt(val);
+  if(n > 0) qrQty[id] = n; else delete qrQty[id];
+  updateQuickRestockSummary();
+  renderQuickRestockCatBadges();
+}
+
+// 只更新 category 上的「已填」数字，不重画列表（避免输入时失去焦点）
+function renderQuickRestockCatBadges() {
+  const el = document.getElementById('qr-cats');
+  if(!el) return;
+  const filled = {};
+  qrStockItems().forEach(it => { if(qrQty[it.id]) { const c = qrCatOf(it); filled[c] = (filled[c]||0)+1; } });
+  el.querySelectorAll('button[data-qrcat]').forEach(b => {
+    const c = b.dataset.qrcat, active = c === qrCat;
+    let badge = b.querySelector('.qr-badge');
+    if(filled[c]) {
+      if(!badge) { badge = document.createElement('span'); badge.className = 'qr-badge'; badge.style.cssText = 'border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;margin-left:4px'; b.appendChild(badge); }
+      badge.textContent = filled[c];
+      badge.style.background = active ? '#fff' : 'var(--green)';
+      badge.style.color = active ? 'var(--green)' : '#fff';
+    } else if(badge) badge.remove();
+  });
+}
+
+function updateQuickRestockSummary() {
+  const ids = Object.keys(qrQty);
+  const total = ids.reduce((a,id)=>a+qrQty[id],0);
+  const el = document.getElementById('qr-summary');
+  if(el) el.textContent = ids.length ? `已填 ${ids.length} 项，共 ${total} 件` : '已填 0 项';
+}
+
+function clearQuickRestock() {
+  if(!Object.keys(qrQty).length) return;
+  if(!confirm('清空所有已填的数量？')) return;
+  qrQty = {};
+  renderQuickRestockCats();
+  renderQuickRestockList();
+  updateQuickRestockSummary();
+}
+
+async function submitQuickRestock() {
+  if(qrBusy) return;
+  const ids = Object.keys(qrQty);
+  if(!ids.length) { alert('还没有填任何数量'); return; }
+  const loc = document.getElementById('qr-location').value;
+  const locName = loc === 'home' ? '家里' : '店里';
+  const field = loc === 'home' ? 'home_qty' : 'shop_qty';
+  qrBusy = true;
+  const btn = document.getElementById('qr-submit');
+  btn.disabled = true;
+  setSync('busy', '批量进货中...');
+  let ok = 0; const failed = [];
+  for(let i = 0; i < ids.length; i++) {
+    btn.textContent = `进货中… ${i+1}/${ids.length}`;
+    const it = items.find(x => String(x.id) === String(ids[i]));
+    if(!it) { delete qrQty[ids[i]]; continue; }
+    try {
+      await adjustStockAtomic(it, field, qrQty[ids[i]]);
+      delete qrQty[ids[i]];   // 成功的从清单拿掉，失败的留着可以重试
+      ok++;
+    } catch(e) { console.error('批量进货失败', it.name, e); failed.push(it.name); }
+  }
+  qrBusy = false;
+  btn.disabled = false;
+  btn.textContent = '✅ 全部进货';
+  if(failed.length) {
+    setSync('err', `进货 ${ok} 项成功，${failed.length} 项失败`);
+    alert(`成功 ${ok} 项。\n以下 ${failed.length} 项失败（数量还留在清单里，可再按一次重试）：\n` + failed.join('\n'));
+    renderQuickRestockCats(); renderQuickRestockList(); updateQuickRestockSummary();
+  } else {
+    setSync('ok', `已进货 ${ok} 项 → ${locName} · ${timeNow()}`);
+    qrQty = {};
+    document.getElementById('quick-restock-modal').classList.remove('open');
+    document.body.classList.remove('modal-open');
+    if(typeof showPosToast === 'function') showPosToast(`✅ 已进货 ${ok} 项 → ${locName}`);
+  }
   await loadItems();
 }
 
