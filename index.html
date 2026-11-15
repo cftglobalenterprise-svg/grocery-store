@@ -782,8 +782,11 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn" id="navbtn-payroll" onclick="posSwitchTab('payroll')" style="display:none">
         <span class="nav-icon">💼</span> 员工薪资
       </button>
-      <button class="nav-btn" id="navbtn-lhdn" onclick="posSwitchTab('lhdn')" style="display:none">
+      <button class="nav-btn" id="navbtn-lhdn" onclick="_lhdnAssetsOnly=false;posSwitchTab('lhdn')" style="display:none">
         <span class="nav-icon">🗂️</span> 税务 LHDN
+      </button>
+      <button class="nav-btn" id="navbtn-assets" onclick="goToAssetsPage()" style="display:none">
+        <span class="nav-icon">🏗️</span> 资产
       </button>
       <button class="nav-btn" id="navbtn-owner" onclick="posSwitchTab('owner')" style="display:none">
         <span class="nav-icon">💰</span> 老板总览
@@ -1342,7 +1345,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         </div>
 
         <!-- Sub tabs -->
-        <div style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:16px">
+        <div id="lhdn-subtabs" style="display:flex;gap:0;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:16px">
           <button class="lhdn-tab" id="ltab-summary" onclick="setLhdnTab('summary')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--text);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif">📊 总览</button>
           <button class="lhdn-tab" id="ltab-sales" onclick="setLhdnTab('sales')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">💰 Sales</button>
           <button class="lhdn-tab" id="ltab-stock" onclick="setLhdnTab('stock')" style="flex:1;padding:9px 4px;font-size:12px;font-weight:600;border:none;background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif">📦 库存</button>
@@ -2842,6 +2845,10 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
 const SUPABASE_URL = 'https://zyeyhyfdjtgmoocdjgcg.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5ZXloeWZkanRnbW9vY2RqZ2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3NTAxMjIsImV4cCI6MjA5MDMyNjEyMn0.9W1f4KWxj82J8cgD1oPEmMfpqcFe11an9v9-ybjV-Sw';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// 是否在左侧选单显示「税务 LHDN」入口。目前交给会计处理，所以隐藏（false）。
+// 只影响选单入口；LHDN 的程式码、资料表、功能都还在。要恢复，把这里改成 true 即可。
+const SHOW_LHDN_NAV = false;
 
 // ── Dual-business table router ─────────────────────────
 // Use item._table to know which Supabase table to write to
@@ -9311,9 +9318,9 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-debtors',
-     'navbtn-hq','navbtn-payroll','navbtn-lhdn','navbtn-owner','navbtn-suppliers'].forEach(id => {
+     'navbtn-hq','navbtn-payroll','navbtn-lhdn','navbtn-assets','navbtn-owner','navbtn-suppliers'].forEach(id => {
       const el = document.getElementById(id);
-      if(el) el.style.display = '';
+      if(el) el.style.display = (id === 'navbtn-lhdn' && !SHOW_LHDN_NAV) ? 'none' : '';
     });
     // 总部隐藏总览
     const ovBtn = document.getElementById('navbtn-overview');
@@ -12955,7 +12962,12 @@ async function renderOwnerSummary() {
 
 function goToAssetsPage() {
   _lhdnTab = 'assets';
+  _lhdnAssetsOnly = true; // 从「资产」入口进来：只显示资产内容，隐藏 LHDN 其他分页标签
   posSwitchTab('lhdn');
+  // posSwitchTab 会把高亮放在（隐藏的）navbtn-lhdn，这里改为高亮「资产」按钮
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const ab = document.getElementById('navbtn-assets');
+  if(ab) ab.classList.add('active');
 }
 
 function renderOwnerSnapshot() {
@@ -13090,6 +13102,7 @@ async function lhdnMigrateLocalData() {
 let _lhdnYear = new Date().getFullYear();
 let _lhdnTab  = 'summary';
 let _lhdnEditAssetId = null;
+let _lhdnAssetsOnly = false; // true = 从「资产」入口进来，隐藏 LHDN 子分页标签
 
 // ── Init ──────────────────────────────────────────────────
 async function renderLhdnPage() {
@@ -13107,6 +13120,8 @@ async function renderLhdnPage() {
   }
   _lhdnYear = parseInt(document.getElementById('lhdn-year')?.value) || new Date().getFullYear();
   setLhdnTab(_lhdnTab);
+  const subTabs = document.getElementById('lhdn-subtabs');
+  if (subTabs) subTabs.style.display = _lhdnAssetsOnly ? 'none' : 'flex';
 }
 
 function setLhdnTab(t) {
