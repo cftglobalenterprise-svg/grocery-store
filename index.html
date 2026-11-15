@@ -791,6 +791,9 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn" id="navbtn-owner" onclick="posSwitchTab('owner')" style="display:none">
         <span class="nav-icon">💰</span> 老板总览
       </button>
+      <button class="nav-btn" id="navbtn-aiboard" onclick="window.open('https://cftglobalenterprise-svg.github.io/ai-team-board/','_blank','noopener')" style="display:none">
+        <span class="nav-icon">🤖</span> AI 员工看板
+      </button>
       <button class="nav-btn" id="navbtn-suppliers" onclick="posSwitchTab('suppliers')" style="display:none">
         <span class="nav-icon">📦</span> 供应商收据
       </button>
@@ -9318,7 +9321,7 @@ function applyRolePermissions(role) {
   } else {
     // 总部: 全部功能 + 总部报表
     ['navbtn-instore','navbtn-stock','navbtn-orders','navbtn-debtors',
-     'navbtn-hq','navbtn-payroll','navbtn-lhdn','navbtn-assets','navbtn-owner','navbtn-suppliers'].forEach(id => {
+     'navbtn-hq','navbtn-payroll','navbtn-lhdn','navbtn-assets','navbtn-owner','navbtn-aiboard','navbtn-suppliers'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = (id === 'navbtn-lhdn' && !SHOW_LHDN_NAV) ? 'none' : '';
     });
