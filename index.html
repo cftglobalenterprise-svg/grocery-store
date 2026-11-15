@@ -791,7 +791,7 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
       <button class="nav-btn" id="navbtn-owner" onclick="posSwitchTab('owner')" style="display:none">
         <span class="nav-icon">💰</span> 老板总览
       </button>
-      <button class="nav-btn" id="navbtn-aiboard" onclick="window.open('https://cftglobalenterprise-svg.github.io/ai-team-board/','_blank','noopener')" style="display:none">
+      <button class="nav-btn" id="navbtn-aiboard" onclick="posSwitchTab('aiboard')" style="display:none">
         <span class="nav-icon">🤖</span> AI 员工看板
       </button>
       <button class="nav-btn" id="navbtn-suppliers" onclick="posSwitchTab('suppliers')" style="display:none">
@@ -1460,6 +1460,11 @@ body.hq-mode .collapse-card.hq-only { display: block !important; }
         <div id="suppliers-total-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px"></div>
         <div id="suppliers-accordion"></div>
       </template>
+
+      <!-- ══ AI 员工看板 (iframe 内嵌；刻意不用 <template>：离开时清空会丢掉看板登入状态，所以常驻、首次进入才设 src) ══ -->
+      <div id="page-aiboard" class="page" style="padding:0;overflow:hidden">
+        <iframe id="aiboard-frame" title="AI 员工看板" data-src="https://cftglobalenterprise-svg.github.io/ai-team-board/" style="display:block;width:100%;height:100%;border:0;background:#fff" referrerpolicy="no-referrer-when-downgrade" allow="clipboard-write"></iframe>
+      </div>
 
       <!-- ══ CUSTOMERS PAGE ════════════════════════════ -->
       <!-- HOLIDAYS / MEMO PAGE -->
@@ -9093,6 +9098,11 @@ function _posSwitchTabInner(t) {
   else if(t === 'ledger') { renderLedgerPage(); }
   else if(t === 'owner') { renderOwnerPage(); }
   else if(t === 'suppliers') { renderSuppliersPage(); }
+  else if(t === 'aiboard') {
+    // 懒加载：第一次进入才设 src，之后切回来不重载（保留看板登入状态）
+    const fr = document.getElementById('aiboard-frame');
+    if(fr && !fr.getAttribute('src')) fr.setAttribute('src', fr.dataset.src);
+  }
 }
 
 function posOpenBundle() { openBundleRulesModal(); }
